@@ -8,7 +8,7 @@ import {
   type ScheduleDoc,
   type ScheduleStatus,
 } from "@syt/shared";
-import { monthUtcRange, utcDay, weekRangeUtcContaining, toIsoDate } from "../utils/dateRange.js";
+import { monthUtcRange, utcDay, utcDayEnd, weekRangeUtcContaining, toIsoDate, eachUtcDayInclusive } from "../utils/dateRange.js";
 import * as notify from "./notificationClient.js";
 
 export function toPublic(doc: ScheduleDoc) {
@@ -114,7 +114,7 @@ export async function updateSchedule(
       locationId: pub.locationId,
       workDate: pub.workDate,
       status: pub.status,
-      updatedBy: input.updatedBy,
+      updatedBy: input.updatedBy ?? doc.updatedBy?.toString(),
       note: pub.note,
     });
   }
@@ -156,7 +156,7 @@ export async function listSchedules(filter: {
   if (filter.from || filter.to) {
     q.workDate = {};
     if (filter.from) (q.workDate as Record<string, Date>).$gte = utcDay(filter.from);
-    if (filter.to) (q.workDate as Record<string, Date>).$lte = utcDay(filter.to);
+    if (filter.to) (q.workDate as Record<string, Date>).$lte = utcDayEnd(filter.to);
   }
   const docs = await Schedule.find(q).sort({ workDate: 1 }).lean();
   return docs.map((d) => toPublic(d as unknown as ScheduleDoc));
@@ -237,7 +237,8 @@ export async function upsertBulkInternal(
     locationId?: string;
     note?: string;
     updatedBy?: string;
-  }>
+  }>,
+  options?: { skipNotifications?: boolean }
 ) {
   const results = [];
   for (const item of items) {
@@ -274,19 +275,71 @@ export async function upsertBulkInternal(
       results.push(doc);
     }
   }
-  for (const r of results) {
-    await notify.notifyScheduleChange({
-      scheduleId: r.id,
-      employeeId: r.employeeId,
-      departmentId: r.departmentId,
-      locationId: r.locationId,
-      workDate: r.workDate,
-      status: r.status,
-      updatedBy: undefined,
-      note: r.note,
-    });
+  if (!options?.skipNotifications) {
+    for (const r of results) {
+      await notify.notifyScheduleChange({
+        scheduleId: r.id,
+        employeeId: r.employeeId,
+        departmentId: r.departmentId,
+        locationId: r.locationId,
+        workDate: r.workDate,
+        status: r.status,
+        updatedBy: undefined,
+        note: r.note,
+      });
+    }
   }
   return results;
+}
+
+const MAX_SCHEDULE_RANGE_DAYS = 400;
+
+export async function createSchedulesForDateRange(input: {
+  employeeId: string;
+  departmentId?: string;
+  locationId?: string;
+  workDateFrom: string;
+  workDateTo: string;
+  status: ScheduleStatus;
+  hours?: number;
+  note?: string;
+  updatedBy?: string;
+}) {
+  const days = eachUtcDayInclusive(input.workDateFrom, input.workDateTo);
+  if (days.length === 0) throw new AppError(400, "תאריך הסיום לפני תאריך ההתחלה", "VALIDATION");
+  if (days.length > MAX_SCHEDULE_RANGE_DAYS) {
+    throw new AppError(400, `טווח של יותר מ־${MAX_SCHEDULE_RANGE_DAYS} ימים אינו נתמך`, "VALIDATION");
+  }
+
+  const items = days.map((workDate) => ({
+    employeeId: input.employeeId,
+    departmentId: input.departmentId,
+    locationId: input.locationId,
+    workDate,
+    status: input.status,
+    hours: input.hours,
+    note: input.note,
+    updatedBy: input.updatedBy,
+  }));
+
+  const results = await upsertBulkInternal(items, { skipNotifications: true });
+  const first = results[0];
+  if (first) {
+    await notify.notifyScheduleRangeChange({
+      scheduleId: first.id,
+      employeeId: input.employeeId,
+      departmentId: input.departmentId,
+      locationId: input.locationId,
+      workDateFrom: days[0]!,
+      workDateTo: days[days.length - 1]!,
+      dayCount: days.length,
+      status: input.status,
+      updatedBy: input.updatedBy,
+      note: input.note,
+    });
+  }
+
+  return { items: results, count: results.length };
 }
 
 /** For each (employeeId, workDate): true if any schedule row that day has status office. */

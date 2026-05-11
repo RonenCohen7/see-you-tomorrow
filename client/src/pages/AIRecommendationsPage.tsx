@@ -11,6 +11,9 @@ import {
   GlobalStyles,
   IconButton,
   LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
   MenuItem,
   Snackbar,
   Stack,
@@ -234,7 +237,7 @@ export default function AIRecommendationsPage() {
                 {t("aiAlerts")}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                ניתוח 30 הימים האחרונים מתוך לוח השיבוצים
+                לוח שיבוצים (30 יום אחרונים), חגים קרובים, תחזית גשם בסיסית, והתראות חניה
               </Typography>
             </Box>
             <Chip
@@ -426,12 +429,15 @@ export default function AIRecommendationsPage() {
 
 function AlertRow({ alert, index }: { alert: SmartAlert; index: number }) {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const [groupOpen, setGroupOpen] = useState(false);
   const sevColor =
     alert.severity === "error"
       ? theme.palette.error.main
       : alert.severity === "warning"
         ? theme.palette.warning.main
         : theme.palette.info.main;
+  const hasGroup = (alert.groupMembers?.length ?? 0) > 0;
   return (
     <Stack
       direction="row"
@@ -477,6 +483,22 @@ function AlertRow({ alert, index }: { alert: SmartAlert; index: number }) {
         <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word", mt: 0.25 }}>
           {alert.detail}
         </Typography>
+        {hasGroup ? (
+          <Box sx={{ mt: 1 }}>
+            <Button size="small" variant="text" onClick={() => setGroupOpen((o) => !o)} sx={{ fontWeight: 700 }}>
+              {groupOpen ? t("aiGroupCollapseList") : t("aiGroupExpandList")}
+            </Button>
+            <Collapse in={groupOpen}>
+              <List dense disablePadding sx={{ mt: 0.5, pl: 0 }}>
+                {(alert.groupMembers ?? []).map((m) => (
+                  <ListItem key={m.employeeId} disableGutters sx={{ py: 0.25 }}>
+                    <ListItemText primary={m.employeeName} primaryTypographyProps={{ variant: "body2" }} />
+                  </ListItem>
+                ))}
+              </List>
+            </Collapse>
+          </Box>
+        ) : null}
       </Box>
     </Stack>
   );

@@ -37,6 +37,7 @@ services:
       SCHEDULE_SERVICE_URL: http://schedule-service:4005
       NOTIFICATION_SERVICE_URL: http://notification-service:4006
       AI_SERVICE_URL: http://ai-service:4007
+      REPORT_SERVICE_URL: http://report-service:4008
     depends_on:
       - mongo
       - redis
@@ -47,6 +48,7 @@ services:
       - schedule-service
       - notification-service
       - ai-service
+      - report-service
 
   auth-service:
     build: .
@@ -178,6 +180,27 @@ services:
     depends_on:
       - mongo
       - schedule-service
+
+  report-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/report-service/dist/index.js"]
+    ports:
+      - "4008:4008"
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4008"
+      SCHEDULE_SERVICE_URL: http://schedule-service:4005
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      LOCATION_SERVICE_URL: http://location-service:4004
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+    depends_on:
+      - schedule-service
+      - employee-service
+      - location-service
+      - notification-service
 
 volumes:
   mongo_data:

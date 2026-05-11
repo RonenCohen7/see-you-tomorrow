@@ -6,5 +6,7 @@ const r = Router();
 r.use(requireInternalSecret);
 
 r.post("/notifications/schedule-change", ctrl.scheduleChange);
+r.post("/notifications/schedule-range-change", ctrl.scheduleRangeChange);
+r.post("/notifications/email-attachment", ctrl.emailAttachment);
 
 export const internalRoutes = r;

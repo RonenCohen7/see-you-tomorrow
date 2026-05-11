@@ -8,7 +8,7 @@ import {
   type AuthRequest,
   type ScheduleDoc,
 } from "@syt/shared";
-import { createScheduleSchema, listQuerySchema, updateScheduleSchema } from "../validations/schedule.js";
+import { createScheduleSchema, createScheduleRangeSchema, listQuerySchema, updateScheduleSchema } from "../validations/schedule.js";
 import * as authz from "../services/scheduleAuthz.js";
 import * as orgSettings from "../services/orgSettingsService.js";
 import * as svc from "../services/scheduleService.js";
@@ -133,6 +133,36 @@ export async function create(req: AuthRequest, res: Response) {
     departmentId,
     locationId,
     hours: parsed.data.hours,
+    updatedBy: req.user.id,
+  });
+  res.status(201).json(result);
+}
+
+export async function createRange(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const parsed = createScheduleRangeSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+
+  let { departmentId, locationId } = parsed.data;
+  const emp = await empRemote.fetchEmployeeInternal(parsed.data.employeeId);
+  if (!departmentId && emp?.departmentId) departmentId = emp.departmentId;
+  if (!locationId && emp?.locationId) locationId = emp.locationId;
+
+  await authz.assertCanWriteSchedule({
+    userId: req.user.id,
+    role: req.user.role,
+    targetEmployeeId: parsed.data.employeeId,
+  });
+
+  const result = await svc.createSchedulesForDateRange({
+    employeeId: parsed.data.employeeId,
+    departmentId,
+    locationId,
+    workDateFrom: parsed.data.workDateFrom,
+    workDateTo: parsed.data.workDateTo,
+    status: parsed.data.status,
+    hours: parsed.data.hours,
+    note: parsed.data.note,
     updatedBy: req.user.id,
   });
   res.status(201).json(result);

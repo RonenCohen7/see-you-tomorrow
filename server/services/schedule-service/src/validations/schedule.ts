@@ -13,6 +13,22 @@ export const createScheduleSchema = z.object({
   note: z.string().optional(),
 });
 
+export const createScheduleRangeSchema = z
+  .object({
+    employeeId: objectId,
+    departmentId: objectId.optional(),
+    locationId: objectId.optional(),
+    workDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    workDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    status: z.enum(SCHEDULE_STATUSES),
+    hours: z.number().min(0).max(24).optional(),
+    note: z.string().optional(),
+  })
+  .refine((d) => d.workDateFrom <= d.workDateTo, {
+    message: "תאריך הסיום חייב להיות אחרי או שווה לתאריך ההתחלה",
+    path: ["workDateTo"],
+  });
+
 export const updateScheduleSchema = createScheduleSchema.partial().omit({ employeeId: true });
 
 export const listQuerySchema = z.object({

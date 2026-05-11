@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  InputAdornment,
   MenuItem,
   Snackbar,
   Stack,
@@ -22,10 +23,12 @@ import {
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import AddIcon from "@mui/icons-material/AddCircle";
+import SearchIcon from "@mui/icons-material/Search";
 import SchedulesIcon from "@mui/icons-material/EventNote";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import { useTranslation } from "react-i18next";
@@ -36,15 +39,22 @@ import type { StatusKey } from "../theme/theme";
 
 type FormState = {
   employeeId: string;
-  workDate: string;
+  workDateStart: string;
+  workDateEnd: string;
   status: StatusKey;
   hours: string;
   note: string;
 };
 
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** סטטוסים שמופיעים בדוח «שיבוץ לפי סטטוס» — לא כולל «לא עובד». */
+const SCHEDULE_STATUSES_IN_DAILY_REPORT = new Set<Schedule["status"]>(["office", "home", "vacation", "sick"]);
+
 const emptyForm: FormState = {
   employeeId: "",
-  workDate: new Date().toISOString().slice(0, 10),
+  workDateStart: todayIso(),
+  workDateEnd: todayIso(),
   status: "office",
   hours: "",
   note: "",
@@ -53,6 +63,9 @@ const emptyForm: FormState = {
 export default function ScheduleManagementPage() {
   const { t } = useTranslation();
   const theme = useTheme();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const forReport = searchParams.get("forReport") === "1";
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const role = useRole();
   const qc = useQueryClient();
@@ -60,6 +73,7 @@ export default function ScheduleManagementPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [employeeSearch, setEmployeeSearch] = useState("");
 
   const employeesQ = useQuery({
     queryKey: ["employees-all-for-schedule"],
@@ -90,29 +104,87 @@ export default function ScheduleManagementPage() {
     return m;
   }, [employeesQ.data?.items]);
 
+  const allScheduleRows = useMemo(() => schedulesQ.data?.items ?? [], [schedulesQ.data?.items]);
+
+  const filteredScheduleRows = useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    if (!q) return allScheduleRows;
+    return allScheduleRows.filter((row) => {
+      const emp = employeeMap.get(row.employeeId);
+      const name = (emp?.fullName ?? "").toLowerCase();
+      const email = (emp?.email ?? "").toLowerCase();
+      const id = row.employeeId.toLowerCase();
+      return name.includes(q) || email.includes(q) || id.includes(q);
+    });
+  }, [allScheduleRows, employeeMap, employeeSearch]);
+
+  const employeesMatchingSearch = useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    if (!q) return [];
+    const items = employeesQ.data?.items ?? [];
+    return items.filter((e) => {
+      const name = (e.fullName ?? "").toLowerCase();
+      const email = (e.email ?? "").toLowerCase();
+      return name.includes(q) || email.includes(q) || e.id.toLowerCase().includes(q);
+    });
+  }, [employeesQ.data?.items, employeeSearch]);
+
+  const employeesMatchedWithoutShifts = useMemo(
+    () => employeesMatchingSearch.filter((e) => !allScheduleRows.some((r) => r.employeeId === e.id)),
+    [employeesMatchingSearch, allScheduleRows]
+  );
+
   const saveMut = useMutation({
     mutationFn: async () => {
+      if (!editingId && form.workDateStart > form.workDateEnd) {
+        const err = new Error("INVALID_DATE_RANGE");
+        (err as Error & { code?: string }).code = "INVALID_DATE_RANGE";
+        throw err;
+      }
       const payload: Record<string, unknown> = {
-        workDate: form.workDate,
         status: form.status,
         note: form.note || undefined,
       };
       const h = form.hours.trim() === "" ? undefined : Number(form.hours);
       if (h !== undefined && !Number.isNaN(h)) payload.hours = h;
       if (editingId) {
+        payload.workDate = form.workDateStart;
         return api.put(`/api/schedules/${editingId}`, payload);
       }
       payload.employeeId = form.employeeId;
-      return api.post("/api/schedules", payload);
+      if (form.workDateStart === form.workDateEnd) {
+        payload.workDate = form.workDateStart;
+        return api.post("/api/schedules", payload);
+      }
+      return api.post("/api/schedules/range", {
+        employeeId: form.employeeId,
+        workDateFrom: form.workDateStart,
+        workDateTo: form.workDateEnd,
+        status: form.status,
+        note: form.note || undefined,
+        ...(h !== undefined && !Number.isNaN(h) ? { hours: h } : {}),
+      });
     },
-    onSuccess: async () => {
-      setToast({ msg: t("success"), ok: true });
+    onSuccess: async (response) => {
+      const data = response?.data as { count?: number } | undefined;
+      if (data && typeof data.count === "number" && data.count > 1) {
+        setToast({ msg: t("schedulesRangeSaved", { count: data.count }), ok: true });
+      } else {
+        setToast({ msg: t("success"), ok: true });
+      }
       setOpen(false);
       setEditingId(null);
       setForm(emptyForm);
       await qc.invalidateQueries({ queryKey: ["schedules-all"] });
     },
-    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+    onError: (err) => {
+      const code = (err as Error & { code?: string }).code;
+      if (code === "INVALID_DATE_RANGE") {
+        setToast({ msg: t("schedulesInvalidDateRange"), ok: false });
+        return;
+      }
+      setToast({ msg: apiErrorMessage(err, t("error")), ok: false });
+    },
   });
 
   const deleteMut = useMutation({
@@ -132,11 +204,18 @@ export default function ScheduleManagementPage() {
     setOpen(true);
   }
 
+  function openCreateForEmployee(employeeId: string) {
+    setEditingId(null);
+    setForm({ ...emptyForm, employeeId });
+    setOpen(true);
+  }
+
   function openEdit(row: Schedule) {
     setEditingId(row.id);
     setForm({
       employeeId: row.employeeId,
-      workDate: row.workDate,
+      workDateStart: row.workDate,
+      workDateEnd: row.workDate,
       status: row.status,
       hours: row.hours != null ? String(row.hours) : "",
       note: row.note ?? "",
@@ -225,7 +304,17 @@ export default function ScheduleManagementPage() {
           <Typography variant="h4" sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
             {t("schedules")}
           </Typography>
-          <Chip size="small" label={`${schedulesQ.data?.items?.length ?? 0} ${t("total")}`} />
+          <Chip
+            size="small"
+            label={
+              employeeSearch.trim()
+                ? t("schedulesFilteredCount", {
+                    filtered: filteredScheduleRows.length,
+                    total: allScheduleRows.length,
+                  })
+                : `${allScheduleRows.length} ${t("total")}`
+            }
+          />
         </Stack>
         {canWrite && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ flexShrink: 0 }}>
@@ -254,6 +343,12 @@ export default function ScheduleManagementPage() {
         </Typography>
       </Box>
 
+      {forReport ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {t("schedulesForReportBanner")}
+        </Alert>
+      ) : null}
+
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
         {STATUS_ORDER.map((k) => {
           const meta = statusMeta[k];
@@ -274,15 +369,70 @@ export default function ScheduleManagementPage() {
         })}
       </Stack>
 
+      <TextField
+        size="small"
+        label={t("schedulesEmployeeSearchLabel")}
+        placeholder={t("schedulesEmployeeSearchPlaceholder")}
+        value={employeeSearch}
+        onChange={(e) => setEmployeeSearch(e.target.value)}
+        sx={{ mb: 2, maxWidth: { xs: "100%", sm: 400 } }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon fontSize="small" color="action" />
+            </InputAdornment>
+          ),
+        }}
+        inputProps={{ "aria-label": t("schedulesEmployeeSearchLabel") }}
+      />
+
+      {employeeSearch.trim() && filteredScheduleRows.length === 0 && employeesMatchedWithoutShifts.length > 0 ? (
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          action={
+            employeesMatchedWithoutShifts.length === 1 && canWrite ? (
+              <Button color="inherit" size="small" onClick={() => openCreateForEmployee(employeesMatchedWithoutShifts[0].id)}>
+                {t("schedulesSearchOpenNewShift")}
+              </Button>
+            ) : undefined
+          }
+        >
+          {t("schedulesSearchEmployeeFoundNoShifts", {
+            names: employeesMatchedWithoutShifts.map((e) => e.fullName || e.email).join(" · "),
+          })}
+        </Alert>
+      ) : null}
+
+      {employeeSearch.trim() && filteredScheduleRows.length === 0 && employeesMatchingSearch.length === 0 ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {t("schedulesSearchNoEmployeeMatch")}
+        </Alert>
+      ) : null}
+
       <Box sx={{ width: "100%", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch", pb: 1 }}>
         <DataGrid
           autoHeight
           getRowHeight={() => "auto"}
-          rows={schedulesQ.data?.items ?? []}
+          rows={filteredScheduleRows}
           getRowId={(r) => r.id}
           loading={schedulesQ.isLoading || employeesQ.isLoading}
           columns={columns}
           getRowClassName={({ row }) => `syt-row syt-row--${row.status}`}
+          onRowDoubleClick={(params) => {
+            const row = params.row;
+            if (!SCHEDULE_STATUSES_IN_DAILY_REPORT.has(row.status)) {
+              setToast({ msg: t("schedulesReportSkipOffStatus"), ok: false });
+              return;
+            }
+            const sp = new URLSearchParams({
+              employeeId: row.employeeId,
+              from: row.workDate,
+              to: row.workDate,
+              status: row.status,
+            });
+            navigate(`/reports?${sp.toString()}`);
+          }}
           initialState={{
             sorting: { sortModel: [{ field: "workDate", sort: "desc" }] },
             pagination: { paginationModel: { pageSize: 25, page: 0 } },
@@ -335,7 +485,7 @@ export default function ScheduleManagementPage() {
             <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}>
               <SchedulesIcon />
             </Avatar>
-            <Typography variant="h6">{editingId ? "עריכת משמרת" : t("newShift")}</Typography>
+            <Typography variant="h6">{editingId ? t("schedulesEditShift") : t("newShift")}</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent dividers sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 2 }}>
@@ -352,13 +502,37 @@ export default function ScheduleManagementPage() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            type="date"
-            label="תאריך"
-            InputLabelProps={{ shrink: true }}
-            value={form.workDate}
-            onChange={(e) => setForm({ ...form, workDate: e.target.value })}
-          />
+          {editingId ? (
+            <TextField
+              type="date"
+              label={t("schedulesDateSingle")}
+              InputLabelProps={{ shrink: true }}
+              value={form.workDateStart}
+              onChange={(e) =>
+                setForm({ ...form, workDateStart: e.target.value, workDateEnd: e.target.value })
+              }
+            />
+          ) : (
+            <>
+              <TextField
+                type="date"
+                label={t("schedulesDateFrom")}
+                InputLabelProps={{ shrink: true }}
+                value={form.workDateStart}
+                onChange={(e) => setForm({ ...form, workDateStart: e.target.value })}
+              />
+              <TextField
+                type="date"
+                label={t("schedulesDateTo")}
+                InputLabelProps={{ shrink: true }}
+                value={form.workDateEnd}
+                onChange={(e) => setForm({ ...form, workDateEnd: e.target.value })}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {t("schedulesDateRangeHint")}
+              </Typography>
+            </>
+          )}
           <TextField
             select
             label="סטטוס"
@@ -397,7 +571,7 @@ export default function ScheduleManagementPage() {
           <Button onClick={() => setOpen(false)}>{t("cancel")}</Button>
           <Button
             variant="contained"
-            disabled={saveMut.isPending || !form.employeeId || !form.workDate}
+            disabled={saveMut.isPending || !form.employeeId || !form.workDateStart || !form.workDateEnd}
             onClick={() => saveMut.mutate()}
           >
             {saveMut.isPending ? t("loading") : t("save")}

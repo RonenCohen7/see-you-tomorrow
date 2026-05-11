@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import { addDaysIsoLocal, todayIsoLocal } from "../utils/date";
-import { alertsSignature, buildSmartAlerts } from "../utils/aiSmartAlerts";
+import { alertsSignature, buildSmartAlerts, sortAlertsBySeverity } from "../utils/aiSmartAlerts";
+import { buildJewishHolidayAlerts } from "../utils/jewishHolidayAlerts";
+import { buildTrafficAwarenessAlert, fetchWeatherSmartAlerts } from "../utils/weatherTrafficAlerts";
 import {
   buildParkingOpportunityAlerts,
   mergeSmartAndParkingAlerts,
@@ -78,6 +80,13 @@ export function useAiSmartAlerts(enabled: boolean) {
     staleTime: 15_000,
   });
 
+  const weatherAlertsQ = useQuery({
+    queryKey: ["ai-weather-alerts", today],
+    queryFn: () => fetchWeatherSmartAlerts(today, t),
+    enabled,
+    staleTime: 3_600_000,
+  });
+
   const alerts = useMemo(() => {
     if (!employeesQ.data || !schedulesQ.data || !schedulesForwardQ.data) return [];
     const empMap = new Map(employeesQ.data.map((e) => [e.id, e]));
@@ -85,7 +94,11 @@ export function useAiSmartAlerts(enabled: boolean) {
     const spots = parkingSpotsQ.data ?? [];
     const res = parkingResQ.data ?? [];
     const parkingAlerts = buildParkingOpportunityAlerts(today, spots, res, schedulesForwardQ.data, empMap, t);
-    return mergeSmartAndParkingAlerts(base, parkingAlerts);
+    const holidayAlerts = buildJewishHolidayAlerts(today, t);
+    const weatherAlerts = weatherAlertsQ.data ?? [];
+    const trafficAlert = buildTrafficAwarenessAlert(t);
+    const merged = mergeSmartAndParkingAlerts(base, parkingAlerts);
+    return sortAlertsBySeverity([...holidayAlerts, ...weatherAlerts, trafficAlert, ...merged]);
   }, [
     employeesQ.data,
     parkingResQ.data,
@@ -94,6 +107,7 @@ export function useAiSmartAlerts(enabled: boolean) {
     schedulesQ.data,
     t,
     today,
+    weatherAlertsQ.data,
   ]);
 
   const signature = useMemo(() => alertsSignature(alerts), [alerts]);
@@ -103,7 +117,8 @@ export function useAiSmartAlerts(enabled: boolean) {
     schedulesQ.isLoading ||
     schedulesForwardQ.isLoading ||
     parkingSpotsQ.isLoading ||
-    parkingResQ.isLoading;
+    parkingResQ.isLoading ||
+    weatherAlertsQ.isLoading;
 
   const refetch = () => {
     void employeesQ.refetch();
@@ -111,6 +126,7 @@ export function useAiSmartAlerts(enabled: boolean) {
     void schedulesForwardQ.refetch();
     void parkingSpotsQ.refetch();
     void parkingResQ.refetch();
+    void weatherAlertsQ.refetch();
   };
 
   return { alerts, signature, loading, refetch };

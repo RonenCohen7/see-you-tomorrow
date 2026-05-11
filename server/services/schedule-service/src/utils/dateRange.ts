@@ -5,6 +5,13 @@ export function utcDay(isoDate: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+/** End of UTC calendar day for inclusive range queries ($lte). */
+export function utcDayEnd(isoDate: string): Date {
+  const d = utcDay(isoDate);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+}
+
 export function monthUtcRange(monthYm: string): { start: Date; end: Date } {
   const [y, m] = monthYm.split("-").map(Number);
   if (!y || !m) throw new Error("invalid month");
@@ -29,4 +36,18 @@ export function weekRangeUtcContaining(isoDate: string): { start: Date; end: Dat
 
 export function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/** Inclusive list of UTC calendar days from isoFrom through isoTo (YYYY-MM-DD). */
+export function eachUtcDayInclusive(isoFrom: string, isoTo: string): string[] {
+  const from = utcDay(isoFrom);
+  const to = utcDay(isoTo);
+  if (from.getTime() > to.getTime()) return [];
+  const out: string[] = [];
+  const cur = new Date(from);
+  while (cur.getTime() <= to.getTime()) {
+    out.push(toIsoDate(cur));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
 }

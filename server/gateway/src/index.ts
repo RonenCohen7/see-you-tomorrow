@@ -16,6 +16,7 @@ logger.info("gateway starting", {
   PORT,
   NODE_ENV: process.env.NODE_ENV ?? "(unset)",
   AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL ?? "http://localhost:4001",
+  REPORT_SERVICE_URL: process.env.REPORT_SERVICE_URL ?? "http://localhost:4008",
 });
 
 const AUTH_URL = process.env.AUTH_SERVICE_URL ?? "http://localhost:4001";
@@ -25,6 +26,7 @@ const LOCATION_URL = process.env.LOCATION_SERVICE_URL ?? "http://localhost:4004"
 const SCHEDULE_URL = process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005";
 const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4006";
 const AI_URL = process.env.AI_SERVICE_URL ?? "http://localhost:4007";
+const REPORT_URL = process.env.REPORT_SERVICE_URL ?? "http://localhost:4008";
 
 const app = express();
 
@@ -68,7 +70,7 @@ function mountHttp(mountPath: string, target: string) {
           out.end(
             JSON.stringify({
               error:
-                "שירות ה-backend לא זמין. שלבים: (1) MongoDB — אם אין mongod מקומי: npm run docker:deps (2) בשורש הפרויקט הרץ רק: npm run dev — אל תדביק כמה npm run בשורה אחת בלי רווחים.",
+                "שירות ה-backend לא זמין. שלבים (כל אחת בשורה נפרדת בטרמינל): (1) MongoDB — אם אין mongod מקומי, מהשורש: npm run docker:deps (2) מהשורש: npm run dev — פקודה אחת בשורה; אל תצמיד שתי פקודות npm באותה שורה בלי רווח ביניהן.",
               code: "BAD_GATEWAY",
             })
           );
@@ -88,6 +90,7 @@ mountHttp("/api/parking", LOCATION_URL);
 mountHttp("/api/schedules", SCHEDULE_URL);
 mountHttp("/api/notifications", NOTIFICATION_URL);
 mountHttp("/api/ai", AI_URL);
+mountHttp("/api/reports", REPORT_URL);
 
 const socketMw = createProxyMiddleware({
   target: NOTIFICATION_URL,

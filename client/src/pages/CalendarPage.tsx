@@ -45,6 +45,9 @@ import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parki
 
 type DayAgg = { _id: string; office: number; home: number; vacation: number; sick: number; off: number };
 
+/** Max status chips shown inline per day; rest collapse to +N with Tooltip (month grid + 10-day strip). */
+const CALENDAR_STATUS_INLINE_MAX = 3;
+
 const HEBREW_WEEKDAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
 const HEBREW_WEEKDAYS_FULL = ["יום ראשון", "יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "שבת"];
 
@@ -250,6 +253,20 @@ export default function CalendarPage() {
     return { weeks: rows, monthLabel: label };
   }, [month, monthQ.data?.days]);
 
+  const calendarCardSx = useMemo(
+    () => ({
+      backdropFilter: "none",
+      WebkitBackdropFilter: "none",
+      backgroundImage: "none",
+      bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === "dark" ? 0.97 : 0.998),
+      boxShadow:
+        theme.palette.mode === "dark"
+          ? "0 2px 18px -8px rgba(0,0,0,0.55)"
+          : "0 2px 18px -10px rgba(15,23,42,0.12)",
+    }),
+    [theme]
+  );
+
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5, flexWrap: "wrap" }}>
@@ -304,12 +321,12 @@ export default function CalendarPage() {
       </Stack>
 
       {/* Top: next 10 days */}
-      <Card sx={{ p: { xs: 1.5, md: 2 }, mb: 4, overflow: "visible" }}>
+      <Card sx={{ ...calendarCardSx, p: { xs: 1.5, md: 2 }, mb: 4, overflow: "visible" }}>
         <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
           10 הימים הקרובים
         </Typography>
         {next10Q.isLoading ? (
-          <Skeleton variant="rectangular" height={110} />
+          <Skeleton variant="rectangular" height={124} />
         ) : (
           <Box
             sx={{
@@ -336,6 +353,9 @@ export default function CalendarPage() {
                 if (!byStatus.has(s.status)) byStatus.set(s.status, new Set());
                 byStatus.get(s.status)!.add(s.employeeId);
               }
+              const stripEntries = STATUS_ORDER.map((k) => ({ k, n: byStatus.get(k)?.size ?? 0 })).filter((x) => x.n > 0);
+              const stripVisible = stripEntries.slice(0, CALENDAR_STATUS_INLINE_MAX);
+              const stripHidden = stripEntries.slice(CALENDAR_STATUS_INLINE_MAX);
               return (
                 <Box
                   key={iso}
@@ -344,7 +364,7 @@ export default function CalendarPage() {
                     cursor: "pointer",
                     borderRadius: 2,
                     p: { xs: 0.75, sm: 1.25 },
-                    minHeight: { xs: 100, sm: 120 },
+                    minHeight: { xs: 104, sm: 124 },
                     scrollSnapAlign: "start",
                     border: "1px solid",
                     borderColor: isToday ? "primary.main" : "divider",
@@ -352,20 +372,19 @@ export default function CalendarPage() {
                       ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.22)} 0%, ${alpha(theme.palette.primary.main, 0.08)} 100%)`
                       : "transparent",
                     boxShadow: isToday ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.35)}` : "none",
-                    transition: "transform 140ms, box-shadow 180ms, border-color 180ms",
+                    transition: "box-shadow 180ms, border-color 180ms",
                     "&:hover": {
-                      transform: "translateY(-2px)",
                       boxShadow: 4,
                       borderColor: "primary.light",
                     },
                   }}
                 >
                   <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}>
                       {HEBREW_WEEKDAYS[weekday]} · {monthShort}
                     </Typography>
                     {isToday && (
-                      <Chip size="small" label={t("today")} color="primary" sx={{ height: 18, fontSize: 10 }} />
+                      <Chip size="small" label={t("today")} color="primary" sx={{ height: 22, fontSize: 12, fontWeight: 700 }} />
                     )}
                   </Stack>
                   <Typography
@@ -381,9 +400,7 @@ export default function CalendarPage() {
                     {dayNum}
                   </Typography>
                   <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    {STATUS_ORDER.map((k) => {
-                      const n = byStatus.get(k)?.size ?? 0;
-                      if (n === 0) return null;
+                    {stripVisible.map(({ k, n }) => {
                       const meta = statusMeta[k];
                       return (
                         <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
@@ -397,16 +414,42 @@ export default function CalendarPage() {
                               borderRadius: 1,
                               bgcolor: alpha(meta.color, 0.14),
                               color: meta.color,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: 700,
                             }}
                           >
-                            <meta.Icon sx={{ fontSize: 13 }} />
+                            <meta.Icon sx={{ fontSize: 14 }} />
                             <span>{n}</span>
                           </Stack>
                         </Tooltip>
                       );
                     })}
+                    {stripHidden.length > 0 ? (
+                      <Tooltip
+                        arrow
+                        title={stripHidden
+                          .map(({ k, n }) => `${t(statusMeta[k].presenceI18nKey)}: ${n}`)
+                          .join(" · ")}
+                      >
+                        <Stack
+                          direction="row"
+                          spacing={0.25}
+                          alignItems="center"
+                          sx={{
+                            px: 0.5,
+                            py: 0.125,
+                            borderRadius: 1,
+                            bgcolor: alpha(theme.palette.text.secondary, 0.12),
+                            color: "text.secondary",
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: "default",
+                          }}
+                        >
+                          <span>{t("calendarMoreStatuses", { count: stripHidden.length })}</span>
+                        </Stack>
+                      </Tooltip>
+                    ) : null}
                   </Stack>
                   {bdays.length > 0 && (
                     <Tooltip title={bdays.map((b) => b.fullName).join(" · ")} arrow>
@@ -424,11 +467,11 @@ export default function CalendarPage() {
                           maxWidth: "100%",
                         }}
                       >
-                        <CakeOutlinedIcon sx={{ fontSize: 16, color: "#c2185b", flexShrink: 0 }} />
+                        <CakeOutlinedIcon sx={{ fontSize: 17, color: "#c2185b", flexShrink: 0 }} />
                         <Typography
                           variant="caption"
                           noWrap
-                          sx={{ fontWeight: 800, color: "#880e4f", fontSize: 10.5, minWidth: 0 }}
+                          sx={{ fontWeight: 800, color: "#880e4f", fontSize: { xs: "0.75rem", sm: "0.8125rem" }, minWidth: 0 }}
                         >
                           {bdays.length === 1
                             ? bdays[0].fullName
@@ -456,11 +499,11 @@ export default function CalendarPage() {
                           maxWidth: "100%",
                         }}
                       >
-                        <LocalParkingIcon sx={{ fontSize: 16, color: "#0d47a1", flexShrink: 0 }} />
+                        <LocalParkingIcon sx={{ fontSize: 17, color: "#0d47a1", flexShrink: 0 }} />
                         <Typography
                           variant="caption"
                           noWrap
-                          sx={{ fontWeight: 800, color: "#0d47a1", fontSize: 10.5, minWidth: 0 }}
+                          sx={{ fontWeight: 800, color: "#0d47a1", fontSize: { xs: "0.75rem", sm: "0.8125rem" }, minWidth: 0 }}
                         >
                           {pk.length === 1
                             ? `${pk[0].spotLabel} → ${pk[0].guestName}`
@@ -477,7 +520,7 @@ export default function CalendarPage() {
       </Card>
 
       {/* Bottom: full month grid */}
-      <Card sx={{ p: { xs: 1, md: 2 }, overflow: "visible" }}>
+      <Card sx={{ ...calendarCardSx, p: { xs: 1, md: 2 }, overflow: "visible" }}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
@@ -523,7 +566,7 @@ export default function CalendarPage() {
                   variant="caption"
                   color="text.secondary"
                   textAlign="center"
-                  sx={{ fontWeight: 700, fontSize: { xs: "0.65rem", sm: "0.75rem" } }}
+                  sx={{ fontWeight: 700, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
                 >
                   {d}
                 </Typography>
@@ -549,6 +592,8 @@ export default function CalendarPage() {
                     k,
                     n: cell.agg ? (cell.agg[k] as number) : 0,
                   })).filter((x) => x.n > 0);
+                  const monthTotalsVisible = totals.slice(0, CALENDAR_STATUS_INLINE_MAX);
+                  const monthTotalsHidden = totals.slice(CALENDAR_STATUS_INLINE_MAX);
                   const mbdays = birthdaysByIso.get(cell.iso) ?? [];
                   const pkdays = parkingByIso.get(cell.iso) ?? [];
                   const accentBirthday = mbdays.length > 0;
@@ -561,8 +606,8 @@ export default function CalendarPage() {
                       sx={{
                         cursor: "pointer",
                         borderRadius: { xs: 1, sm: 2 },
-                        p: { xs: 0.35, sm: 1 },
-                        minHeight: { xs: 56, sm: 90 },
+                        p: { xs: 0.4, sm: 1 },
+                        minHeight: { xs: 62, sm: 98 },
                         minWidth: 0,
                         border: "1px solid",
                         borderColor: isToday
@@ -580,9 +625,8 @@ export default function CalendarPage() {
                               ? alpha("#90caf9", theme.palette.mode === "dark" ? 0.12 : 0.08)
                               : "transparent",
                         boxShadow: isToday ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.35)}` : "none",
-                        transition: "transform 120ms, box-shadow 160ms",
+                        transition: "box-shadow 160ms, border-color 160ms",
                         "&:hover": {
-                          transform: "translateY(-1px)",
                           boxShadow: 3,
                           borderColor: "primary.light",
                         },
@@ -594,7 +638,7 @@ export default function CalendarPage() {
                           sx={{
                             fontWeight: isToday ? 800 : 600,
                             color: isToday ? "primary.main" : "text.primary",
-                            fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                            fontSize: { xs: "0.85rem", sm: "0.9rem" },
                           }}
                         >
                           {dayNum}
@@ -602,7 +646,7 @@ export default function CalendarPage() {
                         <Stack direction="row" spacing={0.25} alignItems="center">
                           {mbdays.length > 0 && (
                             <Tooltip title={mbdays.map((b) => b.fullName).join(" · ")} arrow>
-                              <CakeOutlinedIcon sx={{ fontSize: { xs: 15, sm: 18 }, color: "#c2185b" }} />
+                              <CakeOutlinedIcon sx={{ fontSize: { xs: 16, sm: 18 }, color: "#c2185b" }} />
                             </Tooltip>
                           )}
                           {pkdays.length > 0 && (
@@ -610,42 +654,70 @@ export default function CalendarPage() {
                               title={pkdays.map((p) => `${p.spotLabel}: ${p.guestName} (${p.hoursLabel})`).join("\n")}
                               arrow
                             >
-                              <LocalParkingIcon sx={{ fontSize: { xs: 15, sm: 18 }, color: "#0d47a1" }} />
+                              <LocalParkingIcon sx={{ fontSize: { xs: 16, sm: 18 }, color: "#0d47a1" }} />
                             </Tooltip>
                           )}
                         </Stack>
                       </Stack>
                       <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5, gap: 0.25 }}>
                         {totals.length === 0 ? (
-                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: { xs: "0.65rem", sm: "0.75rem" } }}>
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}>
                             —
                           </Typography>
                         ) : (
-                          totals.map(({ k, n }) => {
-                            const meta = statusMeta[k];
-                            return (
-                              <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
+                          <>
+                            {monthTotalsVisible.map(({ k, n }) => {
+                              const meta = statusMeta[k];
+                              return (
+                                <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
+                                  <Stack
+                                    direction="row"
+                                    spacing={0.25}
+                                    alignItems="center"
+                                    sx={{
+                                      px: { xs: 0.3, sm: 0.5 },
+                                      py: 0.125,
+                                      borderRadius: 1,
+                                      bgcolor: alpha(meta.color, 0.14),
+                                      color: meta.color,
+                                      fontSize: { xs: 11, sm: 12 },
+                                      fontWeight: 700,
+                                      maxWidth: "100%",
+                                    }}
+                                  >
+                                    <meta.Icon sx={{ fontSize: { xs: 12, sm: 14 } }} />
+                                    <span>{n}</span>
+                                  </Stack>
+                                </Tooltip>
+                              );
+                            })}
+                            {monthTotalsHidden.length > 0 ? (
+                              <Tooltip
+                                arrow
+                                title={monthTotalsHidden
+                                  .map(({ k, n }) => `${t(statusMeta[k].presenceI18nKey)}: ${n}`)
+                                  .join(" · ")}
+                              >
                                 <Stack
                                   direction="row"
                                   spacing={0.25}
                                   alignItems="center"
                                   sx={{
-                                    px: { xs: 0.25, sm: 0.5 },
+                                    px: { xs: 0.3, sm: 0.45 },
                                     py: 0.125,
                                     borderRadius: 1,
-                                    bgcolor: alpha(meta.color, 0.14),
-                                    color: meta.color,
-                                    fontSize: { xs: 9, sm: 11 },
-                                    fontWeight: 700,
-                                    maxWidth: "100%",
+                                    bgcolor: alpha(theme.palette.text.secondary, 0.12),
+                                    color: "text.secondary",
+                                    fontSize: { xs: 11, sm: 12 },
+                                    fontWeight: 800,
+                                    cursor: "default",
                                   }}
                                 >
-                                  <meta.Icon sx={{ fontSize: { xs: 11, sm: 13 } }} />
-                                  <span>{n}</span>
+                                  <span>{t("calendarMoreStatuses", { count: monthTotalsHidden.length })}</span>
                                 </Stack>
                               </Tooltip>
-                            );
-                          })
+                            ) : null}
+                          </>
                         )}
                       </Stack>
                       {mbdays.length > 0 && (
@@ -655,7 +727,7 @@ export default function CalendarPage() {
                           sx={{
                             display: "block",
                             mt: 0.35,
-                            fontSize: { xs: "0.58rem", sm: "0.65rem" },
+                            fontSize: { xs: "0.6875rem", sm: "0.75rem" },
                             fontWeight: 700,
                             color: "#ad1457",
                           }}
@@ -670,7 +742,7 @@ export default function CalendarPage() {
                           sx={{
                             display: "block",
                             mt: 0.25,
-                            fontSize: { xs: "0.58rem", sm: "0.65rem" },
+                            fontSize: { xs: "0.6875rem", sm: "0.75rem" },
                             fontWeight: 700,
                             color: "#0d47a1",
                           }}

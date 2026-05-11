@@ -7,6 +7,7 @@ import { ThemeModeProvider, useThemeMode } from "./theme/ThemeModeContext";
 import { AuthProvider } from "./store/authContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
+import ManagerOrAdminRoute from "./components/ManagerOrAdminRoute";
 import MainLayout from "./layouts/MainLayout";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
@@ -23,6 +24,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import AIRecommendationsPage from "./pages/AIRecommendationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import ReportsPage from "./pages/ReportsPage";
 
 const qc = new QueryClient();
 
@@ -84,6 +86,14 @@ export default function App() {
                   />
                   <Route path="/schedules" element={<ScheduleManagementPage />} />
                   <Route path="/parking" element={<ParkingManagementPage />} />
+                  <Route
+                    path="/reports"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <ReportsPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
                   <Route path="/notifications" element={<NotificationsPage />} />
                   <Route path="/ai" element={<AIRecommendationsPage />} />
                   <Route path="/profile" element={<ProfilePage />} />

@@ -40,4 +40,17 @@ export interface NotificationItem {
   type: string;
   createdAt: string;
   deliveryStatus: string;
+  readBy?: { userId: string; readAt: string }[];
+  createdBy?: string;
+  scheduleContext?: {
+    scheduleId: string;
+    employeeId: string;
+    employeeName: string;
+    workDate: string;
+    workDateEnd?: string;
+    status: string;
+    note?: string;
+    updatedBy?: string;
+    updatedByName?: string;
+  };
 }

@@ -13,4 +13,5 @@ RUN npm install \
   && npm run build -w @syt/schedule-service \
   && npm run build -w @syt/notification-service \
   && npm run build -w @syt/ai-recommendation-service \
+  && npm run build -w @syt/report-service \
   && npm prune --omit=dev

@@ -13,12 +13,12 @@
     "ensure:dev-user": "npm run build -w @syt/shared && tsx server/scripts/ensure-dev-login.ts",
     "docker:deps": "docker compose up -d mongo redis mailhog",
     "docker": "npm run docker:deps",
-    "kill:ports": "lsof -ti :4000,:4001,:4002,:4003,:4004,:4005,:4006,:4007,:5173 2>/dev/null | xargs kill -9 2>/dev/null; exit 0",
+    "kill:ports": "lsof -ti :4000,:4001,:4002,:4003,:4004,:4005,:4006,:4007,:4008,:5173 2>/dev/null | xargs kill -9 2>/dev/null; exit 0",
     "predev": "npm run kill:ports",
-    "dev": "concurrently -n shared,gw,auth,emp,dep,loc,sch,notif,ai,client -c gray,blue,green,yellow,cyan,magenta,red,white,blueBright,magentaBright \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\" \"npm run dev:client\"",
+    "dev": "concurrently -n shared,gw,auth,emp,dep,loc,sch,notif,ai,report,client -c gray,blue,green,yellow,cyan,magenta,red,white,blueBright,magentaBright,cyanBright \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\" \"npm run dev:report\" \"npm run dev:client\"",
     "dev:lite": "concurrently -n gateway,auth,client -c cyan,green,magenta \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:client\"",
     "dev:core": "concurrently -n gateway,auth -c cyan,green \"npm run dev:gateway\" \"npm run dev:auth\"",
-    "dev:backend": "concurrently -n gw,auth,emp,dep,loc,sch,notif,ai -c blue,green,yellow,cyan,magenta,red,white,gray \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\"",
+    "dev:backend": "concurrently -n gw,auth,emp,dep,loc,sch,notif,ai,report -c blue,green,yellow,cyan,magenta,red,white,gray,cyanBright \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\" \"npm run dev:report\"",
     "dev:shared": "npm run dev -w @syt/shared",
     "dev:gateway": "npm run dev -w @syt/gateway",
     "dev:auth": "npm run dev -w @syt/auth-service",
@@ -28,6 +28,7 @@
     "dev:schedule": "npm run dev -w @syt/schedule-service",
     "dev:notification": "npm run dev -w @syt/notification-service",
     "dev:ai": "npm run dev -w @syt/ai-recommendation-service",
+    "dev:report": "npm run dev -w @syt/report-service",
     "dev:client": "npm run dev -w @syt/client"
   },
   "devDependencies": {

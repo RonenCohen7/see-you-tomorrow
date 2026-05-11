@@ -21,6 +21,8 @@ export type EmailJob = {
   notificationId: string;
   recipientId: string;
   workDate: string;
+  /** Inclusive end when the notification spans multiple days */
+  workDateEnd?: string;
   status: string;
 };
 
@@ -45,6 +47,7 @@ export function startEmailWorker() {
       await mailer.sendScheduleEmail(emp.email, {
         employeeName: emp.fullName ?? "עובד",
         workDate: job.data.workDate,
+        workDateEnd: job.data.workDateEnd,
         status: job.data.status,
       });
     },

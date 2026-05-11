@@ -20,6 +20,19 @@ export interface ReadByEntry {
   readAt: Date;
 }
 
+export interface ScheduleNotificationContext {
+  scheduleId: string;
+  employeeId: string;
+  employeeName: string;
+  workDate: string;
+  /** When set and different from workDate, the update spans multiple days (inclusive). */
+  workDateEnd?: string;
+  status: string;
+  note?: string;
+  updatedBy?: string;
+  updatedByName?: string;
+}
+
 export interface NotificationDoc {
   _id: import("mongoose").Types.ObjectId;
   title: string;
@@ -31,12 +44,29 @@ export interface NotificationDoc {
   readBy: ReadByEntry[];
   createdBy?: import("mongoose").Types.ObjectId;
   createdAt: Date;
+  /** Populated for schedule_update — richer UI without extra round-trips. */
+  scheduleContext?: ScheduleNotificationContext;
 }
 
 const readBySchema = new Schema<ReadByEntry>(
   {
     userId: { type: Schema.Types.ObjectId, required: true },
     readAt: { type: Date, required: true },
+  },
+  { _id: false }
+);
+
+const scheduleContextSchema = new Schema(
+  {
+    scheduleId: { type: String },
+    employeeId: { type: String },
+    employeeName: { type: String },
+    workDate: { type: String },
+    workDateEnd: { type: String },
+    status: { type: String },
+    note: { type: String },
+    updatedBy: { type: String },
+    updatedByName: { type: String },
   },
   { _id: false }
 );
@@ -60,6 +90,7 @@ const notificationSchema = new Schema<NotificationDoc>(
     readBy: [readBySchema],
     createdBy: { type: Schema.Types.ObjectId, ref: "Employee" },
     createdAt: { type: Date, default: () => new Date() },
+    scheduleContext: { type: scheduleContextSchema, required: false },
   },
   { timestamps: false }
 );

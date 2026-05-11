@@ -8,6 +8,7 @@ import DepartmentsIcon from "@mui/icons-material/Apartment";
 import LocationsIcon from "@mui/icons-material/Place";
 import SchedulesIcon from "@mui/icons-material/EventNote";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import AIIcon from "@mui/icons-material/AutoAwesome";
 import NotificationsListIcon from "@mui/icons-material/NotificationsActive";
 import ProfileIcon from "@mui/icons-material/AccountCircle";
@@ -62,6 +63,7 @@ const allPaths: NavItem[] = [
   { to: "/locations", key: "locations", Icon: LocationsIcon },
   { to: "/schedules", key: "schedules", Icon: SchedulesIcon },
   { to: "/parking", key: "parking", Icon: LocalParkingIcon },
+  { to: "/reports", key: "reports", Icon: AssessmentIcon },
   { to: "/ai", key: "ai", Icon: AIIcon },
   { to: "/notifications", key: "notifications", Icon: NotificationsListIcon },
   { to: "/profile", key: "profile", Icon: ProfileIcon },
@@ -99,6 +101,7 @@ export default function MainLayout() {
 
   const nav = allPaths.filter((p) => {
     if (adminOnlyNav.includes(p.to)) return role === "admin";
+    if (p.to === "/reports") return role === "admin" || role === "manager";
     return true;
   });
 

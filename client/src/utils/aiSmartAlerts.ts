@@ -20,6 +20,8 @@ export type SmartAlert = {
   detail: string;
   Icon: ComponentType<{ fontSize?: "small" | "medium" | "large" }>;
   color: string;
+  /** When set, UI shows one row with expandable list (e.g. many employees). */
+  groupMembers?: { employeeId: string; employeeName: string }[];
 };
 
 const SEVERITY_RANK: Record<AiAlertSeverity, number> = { error: 0, warning: 1, info: 2 };
@@ -29,6 +31,16 @@ export function countLeadingStreak(sortedDesc: Schedule[], status: string): numb
   for (const s of sortedDesc) {
     if (s.status === status) n++;
     else break;
+  }
+  return n;
+}
+
+/** Consecutive schedule rows from the most recent day where status is not office (per recorded days). */
+export function countLeadingNonOfficeStreak(sortedDesc: Schedule[]): number {
+  let n = 0;
+  for (const s of sortedDesc) {
+    if (s.status === "office") break;
+    n++;
   }
   return n;
 }
@@ -44,6 +56,8 @@ export function buildSmartAlerts(employees: Employee[], schedules: Schedule[], t
   }
 
   const out: SmartAlert[] = [];
+  const noOfficeGroup: { employeeId: string; employeeName: string; streak: number }[] = [];
+
   for (const [empId, list] of byEmp.entries()) {
     const emp = empMap.get(empId);
     if (!emp) continue;
@@ -54,6 +68,11 @@ export function buildSmartAlerts(employees: Employee[], schedules: Schedule[], t
     const officeDays = last14.filter((s) => s.status === "office").length;
     const vacationDays = sortedDesc.filter((s) => s.status === "vacation").length;
     const sickStreak = countLeadingStreak(sortedDesc, "sick");
+    const nonOfficeStreak = countLeadingNonOfficeStreak(sortedDesc);
+
+    if (nonOfficeStreak >= 3) {
+      noOfficeGroup.push({ employeeId: empId, employeeName: name, streak: nonOfficeStreak });
+    }
 
     if (homeDays >= 8) {
       out.push({
@@ -81,19 +100,6 @@ export function buildSmartAlerts(employees: Employee[], schedules: Schedule[], t
       });
     }
 
-    if (officeDays === 0 && last14.length >= 7) {
-      out.push({
-        id: `noffice-${empId}`,
-        severity: "warning",
-        employeeId: empId,
-        employeeName: name,
-        title: t("aiNoOfficeRecently"),
-        detail: "לא הופיע במשרד בשבועיים האחרונים.",
-        Icon: BusinessCenterIcon,
-        color: "#2563eb",
-      });
-    }
-
     if (sickStreak >= 3) {
       out.push({
         id: `sick-${empId}`,
@@ -106,6 +112,25 @@ export function buildSmartAlerts(employees: Employee[], schedules: Schedule[], t
         color: "#dc2626",
       });
     }
+  }
+
+  if (noOfficeGroup.length > 0) {
+    noOfficeGroup.sort((a, b) => b.streak - a.streak || a.employeeName.localeCompare(b.employeeName, "he"));
+    const maxStreak = Math.max(...noOfficeGroup.map((x) => x.streak));
+    out.push({
+      id: "noffice-group",
+      severity: noOfficeGroup.length >= 8 ? "warning" : "info",
+      employeeId: "system",
+      employeeName: t("aiGroupNoOfficeTitle", { count: noOfficeGroup.length }),
+      title: t("aiGroupNoOfficeChip"),
+      detail: t("aiGroupNoOfficeDetail", { streak: maxStreak }),
+      Icon: BusinessCenterIcon,
+      color: "#2563eb",
+      groupMembers: noOfficeGroup.map((x) => ({
+        employeeId: x.employeeId,
+        employeeName: `${x.employeeName} · ${t("aiGroupNoOfficeStreakDays", { n: x.streak })}`,
+      })),
+    });
   }
 
   return out.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);

@@ -9,6 +9,7 @@ import {
   type NotificationDoc,
 } from "@syt/shared";
 import * as recipientsSvc from "./recipients.js";
+import * as http from "../config/httpClients.js";
 import * as emailQueue from "./emailQueue.js";
 import * as socket from "../socket.js";
 
@@ -29,6 +30,19 @@ export function toPublic(doc: NotificationDoc & { _id: mongoose.Types.ObjectId }
     readBy: doc.readBy.map((r) => ({ userId: r.userId.toString(), readAt: r.readAt })),
     createdBy: doc.createdBy?.toString(),
     createdAt: doc.createdAt,
+    scheduleContext: doc.scheduleContext
+      ? {
+          scheduleId: doc.scheduleContext.scheduleId,
+          employeeId: doc.scheduleContext.employeeId,
+          employeeName: doc.scheduleContext.employeeName,
+          workDate: doc.scheduleContext.workDate,
+          workDateEnd: doc.scheduleContext.workDateEnd,
+          status: doc.scheduleContext.status,
+          note: doc.scheduleContext.note,
+          updatedBy: doc.scheduleContext.updatedBy,
+          updatedByName: doc.scheduleContext.updatedByName,
+        }
+      : undefined,
   };
 }
 
@@ -49,8 +63,27 @@ export async function handleScheduleChange(payload: {
     includeAdmins,
   });
 
-  const title = "עדכון לוח זמנים";
-  const message = `תאריך ${payload.workDate} · סטטוס ${payload.status}`;
+  const [emp, updater] = await Promise.all([
+    http.fetchEmployee(payload.employeeId),
+    payload.updatedBy ? http.fetchEmployee(payload.updatedBy) : Promise.resolve(null),
+  ]);
+  const employeeName = emp?.fullName?.trim() || `עובד ${payload.employeeId.slice(-6)}`;
+  const updatedByName = updater?.fullName?.trim() || undefined;
+
+  const title = "עדכון שיבוץ בלוח זמנים";
+  const message = updatedByName
+    ? `${employeeName} · ${payload.workDate} · סטטוס ${payload.status} · עודכן על ידי ${updatedByName}`
+    : `${employeeName} · ${payload.workDate} · סטטוס ${payload.status}`;
+
+  const scheduleContext = {
+    scheduleId: payload.scheduleId,
+    employeeId: payload.employeeId,
+    employeeName,
+    workDate: payload.workDate,
+    status: payload.status,
+    ...(payload.note ? { note: payload.note } : {}),
+    ...(payload.updatedBy ? { updatedBy: payload.updatedBy, updatedByName } : {}),
+  };
 
   const Notification = await model();
   const doc = await Notification.create({
@@ -65,6 +98,7 @@ export async function handleScheduleChange(payload: {
       ? { createdBy: new mongoose.Types.ObjectId(payload.updatedBy) }
       : {}),
     createdAt: new Date(),
+    scheduleContext,
   });
 
   const pub = toPublic(doc as NotificationDoc & { _id: mongoose.Types.ObjectId });
@@ -87,6 +121,103 @@ export async function handleScheduleChange(payload: {
         notificationId: pub.id,
         recipientId: rid,
         workDate: payload.workDate,
+        status: payload.status,
+      },
+      {
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2000 },
+        removeOnComplete: true,
+      }
+    );
+  }
+
+  await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
+    logger.warn("notification delivery status update failed");
+  });
+
+  return pub;
+}
+
+export async function handleScheduleRangeChange(payload: {
+  scheduleId: string;
+  employeeId: string;
+  departmentId?: string;
+  locationId?: string;
+  workDateFrom: string;
+  workDateTo: string;
+  dayCount: number;
+  status: string;
+  updatedBy?: string;
+  note?: string;
+}) {
+  const includeAdmins = process.env.INCLUDE_ADMINS_IN_SCHEDULE_NOTIFICATIONS !== "false";
+  const recipientIds = await recipientsSvc.resolveScheduleRecipients({
+    employeeId: payload.employeeId,
+    departmentId: payload.departmentId,
+    includeAdmins,
+  });
+
+  const [emp, updater] = await Promise.all([
+    http.fetchEmployee(payload.employeeId),
+    payload.updatedBy ? http.fetchEmployee(payload.updatedBy) : Promise.resolve(null),
+  ]);
+  const employeeName = emp?.fullName?.trim() || `עובד ${payload.employeeId.slice(-6)}`;
+  const updatedByName = updater?.fullName?.trim() || undefined;
+
+  const title = "עדכון טווח שיבוץ בלוח זמנים";
+  const rangeLabel = `${payload.workDateFrom} – ${payload.workDateTo} (${payload.dayCount} ימים)`;
+  const message = updatedByName
+    ? `${employeeName} · ${rangeLabel} · סטטוס ${payload.status} · עודכן על ידי ${updatedByName}`
+    : `${employeeName} · ${rangeLabel} · סטטוס ${payload.status}`;
+
+  const scheduleContext = {
+    scheduleId: payload.scheduleId,
+    employeeId: payload.employeeId,
+    employeeName,
+    workDate: payload.workDateFrom,
+    workDateEnd: payload.workDateTo,
+    status: payload.status,
+    ...(payload.note ? { note: payload.note } : {}),
+    ...(payload.updatedBy ? { updatedBy: payload.updatedBy, updatedByName } : {}),
+  };
+
+  const Notification = await model();
+  const doc = await Notification.create({
+    title,
+    message,
+    type: "schedule_update",
+    recipientIds: recipientIds.map((id) => new mongoose.Types.ObjectId(id)),
+    channels: Array.from(NOTIFICATION_CHANNELS),
+    deliveryStatus: "pending",
+    readBy: [],
+    ...(payload.updatedBy
+      ? { createdBy: new mongoose.Types.ObjectId(payload.updatedBy) }
+      : {}),
+    createdAt: new Date(),
+    scheduleContext,
+  });
+
+  const pub = toPublic(doc as NotificationDoc & { _id: mongoose.Types.ObjectId });
+
+  for (const rid of recipientIds) {
+    socket.emitToUser(rid, SOCKET_EVENTS.notificationNew, pub);
+    socket.emitToUser(rid, SOCKET_EVENTS.scheduleUpdated, {
+      scheduleId: payload.scheduleId,
+      workDate: payload.workDateFrom,
+      status: payload.status,
+    });
+  }
+  socket.emitDashboardRefresh(recipientIds);
+
+  const q = emailQueue.getEmailQueue();
+  for (const rid of recipientIds) {
+    await q.add(
+      `email-${doc._id}-${rid}`,
+      {
+        notificationId: pub.id,
+        recipientId: rid,
+        workDate: payload.workDateFrom,
+        workDateEnd: payload.workDateTo,
         status: payload.status,
       },
       {

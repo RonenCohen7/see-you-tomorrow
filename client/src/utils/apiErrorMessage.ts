@@ -9,9 +9,9 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
     }
     if (!err.response) {
       if (err.code === "ECONNABORTED") {
-        return "השרת לא הגיב בזמן. ודא ש-MongoDB רץ (npm run docker:deps), שהטרמינל מריץ npm run dev, ונסה שוב.";
+        return "השרת לא הגיב בזמן. ודא ש-MongoDB רץ (npm run docker:deps בשורה נפרדת), ואז npm run dev מהשורש — כל פקודה בשורה משלה.";
       }
-      return "לא ניתן להתחבר לשרת. ודא שה־gateway רץ (פורט 4000) וש־MongoDB זמין.";
+      return "לא ניתן להתחבר לשרת. ודא שה־gateway רץ (פורט 4000), ש-MongoDB זמין, ושהרצת npm run dev מהשורש (פקודה אחת בשורה).";
     }
   }
   return fallback;
