@@ -24,6 +24,8 @@
 
 If `git remote add` fails because `origin` already exists, use `git remote set-url origin <url>` instead.
 
+If `git push` prints **Repository not found**, the GitHub repository does not exist yet or the name does not match the URL. Create the empty repo on GitHub first (same owner and repository name as in the remote), then run `git push -u origin main` again.
+
 ## Updating the backup after changes
 
 GitHub stores **source code** and **history**, not your live MongoDB data.
