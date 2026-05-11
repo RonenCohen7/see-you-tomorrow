@@ -1,0 +1,183 @@
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  gateway:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/gateway/dist/index.js"]
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      CORS_ORIGIN: http://localhost:5173
+      PORT: "4000"
+      AUTH_SERVICE_URL: http://auth-service:4001
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      DEPARTMENT_SERVICE_URL: http://department-service:4003
+      LOCATION_SERVICE_URL: http://location-service:4004
+      SCHEDULE_SERVICE_URL: http://schedule-service:4005
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+      AI_SERVICE_URL: http://ai-service:4007
+    depends_on:
+      - mongo
+      - redis
+      - auth-service
+      - employee-service
+      - department-service
+      - location-service
+      - schedule-service
+      - notification-service
+      - ai-service
+
+  auth-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/auth-service/dist/index.js"]
+    ports:
+      - "4001:4001"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4001"
+    depends_on:
+      - mongo
+
+  employee-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/employee-service/dist/index.js"]
+    ports:
+      - "4002:4002"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4002"
+    depends_on:
+      - mongo
+
+  department-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/department-service/dist/index.js"]
+    ports:
+      - "4003:4003"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4003"
+    depends_on:
+      - mongo
+
+  location-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/location-service/dist/index.js"]
+    ports:
+      - "4004:4004"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      SCHEDULE_SERVICE_URL: http://schedule-service:4005
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      PORT: "4004"
+    depends_on:
+      - mongo
+      - employee-service
+      - schedule-service
+
+  notification-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/notification-service/dist/index.js"]
+    ports:
+      - "4006:4006"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4006"
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: noreply@seeyoutomorrow.local
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      DEPARTMENT_SERVICE_URL: http://department-service:4003
+      LOCATION_SERVICE_URL: http://location-service:4004
+      CORS_ORIGIN: http://localhost:5173
+    depends_on:
+      - mongo
+      - redis
+      - mailhog
+
+  schedule-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/schedule-service/dist/index.js"]
+    ports:
+      - "4005:4005"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4005"
+      NOTIFICATION_SERVICE_URL: http://notification-service:4006
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      DEPARTMENT_SERVICE_URL: http://department-service:4003
+      LOCATION_SERVICE_URL: http://location-service:4004
+    depends_on:
+      - mongo
+      - notification-service
+
+  ai-service:
+    build: .
+    image: syt-backend:local
+    command: ["node", "server/services/ai-recommendation-service/dist/index.js"]
+    ports:
+      - "4007:4007"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4007"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SCHEDULE_SERVICE_URL: http://schedule-service:4005
+      EMPLOYEE_SERVICE_URL: http://employee-service:4002
+      DEPARTMENT_SERVICE_URL: http://department-service:4003
+      LOCATION_SERVICE_URL: http://location-service:4004
+    depends_on:
+      - mongo
+      - schedule-service
+
+volumes:
+  mongo_data:

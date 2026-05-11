@@ -1,0 +1,409 @@
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Skeleton,
+  Snackbar,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+  alpha,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import DepartmentsIcon from "@mui/icons-material/Apartment";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
+import AddIcon from "@mui/icons-material/AddCircle";
+import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import api from "../services/api";
+import { useTranslation } from "react-i18next";
+import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { fileToResizedJpegDataUrl } from "../utils/imageResize";
+import { useRole } from "../store/authContext";
+
+interface Dept {
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl?: string;
+  locationId?: string;
+  isActive: boolean;
+}
+
+type FormState = { name: string; description: string; imageUrl: string };
+
+export default function DepartmentsPage() {
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+  const qc = useQueryClient();
+  const role = useRole();
+  const canWrite = role === "admin";
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>({ name: "", description: "", imageUrl: "" });
+
+  const q = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => (await api.get<{ items: Dept[] }>("/api/departments")).data,
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const payload: { name: string; description?: string; imageUrl?: string } = {
+        name: form.name,
+        description: form.description || undefined,
+      };
+      const trimmed = form.imageUrl.trim();
+      if (trimmed) payload.imageUrl = trimmed;
+      if (editingId) return api.put(`/api/departments/${editingId}`, payload);
+      return api.post("/api/departments", payload);
+    },
+    onSuccess: async () => {
+      setToast({ msg: t("success"), ok: true });
+      setOpen(false);
+      setEditingId(null);
+      setForm({ name: "", description: "", imageUrl: "" });
+      await qc.invalidateQueries({ queryKey: ["departments"] });
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => api.delete(`/api/departments/${id}`),
+    onSuccess: async () => {
+      setToast({ msg: t("success"), ok: true });
+      await qc.invalidateQueries({ queryKey: ["departments"] });
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
+
+  const avatarMut = useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const imageUrl = await fileToResizedJpegDataUrl(file);
+      return (await api.put<Dept>(`/api/departments/${id}`, { imageUrl })).data;
+    },
+    onSuccess: () => {
+      setToast({ msg: t("success"), ok: true });
+      void qc.invalidateQueries({ queryKey: ["departments"] });
+    },
+    onError: (err) => {
+      let msg = apiErrorMessage(err, t("error"));
+      if (err instanceof Error) {
+        if (err.message === "INVALID_TYPE") msg = t("photoUploadInvalidType");
+        else if (err.message === "TOO_LARGE") msg = t("photoUploadTooLarge");
+      }
+      setToast({ msg, ok: false });
+    },
+  });
+
+  function requestDeptAvatarUpload(departmentId: string, file: File) {
+    avatarMut.mutate({ id: departmentId, file });
+  }
+
+  function openCreate() {
+    setEditingId(null);
+    setForm({ name: "", description: "", imageUrl: "" });
+    setOpen(true);
+  }
+
+  function openEdit(d: Dept) {
+    setEditingId(d.id);
+    setForm({
+      name: d.name,
+      description: d.description ?? "",
+      imageUrl: d.imageUrl && !d.imageUrl.startsWith("data:") ? d.imageUrl : "",
+    });
+    setOpen(true);
+  }
+
+  return (
+    <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <Stack
+        direction="row"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        justifyContent="space-between"
+        sx={{ mb: 3, flexWrap: "wrap", gap: 1.5 }}
+      >
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <DepartmentsIcon color="primary" />
+          <Typography variant="h4" sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
+            {t("departments")}
+          </Typography>
+          <Chip size="small" label={`${q.data?.items?.length ?? 0} ${t("total")}`} />
+        </Stack>
+        {canWrite && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ flexShrink: 0 }}>
+            {t("newDepartment")}
+          </Button>
+        )}
+      </Stack>
+
+      {q.isLoading ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: {
+              xs: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))",
+              sm: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))",
+              md: "repeat(auto-fill, minmax(min(100%, 240px), 1fr))",
+            },
+          }}
+        >
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="rectangular" height={180} sx={{ borderRadius: 2 }} />
+          ))}
+        </Box>
+      ) : (q.data?.items?.length ?? 0) === 0 ? (
+        <EmptyState onAdd={openCreate} canAdd={canWrite} />
+      ) : (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: {
+              xs: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))",
+              sm: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))",
+              md: "repeat(auto-fill, minmax(min(100%, 240px), 1fr))",
+            },
+          }}
+        >
+          {q.data!.items.map((d) => (
+            <DepartmentCard
+              key={d.id}
+              dept={d}
+              canWrite={canWrite}
+              avatarUploading={avatarMut.isPending && avatarMut.variables?.id === d.id}
+              onAvatarUpload={(file) => requestDeptAvatarUpload(d.id, file)}
+              onEdit={() => openEdit(d)}
+              onDelete={() => {
+                if (confirm(`למחוק את "${d.name}"?`)) deleteMut.mutate(d.id);
+              }}
+              t={t}
+            />
+          ))}
+        </Box>
+      )}
+
+      <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)}>
+        <Alert severity={toast?.ok ? "success" : "error"} onClose={() => setToast(null)}>
+          {toast?.msg}
+        </Alert>
+      </Snackbar>
+
+      {canWrite && (
+        <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" fullScreen={isXs}>
+          <DialogTitle>{editingId ? t("edit") : t("newDepartment")}</DialogTitle>
+          <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField
+              label="שם"
+              autoFocus
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <TextField
+              label={t("description")}
+              multiline
+              minRows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <TextField
+              label={t("imageUrlOptional")}
+              value={form.imageUrl}
+              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+              placeholder="https://… או השאר ריק והעלה מהכרטיס"
+              helperText={t("departmentImageUrlHint")}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpen(false)}>{t("cancel")}</Button>
+            <Button
+              variant="contained"
+              disabled={saveMut.isPending || !form.name.trim()}
+              onClick={() => saveMut.mutate()}
+            >
+              {saveMut.isPending ? t("loading") : t("save")}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+    </Box>
+  );
+}
+
+function DepartmentCard({
+  dept,
+  canWrite,
+  avatarUploading,
+  onAvatarUpload,
+  onEdit,
+  onDelete,
+  t,
+}: {
+  dept: Dept;
+  canWrite: boolean;
+  avatarUploading: boolean;
+  onAvatarUpload: (file: File) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  t: (k: string) => string;
+}) {
+  const theme = useTheme();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <Card
+      className="syt-lift"
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <Box
+        sx={{
+          height: 6,
+          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.4)})`,
+        }}
+      />
+      <CardContent sx={{ flexGrow: 1, textAlign: "center", pb: 1 }}>
+        <Box sx={{ position: "relative", width: 72, height: 72, mx: "auto", mb: 1.5 }}>
+          <Avatar
+            src={dept.imageUrl || undefined}
+            sx={{
+              width: 72,
+              height: 72,
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              color: "primary.main",
+              fontWeight: 700,
+              fontSize: 28,
+              border: `2px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+              opacity: avatarUploading ? 0.55 : 1,
+            }}
+          >
+            {!dept.imageUrl ? <DepartmentsIcon sx={{ fontSize: 36 }} /> : dept.name.charAt(0)}
+          </Avatar>
+          {avatarUploading && (
+            <CircularProgress
+              size={44}
+              sx={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                marginTop: "-22px",
+                marginLeft: "-22px",
+              }}
+            />
+          )}
+          {canWrite && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(ev) => {
+                  const file = ev.target.files?.[0];
+                  ev.target.value = "";
+                  if (file) onAvatarUpload(file);
+                }}
+              />
+              <Tooltip title={t("uploadDepartmentPhoto")} arrow>
+                <IconButton
+                  type="button"
+                  size="small"
+                  disabled={avatarUploading}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  sx={{
+                    position: "absolute",
+                    bottom: -2,
+                    insetInlineEnd: -2,
+                    bgcolor: "background.paper",
+                    boxShadow: 1,
+                    width: 28,
+                    height: 28,
+                  }}
+                  aria-label={t("uploadDepartmentPhoto")}
+                >
+                  <PhotoCameraIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+        </Box>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, wordBreak: "break-word" }}>
+          {dept.name}
+        </Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            minHeight: 48,
+            fontStyle: dept.description ? "normal" : "italic",
+            px: 1,
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {dept.description?.trim() || t("noDescription")}
+        </Typography>
+        <Chip
+          size="small"
+          label={dept.isActive ? t("active") : t("inactive")}
+          color={dept.isActive ? "success" : "default"}
+          sx={{ mt: 1.5 }}
+        />
+      </CardContent>
+      {canWrite && (
+        <CardActions sx={{ justifyContent: "center", pb: 1.5 }}>
+          <Tooltip title={t("edit")} arrow>
+            <IconButton color="primary" onClick={onEdit}>
+              <EditIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={t("delete")} arrow>
+            <IconButton color="error" onClick={onDelete}>
+              <DeleteIcon />
+            </IconButton>
+          </Tooltip>
+        </CardActions>
+      )}
+    </Card>
+  );
+}
+
+function EmptyState({ onAdd, canAdd }: { onAdd: () => void; canAdd: boolean }) {
+  return (
+    <Card sx={{ textAlign: "center", p: 4 }}>
+      <DepartmentsIcon sx={{ fontSize: 64, color: "text.disabled", mb: 1 }} />
+      <Typography variant="h6" gutterBottom>
+        אין מחלקות עדיין
+      </Typography>
+      {canAdd && (
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd} sx={{ mt: 2 }}>
+          הוספת מחלקה ראשונה
+        </Button>
+      )}
+    </Card>
+  );
+}

@@ -1,0 +1,42 @@
+{
+  "name": "see-you-tomorrow",
+  "private": true,
+  "workspaces": [
+    "server/shared",
+    "server/gateway",
+    "server/services/*",
+    "client"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "seed": "npm run build -w @syt/shared && tsx server/scripts/seed.ts",
+    "ensure:dev-user": "npm run build -w @syt/shared && tsx server/scripts/ensure-dev-login.ts",
+    "docker:deps": "docker compose up -d mongo redis mailhog",
+    "docker": "npm run docker:deps",
+    "kill:ports": "lsof -ti :4000,:4001,:4002,:4003,:4004,:4005,:4006,:4007,:5173 2>/dev/null | xargs kill -9 2>/dev/null; exit 0",
+    "predev": "npm run kill:ports",
+    "dev": "concurrently -n shared,gw,auth,emp,dep,loc,sch,notif,ai,client -c gray,blue,green,yellow,cyan,magenta,red,white,blueBright,magentaBright \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\" \"npm run dev:client\"",
+    "dev:lite": "concurrently -n gateway,auth,client -c cyan,green,magenta \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:client\"",
+    "dev:core": "concurrently -n gateway,auth -c cyan,green \"npm run dev:gateway\" \"npm run dev:auth\"",
+    "dev:backend": "concurrently -n gw,auth,emp,dep,loc,sch,notif,ai -c blue,green,yellow,cyan,magenta,red,white,gray \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:employee\" \"npm run dev:department\" \"npm run dev:location\" \"npm run dev:schedule\" \"npm run dev:notification\" \"npm run dev:ai\"",
+    "dev:shared": "npm run dev -w @syt/shared",
+    "dev:gateway": "npm run dev -w @syt/gateway",
+    "dev:auth": "npm run dev -w @syt/auth-service",
+    "dev:employee": "npm run dev -w @syt/employee-service",
+    "dev:department": "npm run dev -w @syt/department-service",
+    "dev:location": "npm run dev -w @syt/location-service",
+    "dev:schedule": "npm run dev -w @syt/schedule-service",
+    "dev:notification": "npm run dev -w @syt/notification-service",
+    "dev:ai": "npm run dev -w @syt/ai-recommendation-service",
+    "dev:client": "npm run dev -w @syt/client"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.4.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
+    "concurrently": "^9.2.1",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

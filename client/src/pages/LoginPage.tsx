@@ -1,0 +1,152 @@
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Paper,
+  TextField,
+  Typography,
+  Link,
+  CircularProgress,
+} from "@mui/material";
+import { useState } from "react";
+import { Link as RouterLink, Navigate, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import PublicHeader from "../components/PublicHeader";
+import { useAuth } from "../store/authContext";
+import { apiErrorMessage } from "../utils/apiErrorMessage";
+
+export default function LoginPage() {
+  const { t } = useTranslation();
+  const { login, user } = useAuth();
+  const nav = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  async function doLogin(emailToUse: string, passwordToUse: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      console.info("[login] POST /api/auth/login", { email: emailToUse });
+      await login(emailToUse, passwordToUse);
+      nav("/dashboard");
+    } catch (err: unknown) {
+      console.error("[login] failed", err);
+      setError(apiErrorMessage(err, t("loginError")));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    await doLogin(email, password);
+  }
+
+  async function quickDevLogin() {
+    const devEmail = "ronenc7@gmail.com";
+    const devPass = "12345678";
+    setEmail(devEmail);
+    setPassword(devPass);
+    await doLogin(devEmail, devPass);
+  }
+
+  return (
+    <Box sx={{ minHeight: "100dvh", bgcolor: "background.default", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <PublicHeader />
+      <Container
+        maxWidth="sm"
+        sx={{
+          mt: { xs: 2, sm: 4 },
+          mb: { xs: 3, sm: 6 },
+          px: { xs: 2, sm: 3 },
+          pb: `max(24px, env(safe-area-inset-bottom, 0px))`,
+          boxSizing: "border-box",
+        }}
+      >
+        <Paper sx={{ p: { xs: 2, sm: 4 } }}>
+          <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
+            {t("login")}
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 1 }}>
+            {t("tagline")}
+          </Typography>
+          <Typography variant="body2" color="primary" sx={{ mb: 3 }}>
+            {t("loginSameForRoles")}
+          </Typography>
+
+          <Box component="form" onSubmit={submit}>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+            <TextField
+              fullWidth
+              label={t("email")}
+              margin="normal"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              autoComplete="email"
+            />
+            <TextField
+              fullWidth
+              label={t("password")}
+              margin="normal"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <Box sx={{ mt: 0.5, textAlign: "start" }}>
+              <Link component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
+                {t("forgotPassword")}
+              </Link>
+            </Box>
+            <Button fullWidth type="submit" variant="contained" sx={{ mt: 2 }} disabled={loading}>
+              {loading ? <CircularProgress size={24} color="inherit" /> : t("login")}
+            </Button>
+          </Box>
+
+          {import.meta.env.DEV && (
+            <Box sx={{ mt: 3, p: 2, border: "1px dashed", borderColor: "divider", borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                כלי פיתוח — מנקה טוקנים ישנים ומבצע התחברות עם <code>ronenc7@gmail.com / 12345678</code>.
+                ודא שהרצת <code>npm run ensure:dev-user</code>.
+              </Typography>
+              <Button
+                fullWidth
+                size="small"
+                variant="outlined"
+                color="secondary"
+                onClick={quickDevLogin}
+                disabled={loading}
+              >
+                התחברות מהירה כמשתמש פיתוח
+              </Button>
+            </Box>
+          )}
+
+          <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">
+            {t("noAccount")}{" "}
+            <Link component={RouterLink} to="/register">
+              {t("register")}
+            </Link>
+          </Typography>
+          <Typography sx={{ mt: 2 }} variant="body2">
+            <Link component={RouterLink} to="/">
+              {t("backHome")}
+            </Link>
+          </Typography>
+        </Paper>
+      </Container>
+    </Box>
+  );
+}
