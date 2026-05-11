@@ -9,3 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Initial open-source-style documentation: README (microservices overview, tech stack, tree), CONTRIBUTING (GitHub backup workflow), and this changelog.
+
+### Changed
+
+- CONTRIBUTING: troubleshooting when `git push` returns “Repository not found” (create the GitHub repo first).
