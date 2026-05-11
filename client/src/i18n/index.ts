@@ -80,6 +80,8 @@ const resources = {
       enterApp: "כניסה למערכת",
       loginUserOrAdmin: "התחברות (עובד / מנהל)",
       loginSameForRoles: "מסך אחד לכל התפקידים — ההרשאות נקבעות אוטומטית לפי חשבון המשתמש.",
+      helloUser: "שלום, {{name}}",
+      newUserRegisteredMessage: "משתמש חדש נוצר והוקלט במערכת בהצלחה.",
       loginError: "אימייל או סיסמה שגויים",
       forgotPassword: "שכחת סיסמה?",
       forgotPasswordTitle: "שכחת סיסמה",

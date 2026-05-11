@@ -44,7 +44,7 @@ export default function RegisterPage() {
         phone: phone || undefined,
         jobTitle: jobTitle || undefined,
       });
-      nav("/dashboard");
+      nav("/dashboard", { state: { justRegistered: true } });
     } catch (err: unknown) {
       setError(apiErrorMessage(err, t("error")));
     } finally {

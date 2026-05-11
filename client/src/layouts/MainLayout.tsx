@@ -14,6 +14,7 @@ import ProfileIcon from "@mui/icons-material/AccountCircle";
 import SettingsIcon from "@mui/icons-material/Settings";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
+  Alert,
   AppBar,
   Avatar,
   Badge,
@@ -25,6 +26,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Snackbar,
   Stack,
   Toolbar,
   Tooltip,
@@ -33,7 +35,7 @@ import {
   useTheme,
 } from "@mui/material";
 import React from "react";
-import { Link as RouterLink, Outlet, useLocation } from "react-router-dom";
+import { Link as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
@@ -72,9 +74,21 @@ export default function MainLayout() {
   const mobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const loc = useLocation();
+  const navigate = useNavigate();
   const role = useRole();
   const { user, logout } = useAuth();
   const { socket, connected } = useSocket(user?.id);
+  const [newUserSnackbarOpen, setNewUserSnackbarOpen] = React.useState(false);
+  const clearedRegisterState = React.useRef(false);
+
+  React.useEffect(() => {
+    const st = loc.state as { justRegistered?: boolean } | null | undefined;
+    if (st?.justRegistered && !clearedRegisterState.current) {
+      clearedRegisterState.current = true;
+      setNewUserSnackbarOpen(true);
+      navigate({ pathname: loc.pathname, search: loc.search, hash: loc.hash }, { replace: true, state: {} });
+    }
+  }, [loc.state, loc.pathname, loc.search, loc.hash, navigate]);
 
   const { data: unread } = useQuery({
     queryKey: ["unread"],
@@ -210,7 +224,7 @@ export default function MainLayout() {
             </Typography>
           </Stack>
 
-          {/* right cluster (RTL) */}
+          {/* right cluster (RTL): greeting first in DOM = outer edge with flex-end */}
           <Box
             sx={{
               flex: 1,
@@ -221,6 +235,25 @@ export default function MainLayout() {
               minWidth: 0,
             }}
           >
+            {user?.fullName ? (
+              <Typography
+                variant="body2"
+                component="span"
+                sx={{
+                  fontWeight: 600,
+                  color: "inherit",
+                  maxWidth: { xs: 100, sm: 220, md: 280 },
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  display: "inline-block",
+                  verticalAlign: "middle",
+                }}
+                title={user.fullName}
+              >
+                {t("helloUser", { name: user.fullName })}
+              </Typography>
+            ) : null}
             <Box sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center", gap: 1 }}>
               <CircleIcon sx={{ fontSize: 12, color: connected ? "success.light" : "error.light" }} />
               <Typography variant="caption">{connected ? t("liveConnected") : t("liveDisconnected")}</Typography>
@@ -305,6 +338,17 @@ export default function MainLayout() {
           <BirthdayFab socket={socket} />
         </Box>
       ) : null}
+      <Snackbar
+        open={newUserSnackbarOpen}
+        autoHideDuration={6000}
+        onClose={() => setNewUserSnackbarOpen(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        sx={{ mt: { xs: 7, sm: 8 } }}
+      >
+        <Alert onClose={() => setNewUserSnackbarOpen(false)} severity="success" variant="filled" sx={{ width: "100%" }}>
+          {t("newUserRegisteredMessage")}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
