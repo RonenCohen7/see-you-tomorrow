@@ -135,6 +135,22 @@ export const listQuerySchema = z.object({
 });
 
 export const applyRecommendationsSchema = z.object({
+  adminUserId: objectId.optional(),
+  scheduleSource: z.enum(["manual", "ai"]).optional(),
+  aiBatchId: objectId.optional(),
+  aiMeta: z
+    .object({
+      departmentId: objectId,
+      locationId: objectId.optional(),
+      dateRange: z.object({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+      confidence: z.number().optional(),
+      model: z.string().optional(),
+      validationNotes: z.array(z.string()).optional(),
+    })
+    .optional(),
   items: z.array(
     z.object({
       employeeId: objectId,

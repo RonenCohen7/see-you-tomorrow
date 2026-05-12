@@ -13,6 +13,9 @@ import AIIcon from "@mui/icons-material/AutoAwesome";
 import NotificationsListIcon from "@mui/icons-material/NotificationsActive";
 import ProfileIcon from "@mui/icons-material/AccountCircle";
 import SettingsIcon from "@mui/icons-material/Settings";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
+import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Alert,
@@ -45,12 +48,23 @@ import { useSocket } from "../hooks/useSocket";
 import { AiInsightFab } from "../components/AiInsightFab";
 import { BirthdayFab } from "../components/BirthdayFab";
 import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
+import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
+
+export type SystemBroadcastClientPayload = {
+  id: string;
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  at: string;
+};
 
 const WIDTH = 264;
 /** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
 const WIDTH_COMPACT = 220;
 
 const adminOnlyNav = ["/employees", "/departments", "/locations"];
+/** מנהל מחלקה / אדמין בלבד — לא מוצג למשתמש עם תפקיד עובד */
+const managerAdminNav = ["/schedules", "/parking", "/ai"];
 
 type NavItem = {
   to: string;
@@ -61,10 +75,13 @@ type NavItem = {
 const allPaths: NavItem[] = [
   { to: "/dashboard", key: "dashboard", Icon: DashboardIcon },
   { to: "/calendar", key: "calendar", Icon: CalendarIcon },
+  { to: "/preferences", key: "attendancePrefs", Icon: PlaylistAddCheckIcon },
   { to: "/employees", key: "employees", Icon: EmployeesIcon },
   { to: "/departments", key: "departments", Icon: DepartmentsIcon },
   { to: "/locations", key: "locations", Icon: LocationsIcon },
   { to: "/schedules", key: "schedules", Icon: SchedulesIcon },
+  { to: "/team-preferences", key: "teamAttendancePrefs", Icon: FactCheckIcon },
+  { to: "/preference-ai-queue", key: "preferenceAiQueueNav", Icon: HourglassBottomIcon },
   { to: "/parking", key: "parking", Icon: LocalParkingIcon },
   { to: "/reports", key: "reports", Icon: AssessmentIcon },
   { to: "/ai", key: "ai", Icon: AIIcon },
@@ -87,6 +104,7 @@ export default function MainLayout() {
   const { user, logout } = useAuth();
   const { socket, connected } = useSocket(user?.id);
   const [newUserSnackbarOpen, setNewUserSnackbarOpen] = React.useState(false);
+  const [systemSnack, setSystemSnack] = React.useState<SystemBroadcastClientPayload | null>(null);
   const clearedRegisterState = React.useRef(false);
 
   React.useEffect(() => {
@@ -98,6 +116,36 @@ export default function MainLayout() {
     }
   }, [loc.state, loc.pathname, loc.search, loc.hash, navigate]);
 
+  React.useEffect(() => {
+    if (!socket) return;
+    const onBroadcast = (raw: unknown) => {
+      if (!raw || typeof raw !== "object") return;
+      const p = raw as Record<string, unknown>;
+      if (
+        typeof p.id !== "string" ||
+        typeof p.title !== "string" ||
+        typeof p.message !== "string" ||
+        typeof p.at !== "string"
+      ) {
+        return;
+      }
+      const sev = p.severity;
+      const severity =
+        sev === "warning" || sev === "error" || sev === "info" ? sev : "info";
+      setSystemSnack({
+        id: p.id,
+        title: p.title,
+        message: p.message,
+        severity,
+        at: p.at,
+      });
+    };
+    socket.on(SOCKET_EVENTS_CLIENT.systemBroadcast, onBroadcast);
+    return () => {
+      socket.off(SOCKET_EVENTS_CLIENT.systemBroadcast, onBroadcast);
+    };
+  }, [socket]);
+
   const { data: unread } = useQuery({
     queryKey: ["unread"],
     queryFn: async () => (await api.get<{ count: number }>("/api/notifications/unread-count")).data.count,
@@ -106,7 +154,11 @@ export default function MainLayout() {
   });
 
   const nav = allPaths.filter((p) => {
+    if (p.to === "/preferences") return role === "employee";
+    if (p.to === "/preference-ai-queue") return role === "admin" || role === "manager";
+    if (p.to === "/team-preferences") return role === "admin" || role === "manager";
     if (adminOnlyNav.includes(p.to)) return role === "admin";
+    if (managerAdminNav.includes(p.to)) return role === "admin" || role === "manager";
     if (p.to === "/reports") return role === "admin" || role === "manager";
     return true;
   });
@@ -424,6 +476,31 @@ export default function MainLayout() {
         <Alert onClose={() => setNewUserSnackbarOpen(false)} severity="success" variant="filled" sx={{ width: "100%" }}>
           {t("newUserRegisteredMessage")}
         </Alert>
+      </Snackbar>
+      <Snackbar
+        open={!!systemSnack}
+        autoHideDuration={systemSnack?.severity === "error" ? 14_000 : 10_000}
+        onClose={() => setSystemSnack(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        sx={{ mt: { xs: 7, sm: 8 } }}
+      >
+        {systemSnack ? (
+          <Alert
+            onClose={() => setSystemSnack(null)}
+            severity={systemSnack.severity}
+            variant="filled"
+            sx={{ width: "100%", maxWidth: { xs: "92vw", sm: 480 } }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+              {systemSnack.title}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
+              {systemSnack.message}
+            </Typography>
+          </Alert>
+        ) : (
+          undefined
+        )}
       </Snackbar>
     </Box>
   );

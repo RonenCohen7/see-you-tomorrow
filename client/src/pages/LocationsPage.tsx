@@ -138,9 +138,16 @@ export default function LocationsPage() {
           <Chip size="small" label={`${q.data?.items?.length ?? 0} ${t("total")}`} />
         </Stack>
         {canWrite && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ flexShrink: 0 }}>
-            {t("newLocation")}
-          </Button>
+          <Tooltip title={t("newLocationTooltip")} placement="left" arrow disableInteractive>
+            <Button
+              variant="contained"
+              onClick={openCreate}
+              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+              aria-label={t("newLocationTooltip")}
+            >
+              <AddIcon />
+            </Button>
+          </Tooltip>
         )}
       </Stack>
 

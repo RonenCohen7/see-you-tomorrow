@@ -26,6 +26,7 @@ import { useSocket } from "../hooks/useSocket";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
 import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
 import { MonthDayCell } from "./MonthDayCell";
 import type { DayAgg } from "./calendarConstants";
@@ -357,9 +358,27 @@ export default function CalendarFullMonthPage() {
             </Box>
           </Tooltip>
         ) : null}
+        <Tooltip title={t("calendarAiLegend")} arrow>
+          <Box
+            component="span"
+            sx={{
+              width: 26,
+              height: 26,
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: alpha(theme.palette.secondary.main, 0.14),
+              color: "secondary.main",
+              border: `1.5px solid ${alpha(theme.palette.secondary.main, 0.45)}`,
+            }}
+          >
+            <AutoAwesomeIcon sx={{ fontSize: 14 }} />
+          </Box>
+        </Tooltip>
       </Stack>
 
-      <Card sx={{ ...calendarCardSx, p: { xs: 0.65, sm: 1, md: 1.5 }, overflow: "visible", flex: 1, minHeight: 0 }}>
+      <Card sx={{ ...calendarCardSx, p: { xs: 0.65, sm: 1, md: 1.5 }, overflow: "hidden", width: "100%", flexShrink: 0 }}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={1.5}

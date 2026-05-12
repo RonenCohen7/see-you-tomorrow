@@ -80,6 +80,8 @@ const resources = {
       helpReplay: "מהתחלה",
       helpTtsHint:
         "הקריינות משתמשת בקול הדפדפן בעברית. בחלק מהמכשירים צריך ללחוץ על המסך לפני השמעה. אם אין קול, בדקו הרשאות או השתמשו בכיתוביות בלבד.",
+      helpTtsNoHebrewVoice:
+        "לא זוהה קול עברית בדפדפן. ההקראה עלולה להישמע בשפה ברירת־מחדל של המערכת — העדיפו את הכיתוביות אם זה לא נוח להאזין.",
       schedulesPageWhatFor: "למה משמש הדף?",
       schedulesPageDescription:
         "כאן רואים את כל רשומות השיבוץ במערכת — לכל שילוב של עובד, תאריך עבודה וסטטוס (משרד, בית, חופשה, מחלה, לא עובד), כולל שעות חלקיות והערות.\n\n" +
@@ -151,8 +153,87 @@ const resources = {
       reportsInvalidDateRange: "תאריך ההתחלה חייב להיות לפני או שווה לתאריך הסיום.",
       schedulesForReportBanner:
         "לחיצה כפולה על שורת שיבוץ (עובד, תאריך וסטטוס) פותחת את דף הדוחות עם אותם פרמטרים — להפקת PDF או שליחה במייל. רק סטטוסים משרד, בית, חופשה ומחלה מופיעים בדוח.",
+      scheduleSource: "מקור",
+      scheduleSourceAi: "AI",
+      aiValidationOk: "אימות כללי עבר",
+      aiValidationBlocked: "לא ניתן לאשר: ההמלצה לא עומדת בבדיקות ארגון (חוקים, כיסוי מנהלים וכו׳)",
+      aiPreferenceContextTitle: "מה נטען מהעדפות עובדים",
+      aiPreferenceContextBody:
+        "לפני המודל נטענו {{docs}} מסמכי הגשה (שבועות), מ-{{employees}} עובדים שונים, עם סה״כ {{days}} ימים שבהם צוינה העדפה (משרד/בית/חופשה/לא עובד).",
+      aiPreferenceContextFootnote:
+        "זה לא ערובה שהמודל ייענה לכל בקשה — קיבולת, חוקים ארגוניים והיסטוריית שיבוצים עלולים לדרוש סטייה. למטה מוצגת השוואה אוטומטית שורה־שורה מול ההעדפות המוגשות.",
+      aiPreferenceAlignmentTitle: "התאמה להעדפות שהוגשו (בדיקה אוטומטית)",
+      aiPreferenceAlignmentBody:
+        "מתוך {{total}} שורות בהמלצה: {{matched}} זהות להעדפה שהוגשה לאותו יום־עובד; {{differs}} שונות מההעדפה; {{none}} ללא העדפה מוגשת לאותה משבצת (או ריק בהגשה).",
+      aiPreferenceHad: "בהגשה",
+      aiPreferenceRecommended: "בהמלצה",
       schedulesReportSkipOffStatus: "סטטוס «לא עובד» אינו מופיע בדוח שיבוץ לפי סטטוס — בחרו שורה עם משרד, בית, חופשה או מחלה.",
       settings: "הגדרות",
+      attendancePrefs: "העדפות שיבוץ",
+      teamAttendancePrefs: "העדפות צוות",
+      teamAttendancePrefsIntro:
+        "רשימת עובדים ששלחו «הגשה» לשבוע הנבחר (סטטוס submitted). טיוטות אינן מופיעות כאן. כדי לראות האם הצעות ה-AI תואמות את ההעדפות האלה — בעמוד «המלצות AI» בחר אותה מחלקה וטווח תאריכים והפק המלצה; לאחר ההפקה תופיע סיכום טעינת העדפות והשוואה שורה־שורה.",
+      teamPipelineExplainTitle: "איך זה מגיע לתור אישור וללוח?",
+      teamPipelineExplainBody:
+        "רק שעובד לוחץ «שלח הגשה» בעמוד «העדפות שיבוץ» מתעדכן מחזור אוטומציה למחלקה. מסך העדפות צוות הוא לצפייה בלבד. אחרי ההגשה יש דחייה קצרה (עד כ־10 שניות לאיחוד הגשות) ואז רצה AI; משך קריאת המודל נוסף על כך. חוק «מנהל באותו יום במשרד» נבדק במסך ההמלצות לצוות השלם ולא אמור לעצור את תור זה. אם ולידציה אחרת נכשלת — תראו זאת בסטטוס כאן ובהתראות.",
+      teamPipelineStatusHeading: "מצב צינור (העדפות → AI)",
+      teamPipelineNoDocShort: "אין עדיין רשומת מחזור לשבוע זה",
+      teamPipelineNoDocWithSubmissions:
+        "מופיעות כאן הגשות אך אין מסמך מחזור למחלקה/שבוע — בדרך כלל העובד לא היה משויך למחלקה בזמן ההגשה, או שהשירות לא הצליח להפעיל צינור (למשל Redis לא רץ בסביבת פיתוח).",
+      teamPipelineOpenQueue: "מעבר לתור אישור העדפות",
+      teamPipelineAppliedFootnote: "הצינור לשבוע זה כבר הושלם ופורסמה המלצה שאושרה — בדקו שינויים בלוח הזמנים.",
+      teamAttendancePrefsDeptLocked: "מחלקה: חשבונך משויך למחלקה שלך בלבד.",
+      teamAttendancePrefsWeek: "שבוע (ראשון UTC)",
+      teamAttendancePrefsPickDept: "בחר מחלקה כדי לראות הגשות.",
+      teamAttendancePrefsNoDept: "אין מחלקה משויכת לחשבון — פנה למנהל המערכת.",
+      teamAttendancePrefsEmpty: "אין הגשות מאושרות לשבוע זה במחלקה.",
+      teamAttendancePrefsSubmittedAt: "הוגש בתאריך",
+      prefPipelineTitle: "מצב עיבוד ההעדפות (אוטומציית AI)",
+      prefPipelineSubtitle:
+        "כל הגשת עובד היא פרטית (רק מה שסימנת לשבוע). תור ה-AI נבנה פעם אחת לשבוע ברמת המחלקה כשמגישים עובדים, אבל המספרים שתראה כשמופיע סיכום מתייחסים **רק** להמלצות מול ההעדפות **שלך** (לימים ובשורות שמקושרות אליך). חוק ארגון «מנהל/אחראי במשרד בכל יום» נבדק במסך אחר למתווה הצוות ולא אמור לחסום כאן את הגשות העובדים.",
+      prefPipelineChipApplied: "הושלם — פורסם ללוח",
+      prefPipelineChipAwaitingManager: "ה-AI הסתיים — ממתין לאישור מנהל",
+      prefPipelineChipAiHandledFailed: "צבע טיפול: ה-AI/המערכת סיימו — התגלתה בעיה לפני השידוך",
+      prefPipelineChipRejectedHandled: "צבע טיפול: בוטל ע״י מנהל",
+      prefPipelineChipQueued: "בתור לעיבוד",
+      prefPipelineChipAiRunning: "מתבצעת מסקנת AI",
+      prefPipelineChipSuperseded: "הוחלף בהגשה חדשה",
+      prefPipeline_queued:
+        "בתור לאיחוד ההגשות לשבוע — מתוכנן עיבוד AI ברמת המחלקה תוך עד כ־10 שניות מהגשה אחרונה באותה מחלקה. הגשות נוספות באותו שבוע מאחדות מחדש את חלון ההמתנה.",
+      prefPipeline_ai_running: "מתבצעת הפקת המלצות למחלקה מהגשות לשבוע. במסך «העדפות נוכחות שבועית» מוצגת לכל עובד התאמה אישית (רק שורות וימים הנוגעים אליו מול ההמלצה).",
+      prefPipeline_ai_failed: "לא הושלמה המלצת AI:",
+      prefPipeline_awaiting_manager: "יש הצעת שיבוץ מוכנה — ממתינה לאישור מנהל.",
+      prefPipeline_applied: "הוגש ובסיס השיבוצים עודכן לפי אישור שפורסם.",
+      prefPipeline_rejected: "הצעת ה-AI בוטלה; לא פורסם שינוי מהצינור הזה.",
+      prefPipeline_superseded: "הופיעה הגשה חדשה — תור ההמלצה הוחלף/עודכן.",
+      prefPipelineNoDept:
+        "לחשבונך לא שויכה מחלקה במערכת — ההעדפות נשמרות, אך לא יופעל צינור אוטומטי למחלקה.",
+      prefPipelineSummaryHint:
+        " בהשוואה **אישית** (שורותיך אל מול ההמלצה): התאמה {{match}} · סטיות {{diff}} · ימים בהצעה בלי שהגדרת העדפה {{unknown}}.",
+      preferenceAiQueueNav: "תור אישור העדפות",
+      preferenceAiQueueTitle: "תור הצעות AI מהעדפות",
+      preferenceAiQueueManagerNote:
+        "רשימות אוטומציה שנוצרו אחרי העדפות מוגשות. אשר או דחה — פרסום ללוח רק לאחר אישור.",
+      preferenceAiQueueAdminNote: "כאדמין בחר מחלקה. כפתור האישור מחיל את כל ההמלצות ומפרסם ללוח.",
+      preferenceAiQueuePickDept: "בחר מחלקה כדי לראות אצווות בהמתנה.",
+      preferenceAiQueueEmpty: "אין אצווות מהצינור שממתינות לאישור.",
+      preferenceAiQueueRows: "שורות המלצה",
+      preferenceAiQueueApprove: "אישור והחלה",
+      preferenceAiQueueReject: "דחייה",
+      preferenceAiQueueRejectConfirm: "לדחות את ההצעה? העובדים יקבלו עדכון — לא תבוצע החלה אוטומטית על הלוח.",
+      preferenceAiQueueRejected: "האצווה סומנה כדחויה.",
+      preferenceAiQueueMissingLocation:
+        "למחלקה אין locationId בשורת האצווה — לתקן שיוך מיקום למחלקה לפני אישור.",
+      preferenceAiQueueTruncate: "מוצגות {{shown}} שורות ראשונות מתוך {{total}}.",
+      preferenceAiQueueLegendTitle: "מקרא שורות:",
+      preferenceAiQueueLegendSubmitted: "העובד הגדיר העדפת יום למשבצת זו במסמך מוגשר.",
+      preferenceAiQueueLegendAiFill: "לא הוגדרה העדפת יום במסמך מוגשר למשבצת זו — השורה נכללת בהמלצת ה-AI לשבוע במסגרת המחלקה.",
+      preferenceAiQueueNotesExplainer: "בעמודת «הערות» מוצג הסבר מה-AI בעת שימוש במודל חי — ללא טקסט דמה או טכני.",
+      prefSubmitConfirmTitle: "לשלוח את ההעדפות?",
+      prefSubmitConfirmBody:
+        "לאחר ההגשה המנהל יקבל התראה (אם הוגדר מחלקה), והנתונים ישמשו את המלצות ה-AI בפעם הבאה שתופק המלצה. לא ניתן לבטל כאן — ניתן להגיש מחדש אם הארגון מאפשר עדכון.",
+      prefSubmitConfirmSend: "שליחה",
+      prefFormClearedHint: "השדות אופסו להצגה. ההגשה נשמרה במערכת — ניתן לשנות שבוע או למלא ולהגיש שוב לפי מדיניות הארגון.",
       profile: "פרופיל",
       darkMode: "מצב כהה",
       liveConnected: "מחובר בזמן אמת",
@@ -205,7 +286,9 @@ const resources = {
       onSick: "בחופשת מחלה",
       onOff: "לא עובד",
       newDepartment: "מחלקה חדשה",
+      newDepartmentTooltip: "הוסף מחלקה חדשה",
       newLocation: "מיקום חדש",
+      newLocationTooltip: "הוסף מיקום חדש",
       newShift: "משמרת חדשה",
       capacity: "קיבולת",
       city: "עיר",
@@ -239,6 +322,8 @@ const resources = {
       calendarDayNoManagerOffice: "לא שובץ מנהל במשרד",
       calendarManagersInOffice: "הנהלה במשרד: {{names}}",
       calendarManagerGapLegend: "יום בחודש המוצג ללא מנהל/ראש צוות במשרד",
+      calendarAiLegend: "ביום זה יש שיבוצים שפורסמו מאישור AI",
+      calendarAiDayHint: "{{count}} שיבוצים שמקורם AI ביום זה",
       aiHolidayContextLabel: "לוח שנה ותכנון",
       aiHolidayNameShavuot: "חג השבועות",
       aiHolidayNameRoshHashana: "ראש השנה",
@@ -275,7 +360,12 @@ const resources = {
       birthdayDayEditorBanner: "ימי הולדת ביום זה",
       generateRecommendations: "הפק המלצות AI חדשות",
       analyzing: "מנתח לוחות וקיבולת…",
+      aiWeekendOfficeAdminOverride:
+        "חריג ארגון: אפשר שיבוץ «משרד» בשישי/שבת (לוח UTC) בהמלצת ה-AI",
+      aiWeekendOfficeAdminOverrideHint:
+        "כברירת מחדל אין שיבוץ משרד בימים אלה (לוח UTC). סימון כאן מתאים לחריג שאושר על ידי ניהול בכיר; בדיקות אחרות (קיבולת, כיסוי מנהלים וכו׳) עדיין חלות.",
       newEmployee: "עובד חדש",
+      newEmployeeTooltip: "הוסף עובד חדש",
       personalInfo: "פרטים אישיים",
       contactInfo: "פרטי קשר",
       workInfo: "פרטי תעסוקה",

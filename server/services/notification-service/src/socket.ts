@@ -28,6 +28,7 @@ export function initSocket(httpServer: HttpServer) {
   io.on("connection", (socket) => {
     const uid = socket.data.userId as string;
     const role = socket.data.role as string;
+    socket.join("authenticated");
     socket.join(`user:${uid}`);
     if (role === "admin") socket.join("admins");
   });
@@ -50,4 +51,17 @@ export function emitDashboardRefresh(userIds: string[]) {
     s.to(`user:${id}`).emit(SOCKET_EVENTS.dashboardRefresh, { at: new Date().toISOString() });
   }
   s.to("admins").emit(SOCKET_EVENTS.dashboardRefresh, { at: new Date().toISOString() });
+}
+
+export type SystemBroadcastPayload = {
+  id: string;
+  title: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  at: string;
+};
+
+/** All sockets that passed JWT handshake (room `authenticated`). */
+export function emitSystemBroadcast(payload: SystemBroadcastPayload) {
+  getIo().to("authenticated").emit(SOCKET_EVENTS.systemBroadcast, payload);
 }

@@ -305,9 +305,16 @@ export default function EmployeesPage() {
           )}
         </Stack>
         {canWrite && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ flexShrink: 0 }}>
-            {t("newEmployee")}
-          </Button>
+          <Tooltip title={t("newEmployeeTooltip")} placement="left" arrow disableInteractive>
+            <Button
+              variant="contained"
+              onClick={openCreate}
+              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+              aria-label={t("newEmployeeTooltip")}
+            >
+              <AddIcon />
+            </Button>
+          </Tooltip>
         )}
       </Stack>
 

@@ -34,6 +34,7 @@ import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverage
 import { nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
 import { MonthDayCell } from "./MonthDayCell";
 import type { DayAgg } from "./calendarConstants";
@@ -407,6 +408,19 @@ export default function CalendarPage() {
             </Avatar>
           </Tooltip>
         ) : null}
+        <Tooltip title={t("calendarAiLegend")} arrow>
+          <Avatar
+            sx={{
+              width: 26,
+              height: 26,
+              bgcolor: alpha(theme.palette.secondary.main, 0.14),
+              color: "secondary.main",
+              border: `1.5px solid ${alpha(theme.palette.secondary.main, 0.45)}`,
+            }}
+          >
+            <AutoAwesomeIcon sx={{ fontSize: 14 }} />
+          </Avatar>
+        </Tooltip>
       </Stack>
 
       <Stack
@@ -468,6 +482,7 @@ export default function CalendarPage() {
                   const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso);
                   const bdays = birthdaysByIso.get(iso) ?? [];
                   const pk = parkingByIso.get(iso) ?? [];
+                  const aiRowCount = list.filter((s) => s.source === "ai").length;
                   const byStatus = new Map<StatusKey, Set<string>>();
                   for (const s of list) {
                     if (!byStatus.has(s.status)) byStatus.set(s.status, new Set());
@@ -538,6 +553,7 @@ export default function CalendarPage() {
                             >
                               {HEBREW_WEEKDAYS[weekday]} · {monthShort}
                             </Typography>
+                          <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
                             {isToday && (
                               <Chip
                                 size="small"
@@ -546,6 +562,12 @@ export default function CalendarPage() {
                                 sx={{ height: 20, fontSize: 11, fontWeight: 700, flexShrink: 0 }}
                               />
                             )}
+                            {aiRowCount > 0 && (
+                              <Tooltip title={t("calendarAiDayHint", { count: aiRowCount })} arrow>
+                                <AutoAwesomeIcon sx={{ fontSize: 16, color: "secondary.main" }} />
+                              </Tooltip>
+                            )}
+                          </Stack>
                           </Stack>
                           <Typography
                             variant="h4"

@@ -1,4 +1,5 @@
 import type { Types } from "mongoose";
+import mongoose from "mongoose";
 import {
   AppError,
   DB_NAMES,
@@ -6,6 +7,7 @@ import {
   getScheduleModel,
   SCHEDULE_STATUSES,
   type ScheduleDoc,
+  type ScheduleSource,
   type ScheduleStatus,
 } from "@syt/shared";
 import {
@@ -31,6 +33,8 @@ export function toPublic(doc: ScheduleDoc) {
     hours: doc.hours,
     note: doc.note,
     updatedBy: doc.updatedBy?.toString(),
+    source: doc.source ?? "manual",
+    aiBatchId: doc.aiBatchId?.toString(),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -56,6 +60,8 @@ export async function createSchedule(
     hours?: number;
     note?: string;
     updatedBy?: string;
+    source?: ScheduleSource;
+    aiBatchId?: string;
   },
   options?: { skipNotify?: boolean }
 ) {
@@ -70,6 +76,8 @@ export async function createSchedule(
     hours: input.hours,
     note: input.note,
     updatedBy: input.updatedBy,
+    source: input.source ?? "manual",
+    ...(input.aiBatchId ? { aiBatchId: new mongoose.Types.ObjectId(input.aiBatchId) } : {}),
   });
   const pub = toPublic(doc);
   if (!options?.skipNotify) {
@@ -97,6 +105,8 @@ export async function updateSchedule(
     hours: number;
     note: string;
     updatedBy: string;
+    source: ScheduleSource;
+    aiBatchId: string | null;
   }>,
   options?: { skipNotify?: boolean }
 ) {
@@ -111,6 +121,12 @@ export async function updateSchedule(
   if (input.hours !== undefined) doc.hours = input.hours;
   if (input.note !== undefined) doc.note = input.note;
   if (input.updatedBy !== undefined) doc.updatedBy = input.updatedBy as unknown as Types.ObjectId;
+  if (input.source !== undefined) doc.source = input.source;
+  if (input.aiBatchId !== undefined) {
+    doc.aiBatchId = input.aiBatchId
+      ? (new mongoose.Types.ObjectId(input.aiBatchId) as unknown as ScheduleDoc["aiBatchId"])
+      : undefined;
+  }
 
   await doc.save();
 
@@ -250,7 +266,28 @@ export async function monthSummary(monthYm: string) {
       off: number;
     };
   });
-  return { month: monthYm, days };
+  type AiAgg = { _id: string; aiAssignments: number };
+  const aiAgg = await Schedule.aggregate<AiAgg>([
+    {
+      $match: {
+        workDate: { $gte: start, $lte: end },
+        source: "ai",
+      },
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$workDate" },
+        },
+        aiAssignments: { $sum: 1 },
+      },
+    },
+  ]);
+  const byDayAi = new Map(aiAgg.map((r) => [r._id, r.aiAssignments]));
+  return {
+    month: monthYm,
+    days: days.map((d) => ({ ...d, aiAssignments: byDayAi.get(d._id) ?? 0 })),
+  };
 }
 
 export async function weekView(isoDate: string) {
@@ -276,6 +313,8 @@ export async function upsertBulkInternal(
     locationId?: string;
     note?: string;
     updatedBy?: string;
+    source?: ScheduleSource;
+    aiBatchId?: string;
   }>,
   options?: { skipNotifications?: boolean }
 ) {
@@ -295,6 +334,10 @@ export async function upsertBulkInternal(
       if (item.locationId !== undefined) existing.locationId = item.locationId as unknown as Types.ObjectId;
       if (item.note !== undefined) existing.note = item.note;
       if (item.updatedBy !== undefined) existing.updatedBy = item.updatedBy as unknown as Types.ObjectId;
+      if (item.source !== undefined) existing.source = item.source;
+      if (item.aiBatchId !== undefined && item.aiBatchId) {
+        existing.aiBatchId = new mongoose.Types.ObjectId(item.aiBatchId) as unknown as Types.ObjectId & ScheduleDoc["aiBatchId"];
+      }
       await existing.save();
       results.push(toPublic(existing));
     } else {
@@ -308,6 +351,8 @@ export async function upsertBulkInternal(
           hours: item.hours,
           note: item.note,
           updatedBy: item.updatedBy,
+          source: item.source,
+          aiBatchId: item.aiBatchId,
         },
         { skipNotify: true }
       );

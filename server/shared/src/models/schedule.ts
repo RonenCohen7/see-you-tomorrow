@@ -4,6 +4,10 @@ import { Schema } from "mongoose";
 export const SCHEDULE_STATUSES = ["office", "home", "vacation", "sick", "off"] as const;
 export type ScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
 
+/** How the row was authored (UI / manual vs approved AI batch). */
+export const SCHEDULE_SOURCES = ["manual", "ai"] as const;
+export type ScheduleSource = (typeof SCHEDULE_SOURCES)[number];
+
 export interface ScheduleDoc {
   _id: import("mongoose").Types.ObjectId;
   employeeId: import("mongoose").Types.ObjectId;
@@ -14,6 +18,8 @@ export interface ScheduleDoc {
   hours?: number;
   note?: string;
   updatedBy?: import("mongoose").Types.ObjectId;
+  source: ScheduleSource;
+  aiBatchId?: import("mongoose").Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,6 +43,8 @@ const scheduleSchema = new Schema<ScheduleDoc>(
     hours: { type: Number, min: 0, max: 24 },
     note: { type: String, trim: true },
     updatedBy: { type: Schema.Types.ObjectId, ref: "Employee" },
+    source: { type: String, enum: SCHEDULE_SOURCES, default: "manual" },
+    aiBatchId: { type: Schema.Types.ObjectId },
   },
   { timestamps: true }
 );

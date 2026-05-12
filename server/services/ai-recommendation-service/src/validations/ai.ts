@@ -17,11 +17,17 @@ export const recommendSchema = z.object({
       preferredOfficeDays: z.array(z.string()).optional(),
     })
     .optional(),
+  /** רק אדמין רשאי לבקש true; מאפשר המלצות `office` בשישי–שבת (תאריך UTC). */
+  allowFridaySaturdayOffice: z.boolean().optional(),
 });
 
 export const approveSchema = z.object({
-  departmentId: objectId.optional(),
+  departmentId: objectId,
   locationId: objectId.optional(),
+  aiBatchId: objectId.optional(),
+  confidence: z.number().optional(),
+  model: z.string().optional(),
+  validationNotes: z.array(z.string()).optional(),
   recommendations: z.array(
     z.object({
       date: z.string(),

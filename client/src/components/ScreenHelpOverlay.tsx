@@ -19,35 +19,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { getHelpSegments, helpScreenTitleKey } from "../help/screenHelpScripts";
+import {
+  normalizeTextForTts,
+  pickHebrewVoice,
+  utteranceLangForVoice,
+} from "../utils/helpScreenTts";
+
+export { normalizeTextForTts } from "../utils/helpScreenTts";
 
 const AVATAR_SRC = "/help-avatar.png";
 
-/** טקסט לקריינות בלבד — מונע קריאת "נקודה נקודה" על שלוש נקודות / מקף מיותר בסוף. */
-export function normalizeTextForTts(raw: string): string {
-  let s = raw.replace(/\u2026/g, " ").replace(/…/g, " ");
-  s = s.replace(/\.{2,}/g, " ");
-  s = s.replace(/\s+/g, " ").trim();
-  s = s.replace(/\s+([.,;:])/g, "$1");
-  return s.trim();
-}
-
-function voiceScore(v: SpeechSynthesisVoice): number {
-  let s = 0;
-  const n = v.name.toLowerCase();
-  if (n.includes("google")) s += 4;
-  if (n.includes("premium") || n.includes("enhanced")) s += 2;
-  if (v.localService) s += 1;
-  if (v.default) s += 1;
-  return s;
-}
-
-function pickHebrewVoice(): SpeechSynthesisVoice | null {
-  if (typeof window === "undefined" || !window.speechSynthesis) return null;
-  const voices = window.speechSynthesis.getVoices();
-  const he = voices.filter((v) => v.lang.toLowerCase().startsWith("he") || /hebrew|עברית/i.test(v.name));
-  if (he.length === 0) return null;
-  return [...he].sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
-}
+const VOICE_POLL_MAX = 12;
+const VOICE_POLL_MS = 100;
 
 export type ScreenHelpOverlayProps = {
   open: boolean;
@@ -61,6 +44,7 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
   const [caption, setCaption] = useState("");
   const [speaking, setSpeaking] = useState(false);
   const [restartToken, setRestartToken] = useState(0);
+  const [noHebrewVoice, setNoHebrewVoice] = useState(false);
 
   const segments = useMemo(() => getHelpSegments(pathname), [pathname]);
   const screenTitleKey = useMemo(() => helpScreenTitleKey(pathname), [pathname]);
@@ -77,11 +61,15 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
     if (!open) return undefined;
     const synth = window.speechSynthesis;
     const refresh = () => {
-      void synth.getVoices();
+      synth.getVoices();
     };
     refresh();
     synth.addEventListener("voiceschanged", refresh);
     return () => synth.removeEventListener("voiceschanged", refresh);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setNoHebrewVoice(false);
   }, [open]);
 
   useEffect(() => {
@@ -100,40 +88,78 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
     if (muted) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
+      setNoHebrewVoice(false);
       setCaption(segments.map((s) => s.text).join("\n\n"));
       return undefined;
     }
 
     let cancelled = false;
     let idx = 0;
+    const timeouts: number[] = [];
+
+    const flushTimeouts = () => {
+      timeouts.forEach((id) => window.clearTimeout(id));
+      timeouts.length = 0;
+    };
 
     const runNext = () => {
       if (cancelled || idx >= segments.length) {
+        flushTimeouts();
         setSpeaking(false);
         return;
       }
-      const text = segments[idx].text;
-      setCaption(text);
-      const forSpeech = normalizeTextForTts(text);
-      const u = new SpeechSynthesisUtterance(forSpeech || text);
-      u.lang = "he-IL";
-      u.rate = 0.88;
-      u.pitch = 1;
-      const voice = pickHebrewVoice();
-      if (voice) u.voice = voice;
-      let finished = false;
-      const advance = () => {
-        if (cancelled || finished) return;
-        finished = true;
-        idx += 1;
-        runNext();
+
+      const proceed = () => {
+        if (cancelled || idx >= segments.length) {
+          flushTimeouts();
+          setSpeaking(false);
+          return;
+        }
+        const text = segments[idx].text;
+        setCaption(text);
+        const forSpeech = normalizeTextForTts(text);
+        const u = new SpeechSynthesisUtterance(forSpeech || text);
+        const voice = pickHebrewVoice();
+        if (idx === 0) {
+          const voices = window.speechSynthesis.getVoices();
+          if (voices.length > 0 && !voice) setNoHebrewVoice(true);
+          else setNoHebrewVoice(false);
+        }
+        u.lang = utteranceLangForVoice(voice);
+        u.rate = 0.84;
+        u.pitch = 1;
+        if (voice) u.voice = voice;
+        let finished = false;
+        const advance = () => {
+          if (cancelled || finished) return;
+          finished = true;
+          idx += 1;
+          runNext();
+        };
+        u.onstart = () => {
+          if (!cancelled) setSpeaking(true);
+        };
+        u.onend = advance;
+        u.onerror = advance;
+        window.speechSynthesis.speak(u);
       };
-      u.onstart = () => {
-        if (!cancelled) setSpeaking(true);
-      };
-      u.onend = advance;
-      u.onerror = advance;
-      window.speechSynthesis.speak(u);
+
+      if (idx === 0) {
+        const poll = (attempt: number) => {
+          if (cancelled) return;
+          window.speechSynthesis.getVoices();
+          const voices = window.speechSynthesis.getVoices();
+          if (voices.length === 0 && attempt < VOICE_POLL_MAX) {
+            timeouts.push(window.setTimeout(() => poll(attempt + 1), VOICE_POLL_MS));
+            return;
+          }
+          proceed();
+        };
+        poll(0);
+        return;
+      }
+
+      proceed();
     };
 
     window.speechSynthesis.cancel();
@@ -141,6 +167,7 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
 
     return () => {
       cancelled = true;
+      flushTimeouts();
       window.speechSynthesis.cancel();
       setSpeaking(false);
     };
@@ -216,6 +243,11 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5, lineHeight: 1.5 }}>
                 {t("helpTtsHint")}
               </Typography>
+              {noHebrewVoice ? (
+                <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 1, lineHeight: 1.5 }}>
+                  {t("helpTtsNoHebrewVoice")}
+                </Typography>
+              ) : null}
             </Box>
           </Stack>
         </DialogContent>

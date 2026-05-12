@@ -26,6 +26,10 @@ import AIRecommendationsPage from "./pages/AIRecommendationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import ReportsPage from "./pages/ReportsPage";
+import EmployeeRoute from "./components/EmployeeRoute";
+import AttendancePreferencesPage from "./pages/AttendancePreferencesPage";
+import TeamAttendancePreferencesPage from "./pages/TeamAttendancePreferencesPage";
+import PreferenceAiQueuePage from "./pages/PreferenceAiQueuePage";
 
 const qc = new QueryClient();
 
@@ -86,8 +90,38 @@ export default function App() {
                       </AdminRoute>
                     }
                   />
-                  <Route path="/schedules" element={<ScheduleManagementPage />} />
-                  <Route path="/parking" element={<ParkingManagementPage />} />
+                  <Route
+                    path="/schedules"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <ScheduleManagementPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/team-preferences"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <TeamAttendancePreferencesPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/preference-ai-queue"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <PreferenceAiQueuePage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/parking"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <ParkingManagementPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
                   <Route
                     path="/reports"
                     element={
@@ -97,9 +131,24 @@ export default function App() {
                     }
                   />
                   <Route path="/notifications" element={<NotificationsPage />} />
-                  <Route path="/ai" element={<AIRecommendationsPage />} />
+                  <Route
+                    path="/ai"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <AIRecommendationsPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route
+                    path="/preferences"
+                    element={
+                      <EmployeeRoute>
+                        <AttendancePreferencesPage />
+                      </EmployeeRoute>
+                    }
+                  />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

@@ -9,6 +9,7 @@ import { notificationRoutes } from "./routes/notificationRoutes.js";
 import { internalRoutes } from "./routes/internalRoutes.js";
 import { initSocket } from "./socket.js";
 import { startEmailWorker } from "./services/emailQueue.js";
+import { startPreferenceReminderWorker } from "./services/preferenceReminderWorker.js";
 
 const PORT = Number(process.env.PORT ?? 4006);
 logger.info("notification-service starting", { PORT, JWT_SECRET_set: !!process.env.JWT_SECRET });
@@ -26,5 +27,6 @@ app.use(errorHandler);
 const httpServer = createServer(app);
 initSocket(httpServer);
 startEmailWorker();
+startPreferenceReminderWorker();
 
 httpServer.listen(PORT, () => logger.info(`notification-service listening on ${PORT}`));

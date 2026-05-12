@@ -227,6 +227,12 @@ export async function internalAdminIds(): Promise<string[]> {
   return docs.map((d) => d._id.toString());
 }
 
+export async function internalIdsByRole(role: Role): Promise<string[]> {
+  const Employee = await getModel();
+  const docs = await Employee.find({ role, isActive: true }).select("_id").lean();
+  return docs.map((d) => d._id.toString());
+}
+
 function isLeapYear(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }

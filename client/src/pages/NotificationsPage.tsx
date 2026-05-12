@@ -223,9 +223,17 @@ export default function NotificationsPage() {
                           {n.message}
                         </Typography>
 
-                        <Button component={RouterLink} to="/schedules" size="small" variant="outlined" sx={{ alignSelf: "flex-start", mt: 0.5 }}>
-                          {t("notificationsGoSchedules")}
-                        </Button>
+                        {user?.role === "admin" || user?.role === "manager" ? (
+                          <Button
+                            component={RouterLink}
+                            to="/schedules"
+                            size="small"
+                            variant="outlined"
+                            sx={{ alignSelf: "flex-start", mt: 0.5 }}
+                          >
+                            {t("notificationsGoSchedules")}
+                          </Button>
+                        ) : null}
                       </Stack>
                     ) : (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>

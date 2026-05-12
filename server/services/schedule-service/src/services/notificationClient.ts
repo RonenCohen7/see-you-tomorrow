@@ -3,6 +3,25 @@ import { logger } from "@syt/shared";
 const base = () => process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4006";
 const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
+async function post(path: string, body: Record<string, unknown>) {
+  try {
+    const res = await fetch(`${base()}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": secret(),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      logger.warn("notification internal failed", { path, status: res.status, body: t.slice(0, 200) });
+    }
+  } catch (e) {
+    logger.warn("notification internal error", { path, e });
+  }
+}
+
 export async function notifyScheduleChange(payload: {
   scheduleId: string;
   employeeId: string;
@@ -59,4 +78,102 @@ export async function notifyScheduleRangeChange(payload: {
   } catch (e) {
     logger.warn("notifyScheduleRangeChange error", e);
   }
+}
+
+export async function notifyPreferenceSubmitted(payload: {
+  employeeId: string;
+  departmentId?: string;
+  weekStartSunday: string;
+}) {
+  try {
+    const res = await fetch(`${base()}/internal/notifications/preference-submitted`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": secret(),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      logger.warn("notification preference-submitted failed", { status: res.status, body: t });
+    }
+  } catch (e) {
+    logger.warn("notifyPreferenceSubmitted error", e);
+  }
+}
+
+export async function notifyPreferencePipelineQueued(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  submitterEmployeeIds: string[];
+}) {
+  await post("/internal/notifications/preference-pipeline-queued", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineAiReady(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  batchId: string;
+  submitterEmployeeIds: string[];
+  summary?: {
+    matchedPreference?: number;
+    differsFromPreference?: number;
+    noSubmittedPreferenceForSlot?: number;
+    recommendationRows?: number;
+  };
+}) {
+  await post("/internal/notifications/preference-pipeline-ai-ready", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineAiFailed(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  submitterEmployeeIds: string[];
+  message: string;
+}) {
+  await post("/internal/notifications/preference-pipeline-ai-failed", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineValidationIssueManagers(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  message: string;
+}) {
+  await post("/internal/notifications/preference-pipeline-validation-managers", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineNoLocation(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  submitterEmployeeIds: string[];
+}) {
+  await post("/internal/notifications/preference-pipeline-no-location", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineApplied(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  submitterEmployeeIds: string[];
+}) {
+  await post("/internal/notifications/preference-pipeline-applied", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineRejected(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  submitterEmployeeIds: string[];
+}) {
+  await post("/internal/notifications/preference-pipeline-rejected", payload as unknown as Record<string, unknown>);
+}
+
+export async function notifyPreferencePipelineBatchPendingManagers(payload: {
+  departmentId: string;
+  weekStartSunday: string;
+  batchId: string;
+}) {
+  await post(
+    "/internal/notifications/preference-pipeline-batch-pending-managers",
+    payload as unknown as Record<string, unknown>
+  );
 }

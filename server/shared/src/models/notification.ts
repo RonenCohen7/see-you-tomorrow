@@ -5,6 +5,14 @@ export const NOTIFICATION_TYPES = [
   "schedule_update",
   "department_update",
   "location_update",
+  "preference_reminder",
+  "preference_submitted",
+  "preference_pipeline_queued",
+  "preference_pipeline_ai_ready",
+  "preference_pipeline_ai_failed",
+  "preference_pipeline_applied",
+  "preference_pipeline_rejected",
+  "preference_pipeline_no_location",
   "system",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

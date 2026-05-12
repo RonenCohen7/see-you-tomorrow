@@ -277,9 +277,11 @@ export function CalendarDayEditorDialog({
                         </Typography>
                       ))}
                     </Stack>
-                    <Button component={RouterLink} to="/parking" size="small" sx={{ mt: 1.5 }} variant="outlined">
-                      {t("parking")}
-                    </Button>
+                    {canWrite ? (
+                      <Button component={RouterLink} to="/parking" size="small" sx={{ mt: 1.5 }} variant="outlined">
+                        {t("parking")}
+                      </Button>
+                    ) : null}
                   </Box>
                 </Stack>
               </Box>
@@ -320,6 +322,15 @@ export function CalendarDayEditorDialog({
                             {name}
                           </Typography>
                           <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                            {s.source === "ai" && (
+                              <Chip
+                                size="small"
+                                label={t("scheduleSourceAi")}
+                                color="secondary"
+                                variant="outlined"
+                                sx={{ height: 22, fontWeight: 700 }}
+                              />
+                            )}
                             {s.hours != null && (
                               <Chip size="small" label={`${s.hours} שעות`} variant="outlined" />
                             )}

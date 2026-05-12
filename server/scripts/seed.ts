@@ -55,7 +55,12 @@ async function main() {
     process.exit(0);
   }
 
-  await OrgSettings.create({ managerCanEditSchedules: false, updatedAt: new Date() });
+  await OrgSettings.create({
+    managerCanEditSchedules: false,
+    preferenceMinDaysAhead: 7,
+    preferenceRemindersEnabled: true,
+    updatedAt: new Date(),
+  });
 
   const locations = await Location.insertMany(
     Array.from({ length: 5 }).map((_, i) => ({

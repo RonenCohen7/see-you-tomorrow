@@ -31,6 +31,9 @@ export interface Schedule {
   /** 0..24, optional. Absent = full day. Multiple entries per employee/day are allowed. */
   hours?: number;
   note?: string;
+  /** How this row was last written: manual edits vs AI batch apply. */
+  source?: "manual" | "ai";
+  aiBatchId?: string;
 }
 
 export interface NotificationItem {

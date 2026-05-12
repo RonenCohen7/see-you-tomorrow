@@ -1,6 +1,7 @@
 import { Box, Stack, Tooltip, Typography, alpha, useTheme } from "@mui/material";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import type { TFunction } from "i18next";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
@@ -45,6 +46,7 @@ export function MonthDayCell({
   const accentBirthday = mbdays.length > 0;
   const accentParking = pkdays.length > 0 && !accentBirthday;
 
+  const aiAssignments = cell.agg?.aiAssignments ?? 0;
   const pad = compact ? { xs: 0.35, sm: 0.5 } : { xs: 0.3, sm: 0.65 };
   const minH = compact ? { xs: 76, sm: 92 } : { xs: 54, sm: 86 };
   const radius = compact ? { xs: 0.5, sm: 1 } : { xs: 0.75, sm: 1.5 };
@@ -117,6 +119,16 @@ export function MonthDayCell({
               arrow
             >
               <LocalParkingIcon sx={{ fontSize: compact ? 14 : { xs: 16, sm: 18 }, color: "#0d47a1" }} />
+            </Tooltip>
+          )}
+          {aiAssignments > 0 && (
+            <Tooltip title={t("calendarAiDayHint", { count: aiAssignments })} arrow>
+              <AutoAwesomeIcon
+                sx={{
+                  fontSize: compact ? 14 : { xs: 16, sm: 18 },
+                  color: theme.palette.secondary.main,
+                }}
+              />
             </Tooltip>
           )}
         </Stack>

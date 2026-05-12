@@ -154,9 +154,16 @@ export default function DepartmentsPage() {
           <Chip size="small" label={`${q.data?.items?.length ?? 0} ${t("total")}`} />
         </Stack>
         {canWrite && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} sx={{ flexShrink: 0 }}>
-            {t("newDepartment")}
-          </Button>
+          <Tooltip title={t("newDepartmentTooltip")} placement="left" arrow disableInteractive>
+            <Button
+              variant="contained"
+              onClick={openCreate}
+              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+              aria-label={t("newDepartmentTooltip")}
+            >
+              <AddIcon />
+            </Button>
+          </Tooltip>
         )}
       </Stack>
 

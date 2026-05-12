@@ -598,6 +598,20 @@ export default function ScheduleManagementPage() {
   const columns: GridColDef<Schedule>[] = [
     ...(canWrite ? [actionsColumn] : []),
     {
+      field: "source",
+      headerName: t("scheduleSource"),
+      width: 100,
+      sortable: false,
+      renderCell: ({ row }) =>
+        row.source === "ai" ? (
+          <Chip size="small" label={t("scheduleSourceAi")} color="secondary" variant="outlined" />
+        ) : (
+          <Typography variant="caption" color="text.secondary">
+            —
+          </Typography>
+        ),
+    },
+    {
       field: "status",
       headerName: "סטטוס",
       width: 150,

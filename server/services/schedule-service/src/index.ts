@@ -6,6 +6,7 @@ import { DB_NAMES, errorHandler, getConnection, getScheduleModel, logger } from 
 
 import { scheduleRoutes } from "./routes/scheduleRoutes.js";
 import { internalRoutes } from "./routes/internalRoutes.js";
+import { startPreferenceAiPipelineWorker } from "./services/preferenceAiPipelineWorker.js";
 
 const PORT = Number(process.env.PORT ?? 4005);
 logger.info("schedule-service starting", { PORT, JWT_SECRET_set: !!process.env.JWT_SECRET });
@@ -46,4 +47,10 @@ app.use(errorHandler);
 app.listen(PORT, async () => {
   logger.info(`schedule-service listening on ${PORT}`);
   await ensureSchemaMigrations();
+  try {
+    startPreferenceAiPipelineWorker();
+    logger.info("preference AI pipeline worker started");
+  } catch (e) {
+    logger.warn("preference AI pipeline worker failed to start", e);
+  }
 });

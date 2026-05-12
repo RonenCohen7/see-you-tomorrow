@@ -39,15 +39,24 @@ type NavTile = {
   description: string;
   color: string;
   adminOnly?: boolean;
+  /** מנהל מחלקה / אדמין — מוסתר מעובד רגיל */
+  managerOrAdminOnly?: boolean;
 };
 
 const tiles: NavTile[] = [
   { to: "/calendar", i18nKey: "calendar", Icon: CalendarIcon, description: "תצוגת יומן חודשית", color: "#0ea5e9" },
-  { to: "/schedules", i18nKey: "schedules", Icon: SchedulesIcon, description: "ניהול ועריכת משמרות", color: "#f97316" },
+  {
+    to: "/schedules",
+    i18nKey: "schedules",
+    Icon: SchedulesIcon,
+    description: "ניהול ועריכת משמרות",
+    color: "#f97316",
+    managerOrAdminOnly: true,
+  },
   { to: "/employees", i18nKey: "employees", Icon: EmployeesIcon, description: "רשימת עובדים", color: "#8b5cf6", adminOnly: true },
   { to: "/departments", i18nKey: "departments", Icon: DepartmentsIcon, description: "ניהול מחלקות", color: "#22c55e", adminOnly: true },
   { to: "/locations", i18nKey: "locations", Icon: LocationsIcon, description: "ניהול מיקומים", color: "#ef4444", adminOnly: true },
-  { to: "/ai", i18nKey: "ai", Icon: AIIcon, description: "המלצות חכמות", color: "#ec4899" },
+  { to: "/ai", i18nKey: "ai", Icon: AIIcon, description: "המלצות חכמות", color: "#ec4899", managerOrAdminOnly: true },
   { to: "/notifications", i18nKey: "notifications", Icon: NotificationsListIcon, description: "התראות והודעות", color: "#eab308" },
 ];
 
@@ -117,7 +126,11 @@ export default function DashboardPage() {
     [items]
   );
 
-  const visibleTiles = tiles.filter((t) => !t.adminOnly || user?.role === "admin");
+  const visibleTiles = tiles.filter((t) => {
+    if (t.adminOnly && user?.role !== "admin") return false;
+    if (t.managerOrAdminOnly && user?.role === "employee") return false;
+    return true;
+  });
 
   return (
     <Box

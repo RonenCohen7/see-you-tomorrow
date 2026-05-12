@@ -5,9 +5,11 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Collapse,
   Divider,
+  FormControlLabel,
   GlobalStyles,
   IconButton,
   LinearProgress,
@@ -38,13 +40,38 @@ import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
-import { useRole } from "../store/authContext";
+import { useAuth, useRole } from "../store/authContext";
 import { useAiSmartAlerts } from "../hooks/useAiSmartAlerts";
 import type { SmartAlert } from "../utils/aiSmartAlerts";
 import { AI_ALERTS_SIGNATURE_SEEN_KEY, MANAGER_OFFICE_COVERAGE_ALERT_ID } from "../utils/aiSmartAlerts";
 
+type RecommendResult = {
+  recommendations: Array<{ date: string; employeeId: string; recommendedStatus: string; reason?: string }>;
+  confidence?: number;
+  model?: string;
+  validation?: { ok: true } | { ok: false; errors: string[] };
+  preferenceContext?: {
+    submittedPreferenceDocuments: number;
+    employeesWithSubmittedPrefs: number;
+    employeeDaysWithPreference: number;
+  };
+  preferenceVsRecommendation?: {
+    recommendationRows: number;
+    matchedPreference: number;
+    differsFromPreference: number;
+    noSubmittedPreferenceForSlot: number;
+    differsSamples: Array<{
+      employeeId: string;
+      date: string;
+      submittedPreference: string;
+      recommendedStatus: string;
+    }>;
+  };
+};
+
 export default function AIRecommendationsPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const role = useRole();
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -72,12 +99,15 @@ export default function AIRecommendationsPage() {
   const [to, setTo] = useState("");
   const [minOffice, setMinOffice] = useState(3);
   const [cap, setCap] = useState(50);
-  const [result, setResult] = useState<{
-    recommendations: Array<{ date: string; employeeId: string; recommendedStatus: string; reason?: string }>;
-    confidence?: number;
-    model?: string;
-  } | null>(null);
+  /** אישור אדמין בכיר לאפשר ה-AI למליץ במשרד בשישי–שבת (UTC). */
+  const [allowFridaySaturdayOffice, setAllowFridaySaturdayOffice] = useState(false);
+  const [result, setResult] = useState<RecommendResult | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    if (role !== "manager" || !user?.departmentId || dept) return;
+    setDept(user.departmentId);
+  }, [role, user?.departmentId, dept]);
 
   const departmentsQ = useQuery({
     queryKey: ["departments-for-ai"],
@@ -99,6 +129,7 @@ export default function AIRecommendationsPage() {
           maxOfficeCapacity: cap,
           preferredOfficeDays: ["Monday", "Wednesday"],
         },
+        ...(role === "admin" && allowFridaySaturdayOffice ? { allowFridaySaturdayOffice: true } : {}),
       });
       return data;
     },
@@ -109,6 +140,9 @@ export default function AIRecommendationsPage() {
     },
   });
 
+  const validationBlocksApprove = result?.validation?.ok === false;
+  const canApproveAi = role === "admin" || role === "manager";
+
   const approveMut = useMutation({
     mutationFn: async () => {
       if (!result) return;
@@ -116,10 +150,13 @@ export default function AIRecommendationsPage() {
         departmentId: dept,
         locationId: loc,
         recommendations: result.recommendations,
+        confidence: result.confidence,
+        model: result.model,
       });
     },
     onSuccess: () => {
       setToast({ msg: t("success"), ok: true });
+      void queryClient.invalidateQueries({ queryKey: ["schedules-all"] });
       void queryClient.invalidateQueries({ queryKey: ["schedules-recent"] });
       void queryClient.invalidateQueries({ queryKey: ["employees-all-for-ai"] });
       void queryClient.invalidateQueries({ queryKey: ["schedules-forward-parking"] });
@@ -324,7 +361,7 @@ export default function AIRecommendationsPage() {
                   {t("generateRecommendations")}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  המלצות לעולם לא יוחלו אוטומטית — נדרש אישור מנהל מערכת.
+                  ההמלצות לא יוחלו בלי אישור — מנהל מערכת או מנהל מחלקה (רק למחלקתו).
                 </Typography>
               </Box>
             </Stack>
@@ -392,6 +429,28 @@ export default function AIRecommendationsPage() {
                 value={cap}
                 onChange={(e) => setCap(Number(e.target.value))}
               />
+              {role === "admin" ? (
+                <Box sx={{ gridColumn: "1 / -1" }}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={allowFridaySaturdayOffice}
+                        onChange={(e) => setAllowFridaySaturdayOffice(e.target.checked)}
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>
+                          {t("aiWeekendOfficeAdminOverride")}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {t("aiWeekendOfficeAdminOverrideHint")}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+              ) : null}
               <Button
                 variant="contained"
                 size="large"
@@ -405,9 +464,72 @@ export default function AIRecommendationsPage() {
 
             {result && (
               <Box sx={{ mt: 3 }}>
+                {result.validation?.ok === false ? (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      {t("aiValidationBlocked")}
+                    </Typography>
+                    <Stack component="ul" sx={{ m: 0, pl: 2 }}>
+                      {result.validation.errors.map((e, i) => (
+                        <Typography key={i} component="li" variant="body2">
+                          {e}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Alert>
+                ) : null}
+                {result.preferenceContext ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      {t("aiPreferenceContextTitle")}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 0.5 }}>
+                      {t("aiPreferenceContextBody", {
+                        docs: result.preferenceContext.submittedPreferenceDocuments,
+                        employees: result.preferenceContext.employeesWithSubmittedPrefs,
+                        days: result.preferenceContext.employeeDaysWithPreference,
+                      })}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("aiPreferenceContextFootnote")}
+                    </Typography>
+                  </Alert>
+                ) : null}
+                {result.preferenceVsRecommendation && result.preferenceVsRecommendation.recommendationRows > 0 ? (
+                  <Alert
+                    severity={result.preferenceVsRecommendation.differsFromPreference > 0 ? "warning" : "success"}
+                    variant="outlined"
+                    sx={{ mb: 2 }}
+                  >
+                    <Typography variant="subtitle2" gutterBottom>
+                      {t("aiPreferenceAlignmentTitle")}
+                    </Typography>
+                    <Typography variant="body2">
+                      {t("aiPreferenceAlignmentBody", {
+                        matched: result.preferenceVsRecommendation.matchedPreference,
+                        differs: result.preferenceVsRecommendation.differsFromPreference,
+                        none: result.preferenceVsRecommendation.noSubmittedPreferenceForSlot,
+                        total: result.preferenceVsRecommendation.recommendationRows,
+                      })}
+                    </Typography>
+                    {result.preferenceVsRecommendation.differsSamples.length > 0 ? (
+                      <Stack component="ul" sx={{ m: 0, mt: 1, pl: 2 }}>
+                        {result.preferenceVsRecommendation.differsSamples.map((s, i) => (
+                          <Typography key={i} component="li" variant="caption" sx={{ display: "list-item" }}>
+                            {s.date} · …{s.employeeId.slice(-6)} · {t("aiPreferenceHad")}: {t(s.submittedPreference)}{" "}
+                            · {t("aiPreferenceRecommended")}: {t(s.recommendedStatus)}
+                          </Typography>
+                        ))}
+                      </Stack>
+                    ) : null}
+                  </Alert>
+                ) : null}
                 <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>
                   <Chip label={`רמת ביטחון: ${result.confidence ?? "—"}`} color="primary" />
                   <Chip label={`מודל: ${result.model ?? "—"}`} variant="outlined" />
+                  {result.validation?.ok === true ? (
+                    <Chip label={t("aiValidationOk")} color="success" size="small" variant="outlined" />
+                  ) : null}
                 </Stack>
                 <Box sx={{ width: "100%", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
                   <Table size="small" sx={{ minWidth: 520 }}>
@@ -433,11 +555,12 @@ export default function AIRecommendationsPage() {
                     </TableBody>
                   </Table>
                 </Box>
-                {role === "admin" && (
+                {canApproveAi && (
                   <Button
                     sx={{ mt: 2 }}
                     variant="contained"
                     color="warning"
+                    disabled={approveMut.isPending || validationBlocksApprove || !result.recommendations.length}
                     onClick={() => approveMut.mutate()}
                   >
                     אישור והחלה — יעדכן משמרות וישלח התראות

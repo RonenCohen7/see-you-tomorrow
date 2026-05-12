@@ -27,7 +27,7 @@ export async function fetchEmployee(id: string) {
 
 export async function fetchDepartmentEmployees(departmentId: string) {
   const data = (await internal(`/internal/departments/${departmentId}/employees`, empBase)) as {
-    items: Array<{ id: string }>;
+    items: Array<{ id: string; role?: string }>;
   } | null;
   return data?.items ?? [];
 }
