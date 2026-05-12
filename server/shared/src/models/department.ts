@@ -6,6 +6,8 @@ export interface DepartmentDoc {
   name: string;
   description?: string;
   imageUrl?: string;
+  /** Hex accent for UI, e.g. #7C4DFF */
+  accentColor?: string;
   locationId?: import("mongoose").Types.ObjectId;
   managerId?: import("mongoose").Types.ObjectId;
   isActive: boolean;
@@ -18,6 +20,7 @@ const departmentSchema = new Schema<DepartmentDoc>(
     name: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     imageUrl: { type: String, trim: true },
+    accentColor: { type: String, trim: true },
     locationId: { type: Schema.Types.ObjectId, ref: "Location" },
     managerId: { type: Schema.Types.ObjectId, ref: "Employee" },
     isActive: { type: Boolean, default: true },

@@ -34,13 +34,14 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
 import { useRole } from "../store/authContext";
 import { useAiSmartAlerts } from "../hooks/useAiSmartAlerts";
 import type { SmartAlert } from "../utils/aiSmartAlerts";
-import { AI_ALERTS_SIGNATURE_SEEN_KEY } from "../utils/aiSmartAlerts";
+import { AI_ALERTS_SIGNATURE_SEEN_KEY, MANAGER_OFFICE_COVERAGE_ALERT_ID } from "../utils/aiSmartAlerts";
 
 export default function AIRecommendationsPage() {
   const { t } = useTranslation();
@@ -49,6 +50,11 @@ export default function AIRecommendationsPage() {
   const queryClient = useQueryClient();
 
   const { alerts, loading, signature, refetch } = useAiSmartAlerts(role !== "employee");
+
+  const managerCoverageAlert = useMemo(
+    () => alerts.find((a) => a.id === MANAGER_OFFICE_COVERAGE_ALERT_ID),
+    [alerts]
+  );
 
   useEffect(() => {
     if (role === "employee") return;
@@ -116,6 +122,9 @@ export default function AIRecommendationsPage() {
       setToast({ msg: t("success"), ok: true });
       void queryClient.invalidateQueries({ queryKey: ["schedules-recent"] });
       void queryClient.invalidateQueries({ queryKey: ["employees-all-for-ai"] });
+      void queryClient.invalidateQueries({ queryKey: ["schedules-forward-parking"] });
+      void queryClient.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      void queryClient.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     },
     onError: () => setToast({ msg: t("error"), ok: false }),
   });
@@ -123,6 +132,8 @@ export default function AIRecommendationsPage() {
   if (role === "employee") {
     return <Alert severity="info">אין גישה לעמוד זה</Alert>;
   }
+
+  const ManagerCovIcon = managerCoverageAlert?.Icon;
 
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box", position: "relative" }}>
@@ -171,6 +182,26 @@ export default function AIRecommendationsPage() {
       >
         {t("aiAlertsSubtitle")}
       </Typography>
+
+      {managerCoverageAlert ? (
+        <Alert severity="error" sx={{ mb: 3, maxWidth: 900 }}>
+          <Stack spacing={1.25} alignItems="flex-start">
+            <Stack direction="row" spacing={1} alignItems="center" sx={{ color: "error.main" }}>
+              {ManagerCovIcon ? <ManagerCovIcon fontSize="small" /> : null}
+              <Typography variant="subtitle1" fontWeight={800} sx={{ color: "text.primary" }}>
+                {managerCoverageAlert.title}
+              </Typography>
+            </Stack>
+            <Typography variant="body2" fontWeight={600}>
+              {t("aiManagerOfficeCoveragePolicyLead")}
+            </Typography>
+            <Typography variant="body2">{managerCoverageAlert.detail}</Typography>
+            <Button size="small" variant="contained" color="inherit" component={RouterLink} to="/schedules">
+              {t("managerOfficeCoverageGoSchedules")}
+            </Button>
+          </Stack>
+        </Alert>
+      ) : null}
 
       {/* Alerts section */}
       <Card
@@ -438,6 +469,8 @@ function AlertRow({ alert, index }: { alert: SmartAlert; index: number }) {
         ? theme.palette.warning.main
         : theme.palette.info.main;
   const hasGroup = (alert.groupMembers?.length ?? 0) > 0;
+  const isManagerCoverage = alert.id === MANAGER_OFFICE_COVERAGE_ALERT_ID;
+  const RowIcon = alert.Icon;
   return (
     <Stack
       direction="row"
@@ -463,26 +496,42 @@ function AlertRow({ alert, index }: { alert: SmartAlert; index: number }) {
       }}
     >
       <Avatar sx={{ bgcolor: alpha(alert.color, 0.18), color: alert.color, flexShrink: 0 }}>
-        <alert.Icon />
+        <RowIcon fontSize="small" />
       </Avatar>
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ rowGap: 0.75 }}>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: "break-word" }}>
-            {alert.employeeName}
-          </Typography>
-          <Chip
-            size="small"
-            label={alert.title}
-            sx={{
-              bgcolor: alpha(sevColor, 0.16),
-              color: sevColor,
-              fontWeight: 700,
-            }}
-          />
-        </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word", mt: 0.25 }}>
-          {alert.detail}
-        </Typography>
+        {isManagerCoverage ? (
+          <>
+            <Typography variant="subtitle1" fontWeight={800} sx={{ color: sevColor, wordBreak: "break-word" }}>
+              {alert.title}
+            </Typography>
+            <Typography variant="body2" fontWeight={600} sx={{ mt: 0.75, wordBreak: "break-word" }}>
+              {t("aiManagerOfficeCoveragePolicyLead")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word", mt: 0.75, whiteSpace: "pre-line" }}>
+              {alert.detail}
+            </Typography>
+          </>
+        ) : (
+          <>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ rowGap: 0.75 }}>
+              <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: "break-word" }}>
+                {alert.employeeName}
+              </Typography>
+              <Chip
+                size="small"
+                label={alert.title}
+                sx={{
+                  bgcolor: alpha(sevColor, 0.16),
+                  color: sevColor,
+                  fontWeight: 700,
+                }}
+              />
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word", mt: 0.25 }}>
+              {alert.detail}
+            </Typography>
+          </>
+        )}
         {hasGroup ? (
           <Box sx={{ mt: 1 }}>
             <Button size="small" variant="text" onClick={() => setGroupOpen((o) => !o)} sx={{ fontWeight: 700 }}>

@@ -1,20 +1,13 @@
 import {
-  Alert,
   Avatar,
   Box,
   Button,
   Card,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  IconButton,
-  MenuItem,
   Skeleton,
-  Snackbar,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -25,14 +18,10 @@ import {
 import CalendarIcon from "@mui/icons-material/CalendarMonth";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
-import CloseIcon from "@mui/icons-material/Close";
-import EditIcon from "@mui/icons-material/EditOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutline";
-import AddIcon from "@mui/icons-material/AddCircle";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { currentMonthYm, todayIsoLocal } from "../utils/date";
 import type { Employee, Schedule } from "../types/models";
@@ -40,27 +29,33 @@ import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
 import { useRole, useAuth } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
-import { apiErrorMessage } from "../utils/apiErrorMessage";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
+import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverageBanner";
+import { nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
+import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
+import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
+import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
+import { MonthDayCell } from "./MonthDayCell";
+import type { DayAgg } from "./calendarConstants";
+import { HEBREW_WEEKDAYS } from "./calendarConstants";
 
-type DayAgg = { _id: string; office: number; home: number; vacation: number; sick: number; off: number };
+import "./CalendarPage.css";
 
-/** Max status chips shown inline per day; rest collapse to +N with Tooltip (month grid + 10-day strip). */
-const CALENDAR_STATUS_INLINE_MAX = 3;
-
-const HEBREW_WEEKDAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
-const HEBREW_WEEKDAYS_FULL = ["יום ראשון", "יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "שבת"];
+/** Max status chips inline; fewer on phones so cells stay readable. */
+function calendarStatusInlineMax(isXs: boolean) {
+  return isXs ? 2 : 3;
+}
 
 function isoFromDate(d: Date): string {
   const z = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
-function buildNext10(): { iso: string; weekday: number; dayNum: number; monthShort: string }[] {
+function buildNext7(): { iso: string; weekday: number; dayNum: number; monthShort: string }[] {
   const out = [];
   const base = new Date();
   base.setHours(0, 0, 0, 0);
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     out.push({
@@ -75,8 +70,10 @@ function buildNext10(): { iso: string; weekday: number; dayNum: number; monthSho
 
 export default function CalendarPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+  const statusInlineMax = calendarStatusInlineMax(isXs);
   const role = useRole();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -84,11 +81,12 @@ export default function CalendarPage() {
   const today = todayIsoLocal();
   const [month, setMonth] = useState(currentMonthYm());
   const [openDay, setOpenDay] = useState<string | null>(null);
+  const [calTab, setCalTab] = useState(0);
   const { socket } = useSocket(user?.id);
 
-  const next10 = useMemo(buildNext10, []);
-  const next10From = next10[0].iso;
-  const next10To = next10[next10.length - 1].iso;
+  const next7 = useMemo(buildNext7, []);
+  const next7From = next7[0].iso;
+  const next7To = next7[next7.length - 1].iso;
 
   const monthEndIso = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
@@ -98,10 +96,10 @@ export default function CalendarPage() {
 
   const birthdaysRange = useMemo(() => {
     const monthStart = `${month}-01`;
-    const from = monthStart < next10From ? monthStart : next10From;
-    const to = monthEndIso > next10To ? monthEndIso : next10To;
+    const from = monthStart < next7From ? monthStart : next7From;
+    const to = monthEndIso > next7To ? monthEndIso : next7To;
     return { from, to };
-  }, [month, monthEndIso, next10From, next10To]);
+  }, [month, monthEndIso, next7From, next7To]);
 
   const birthdaysQ = useQuery({
     queryKey: ["employees-birthdays-range", birthdaysRange.from, birthdaysRange.to],
@@ -170,21 +168,21 @@ export default function CalendarPage() {
       (await api.get<{ days: DayAgg[] }>(`/api/schedules/month/${month}`)).data,
   });
 
-  const next10Q = useQuery({
-    queryKey: ["calendar-next10", next10From, next10To],
+  const next7Q = useQuery({
+    queryKey: ["calendar-next7", next7From, next7To],
     queryFn: async () =>
-      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${next10From}&to=${next10To}`)).data,
+      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${next7From}&to=${next7To}`)).data,
   });
 
-  const next10ByDay = useMemo(() => {
+  const next7ByDay = useMemo(() => {
     const m = new Map<string, Schedule[]>();
-    for (const s of next10Q.data?.items ?? []) {
+    for (const s of next7Q.data?.items ?? []) {
       const arr = m.get(s.workDate) ?? [];
       arr.push(s);
       m.set(s.workDate, arr);
     }
     return m;
-  }, [next10Q.data?.items]);
+  }, [next7Q.data?.items]);
 
   const dayDetail = useQuery({
     queryKey: ["calendar-day", openDay],
@@ -217,16 +215,66 @@ export default function CalendarPage() {
     return m;
   }, [employeesQ.data]);
 
+  const coverageWeek = useMemo(() => nextIsraeliWeekUtcFromReference(), [today]);
+
+  const managerCoverageSchedulesQ = useQuery({
+    queryKey: ["schedules-manager-coverage", coverageWeek.days[0], coverageWeek.days[6]],
+    queryFn: async () =>
+      (
+        await api.get<{ items: Schedule[] }>(
+          `/api/schedules?from=${coverageWeek.days[0]}&to=${coverageWeek.days[6]}`
+        )
+      ).data.items,
+    enabled: canWrite,
+    staleTime: 15_000,
+  });
+
+  const managerMonthSchedulesQ = useQuery({
+    queryKey: ["schedules-manager-month", month, monthEndIso],
+    queryFn: async () =>
+      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${month}-01&to=${monthEndIso}`)).data.items,
+    enabled: canWrite,
+    staleTime: 15_000,
+  });
+
+  const monthLeaderCoverageByIso = useMemo(() => {
+    const emp = employeesQ.data ?? [];
+    const sched = managerMonthSchedulesQ.data ?? [];
+    const ready = canWrite && !employeesQ.isLoading && !managerMonthSchedulesQ.isLoading;
+    const m = new Map<string, { missing: boolean; names: string[] }>();
+    if (!ready) return m;
+    const [y, mm] = month.split("-").map(Number);
+    const last = new Date(y, mm, 0).getDate();
+    for (let d = 1; d <= last; d++) {
+      const iso = `${month}-${String(d).padStart(2, "0")}`;
+      const has = dayHasLeaderOffice(emp, sched, iso);
+      m.set(iso, {
+        missing: !has,
+        names: leaderOfficeNamesForDay(emp, sched, iso),
+      });
+    }
+    return m;
+  }, [
+    canWrite,
+    employeesQ.isLoading,
+    employeesQ.data,
+    managerMonthSchedulesQ.isLoading,
+    managerMonthSchedulesQ.data,
+    month,
+  ]);
+
   // Realtime: any schedule change → refresh all calendar queries
   useEffect(() => {
     if (!socket) return;
     const invalidate = () => {
       void qc.invalidateQueries({ queryKey: ["calendar-month"] });
-      void qc.invalidateQueries({ queryKey: ["calendar-next10"] });
+      void qc.invalidateQueries({ queryKey: ["calendar-next7"] });
       void qc.invalidateQueries({ queryKey: ["calendar-day"] });
       void qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
       void qc.invalidateQueries({ queryKey: ["parking-spots"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     };
     socket.on("schedule:updated", invalidate);
     socket.on("dashboard:refresh", invalidate);
@@ -236,21 +284,17 @@ export default function CalendarPage() {
     };
   }, [socket, qc]);
 
-  const { weeks, monthLabel } = useMemo(() => {
+  const { monthLabel, preview15Days } = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
     const last = new Date(y, m, 0).getDate();
-    const firstWeekday = new Date(y, m - 1, 1).getDay();
-    const cells: ({ iso: string; agg?: DayAgg } | null)[] = [];
-    for (let i = 0; i < firstWeekday; i++) cells.push(null);
-    for (let d = 1; d <= last; d++) {
+    const take = Math.min(15, last);
+    const days: { iso: string; agg?: DayAgg }[] = [];
+    for (let d = 1; d <= take; d++) {
       const iso = `${month}-${String(d).padStart(2, "0")}`;
-      cells.push({ iso, agg: monthQ.data?.days.find((x) => x._id === iso) });
+      days.push({ iso, agg: monthQ.data?.days.find((x) => x._id === iso) });
     }
-    while (cells.length % 7 !== 0) cells.push(null);
-    const rows: typeof cells[] = [];
-    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
     const label = new Date(y, m - 1, 1).toLocaleDateString("he-IL", { month: "long", year: "numeric" });
-    return { weeks: rows, monthLabel: label };
+    return { monthLabel: label, preview15Days: days };
   }, [month, monthQ.data?.days]);
 
   const calendarCardSx = useMemo(
@@ -268,23 +312,53 @@ export default function CalendarPage() {
   );
 
   return (
-    <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5, flexWrap: "wrap" }}>
-        <CalendarIcon color="primary" />
-        <Typography variant="h4" sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
+    <Box className="calendar-page">
+      <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ mb: 0.5, flexWrap: "nowrap", gap: 1.5 }}>
+        <CalendarIcon color="primary" sx={{ flexShrink: 0, mt: 0.35 }} />
+        <Typography
+          variant="h4"
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: { xs: "1.15rem", sm: "1.65rem" },
+            lineHeight: 1.25,
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            hyphens: "auto",
+          }}
+        >
           {t("calendar")}
         </Typography>
       </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.5 }}>
-        תצוגה מהירה של 10 ימים קדימה, ולמטה החודש המלא — לחץ על יום לעריכת הסטטוסים
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{
+          mb: 1,
+          lineHeight: 1.45,
+          minWidth: 0,
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {t("calendarPageIntro")}
       </Typography>
+
+      {canWrite ? (
+        <ManagerOfficeCoverageBanner
+          employees={employeesQ.data ?? []}
+          schedules={managerCoverageSchedulesQ.data ?? []}
+          weekDays={coverageWeek.days}
+          ready={Boolean(employeesQ.data && !employeesQ.isLoading && !managerCoverageSchedulesQ.isLoading)}
+        />
+      ) : null}
 
       {/* Legend — icons only */}
       <Stack
         direction="row"
         spacing={1}
         alignItems="center"
-        sx={{ mb: 2, flexWrap: "wrap", rowGap: 1 }}
+        sx={{ mb: 1, flexWrap: "wrap", rowGap: 0.5 }}
         justifyContent="flex-end"
       >
         {STATUS_ORDER.map((k) => {
@@ -293,14 +367,14 @@ export default function CalendarPage() {
             <Tooltip key={k} title={t(meta.i18nKey)} arrow>
               <Avatar
                 sx={{
-                  width: 30,
-                  height: 30,
+                  width: 26,
+                  height: 26,
                   bgcolor: alpha(meta.color, 0.14),
                   color: meta.color,
                   border: `1.5px solid ${alpha(meta.color, 0.5)}`,
                 }}
               >
-                <meta.Icon sx={{ fontSize: 16 }} />
+                <meta.Icon sx={{ fontSize: 14 }} />
               </Avatar>
             </Tooltip>
           );
@@ -308,365 +382,185 @@ export default function CalendarPage() {
         <Tooltip title={t("calendarParkingLegend")} arrow>
           <Avatar
             sx={{
-              width: 30,
-              height: 30,
+              width: 26,
+              height: 26,
               bgcolor: alpha("#1565c0", 0.14),
               color: "#1565c0",
               border: `1.5px solid ${alpha("#1565c0", 0.5)}`,
             }}
           >
-            <LocalParkingIcon sx={{ fontSize: 16 }} />
+            <LocalParkingIcon sx={{ fontSize: 14 }} />
           </Avatar>
         </Tooltip>
-      </Stack>
-
-      {/* Top: next 10 days */}
-      <Card sx={{ ...calendarCardSx, p: { xs: 1.5, md: 2 }, mb: 4, overflow: "visible" }}>
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
-          10 הימים הקרובים
-        </Typography>
-        {next10Q.isLoading ? (
-          <Skeleton variant="rectangular" height={124} />
-        ) : (
-          <Box
-            sx={{
-              display: "grid",
-              gridAutoFlow: "column",
-              gridAutoColumns: { xs: "minmax(108px, 1fr)", sm: "minmax(120px, 1fr)", md: "1fr" },
-              gap: 1,
-              overflowX: "auto",
-              WebkitOverflowScrolling: "touch",
-              direction: "rtl",
-              pb: 1,
-              mx: { xs: -0.5, sm: 0 },
-              scrollSnapType: { xs: "x proximity", md: "none" },
-            }}
-          >
-            {next10.map(({ iso, weekday, dayNum, monthShort }) => {
-              const isToday = iso === today;
-              const list = next10ByDay.get(iso) ?? [];
-              const bdays = birthdaysByIso.get(iso) ?? [];
-              const pk = parkingByIso.get(iso) ?? [];
-              // count distinct employees per status
-              const byStatus = new Map<StatusKey, Set<string>>();
-              for (const s of list) {
-                if (!byStatus.has(s.status)) byStatus.set(s.status, new Set());
-                byStatus.get(s.status)!.add(s.employeeId);
-              }
-              const stripEntries = STATUS_ORDER.map((k) => ({ k, n: byStatus.get(k)?.size ?? 0 })).filter((x) => x.n > 0);
-              const stripVisible = stripEntries.slice(0, CALENDAR_STATUS_INLINE_MAX);
-              const stripHidden = stripEntries.slice(CALENDAR_STATUS_INLINE_MAX);
-              return (
-                <Box
-                  key={iso}
-                  onClick={() => setOpenDay(iso)}
-                  sx={{
-                    cursor: "pointer",
-                    borderRadius: 2,
-                    p: { xs: 0.75, sm: 1.25 },
-                    minHeight: { xs: 104, sm: 124 },
-                    scrollSnapAlign: "start",
-                    border: "1px solid",
-                    borderColor: isToday ? "primary.main" : "divider",
-                    background: isToday
-                      ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.22)} 0%, ${alpha(theme.palette.primary.main, 0.08)} 100%)`
-                      : "transparent",
-                    boxShadow: isToday ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.35)}` : "none",
-                    transition: "box-shadow 180ms, border-color 180ms",
-                    "&:hover": {
-                      boxShadow: 4,
-                      borderColor: "primary.light",
-                    },
-                  }}
-                >
-                  <Stack direction="row" alignItems="center" justifyContent="space-between">
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}>
-                      {HEBREW_WEEKDAYS[weekday]} · {monthShort}
-                    </Typography>
-                    {isToday && (
-                      <Chip size="small" label={t("today")} color="primary" sx={{ height: 22, fontSize: 12, fontWeight: 700 }} />
-                    )}
-                  </Stack>
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontWeight: 800,
-                      lineHeight: 1,
-                      mt: 0.5,
-                      fontSize: { xs: "1.5rem", sm: "2.125rem" },
-                      color: isToday ? "primary.main" : "text.primary",
-                    }}
-                  >
-                    {dayNum}
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    {stripVisible.map(({ k, n }) => {
-                      const meta = statusMeta[k];
-                      return (
-                        <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
-                          <Stack
-                            direction="row"
-                            spacing={0.25}
-                            alignItems="center"
-                            sx={{
-                              px: 0.5,
-                              py: 0.125,
-                              borderRadius: 1,
-                              bgcolor: alpha(meta.color, 0.14),
-                              color: meta.color,
-                              fontSize: 12,
-                              fontWeight: 700,
-                            }}
-                          >
-                            <meta.Icon sx={{ fontSize: 14 }} />
-                            <span>{n}</span>
-                          </Stack>
-                        </Tooltip>
-                      );
-                    })}
-                    {stripHidden.length > 0 ? (
-                      <Tooltip
-                        arrow
-                        title={stripHidden
-                          .map(({ k, n }) => `${t(statusMeta[k].presenceI18nKey)}: ${n}`)
-                          .join(" · ")}
-                      >
-                        <Stack
-                          direction="row"
-                          spacing={0.25}
-                          alignItems="center"
-                          sx={{
-                            px: 0.5,
-                            py: 0.125,
-                            borderRadius: 1,
-                            bgcolor: alpha(theme.palette.text.secondary, 0.12),
-                            color: "text.secondary",
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: "default",
-                          }}
-                        >
-                          <span>{t("calendarMoreStatuses", { count: stripHidden.length })}</span>
-                        </Stack>
-                      </Tooltip>
-                    ) : null}
-                  </Stack>
-                  {bdays.length > 0 && (
-                    <Tooltip title={bdays.map((b) => b.fullName).join(" · ")} arrow>
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        alignItems="center"
-                        sx={{
-                          mt: 0.75,
-                          px: 0.75,
-                          py: 0.35,
-                          borderRadius: 1.5,
-                          background: `linear-gradient(90deg, ${alpha("#ec407a", 0.2)} 0%, ${alpha("#ab47bc", 0.15)} 100%)`,
-                          border: `1px solid ${alpha("#e91e63", 0.38)}`,
-                          maxWidth: "100%",
-                        }}
-                      >
-                        <CakeOutlinedIcon sx={{ fontSize: 17, color: "#c2185b", flexShrink: 0 }} />
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          sx={{ fontWeight: 800, color: "#880e4f", fontSize: { xs: "0.75rem", sm: "0.8125rem" }, minWidth: 0 }}
-                        >
-                          {bdays.length === 1
-                            ? bdays[0].fullName
-                            : `${bdays.length} ${t("birthdayCalendarStrip")}`}
-                        </Typography>
-                      </Stack>
-                    </Tooltip>
-                  )}
-                  {pk.length > 0 && (
-                    <Tooltip
-                      title={pk.map((p) => `${p.spotLabel}: ${p.guestName} (${p.hoursLabel})`).join("\n")}
-                      arrow
-                    >
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        alignItems="center"
-                        sx={{
-                          mt: 0.5,
-                          px: 0.75,
-                          py: 0.35,
-                          borderRadius: 1.5,
-                          background: `linear-gradient(90deg, ${alpha("#1565c0", 0.18)} 0%, ${alpha("#0277bd", 0.12)} 100%)`,
-                          border: `1px solid ${alpha("#1565c0", 0.35)}`,
-                          maxWidth: "100%",
-                        }}
-                      >
-                        <LocalParkingIcon sx={{ fontSize: 17, color: "#0d47a1", flexShrink: 0 }} />
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          sx={{ fontWeight: 800, color: "#0d47a1", fontSize: { xs: "0.75rem", sm: "0.8125rem" }, minWidth: 0 }}
-                        >
-                          {pk.length === 1
-                            ? `${pk[0].spotLabel} → ${pk[0].guestName}`
-                            : `${pk.length} ${t("calendarParkingStrip")}`}
-                        </Typography>
-                      </Stack>
-                    </Tooltip>
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
-        )}
-      </Card>
-
-      {/* Bottom: full month grid */}
-      <Card sx={{ ...calendarCardSx, p: { xs: 1, md: 2 }, overflow: "visible" }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          alignItems={{ xs: "stretch", sm: "center" }}
-          justifyContent="space-between"
-          sx={{ mb: 2 }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="subtitle1" fontWeight={700}>
-              חודש מלא
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {monthLabel}
-            </Typography>
-          </Box>
-          <TextField
-            type="month"
-            size="small"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: "100%", sm: 160 }, maxWidth: { xs: "100%", sm: 220 } }}
-          />
-        </Stack>
-
-        {monthQ.isLoading ? (
-          <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
-        ) : (
-          <Box sx={{ width: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <Box sx={{ minWidth: { xs: 300, sm: "auto" } }}>
-            <Box
+        {canWrite ? (
+          <Tooltip title={t("calendarManagerGapLegend")} arrow>
+            <Avatar
               sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                gap: { xs: 0.35, sm: 0.5 },
-                mb: 1,
-                direction: "rtl",
+                width: 26,
+                height: 26,
+                bgcolor: alpha(theme.palette.error.main, 0.14),
+                color: "error.main",
+                border: `1.5px solid ${alpha(theme.palette.error.main, 0.45)}`,
               }}
             >
-              {HEBREW_WEEKDAYS.map((d) => (
-                <Typography
-                  key={d}
-                  variant="caption"
-                  color="text.secondary"
-                  textAlign="center"
-                  sx={{ fontWeight: 700, fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}
-                >
-                  {d}
-                </Typography>
-              ))}
-            </Box>
+              <SupervisorAccountIcon sx={{ fontSize: 14 }} />
+            </Avatar>
+          </Tooltip>
+        ) : null}
+      </Stack>
 
-            {weeks.map((row, ri) => (
-              <Box
-                key={ri}
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                  gap: { xs: 0.35, sm: 0.5 },
-                  mb: 0.5,
-                  direction: "rtl",
-                }}
-              >
-                {row.map((cell, ci) => {
-                  if (!cell) return <Box key={ci} />;
-                  const isToday = cell.iso === today;
-                  const dayNum = Number(cell.iso.slice(8));
-                  const totals: { k: StatusKey; n: number }[] = STATUS_ORDER.map((k) => ({
-                    k,
-                    n: cell.agg ? (cell.agg[k] as number) : 0,
-                  })).filter((x) => x.n > 0);
-                  const monthTotalsVisible = totals.slice(0, CALENDAR_STATUS_INLINE_MAX);
-                  const monthTotalsHidden = totals.slice(CALENDAR_STATUS_INLINE_MAX);
-                  const mbdays = birthdaysByIso.get(cell.iso) ?? [];
-                  const pkdays = parkingByIso.get(cell.iso) ?? [];
-                  const accentBirthday = mbdays.length > 0;
-                  const accentParking = pkdays.length > 0 && !accentBirthday;
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        alignItems={{ xs: "stretch", sm: "center" }}
+        sx={{ mb: 1, gap: 1 }}
+      >
+        <Tabs
+          value={calTab}
+          onChange={(_, v) => setCalTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            borderBottom: 1,
+            borderColor: "divider",
+            "& .MuiTab-root": { minHeight: 48, fontWeight: 700 },
+          }}
+        >
+          <Tab label={t("calendarTabSeven")} />
+          <Tab label={t("calendarTabFifteen")} />
+        </Tabs>
+        <TextField
+          type="month"
+          size="small"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          sx={{ flexShrink: 0, minWidth: { xs: "100%", sm: 168 }, maxWidth: { sm: 220 } }}
+        />
+      </Stack>
 
+      <Box className="calendar-page__tab-scroll">
+        {calTab === 0 && (
+          <Card
+            className="calendar-page__outer-card"
+            sx={{
+              ...calendarCardSx,
+              p: { xs: 1, sm: 1.5, md: 2 },
+            }}
+          >
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
+              {t("calendarSevenDaysTitle")}
+            </Typography>
+            {next7Q.isLoading ? (
+              <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1 }} />
+            ) : (
+              <Box className="calendar-page__seven-grid">
+                {next7.map(({ iso, weekday, dayNum, monthShort }) => {
+                  const isToday = iso === today;
+                  const list = next7ByDay.get(iso) ?? [];
+                  const empList = employeesQ.data ?? [];
+                  const coverageDataReady = canWrite && !employeesQ.isLoading && !next7Q.isLoading;
+                  const stripLeaderOfficeMissing =
+                    coverageDataReady && !dayHasLeaderOffice(empList, next7Q.data?.items ?? [], iso);
+                  const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso);
+                  const bdays = birthdaysByIso.get(iso) ?? [];
+                  const pk = parkingByIso.get(iso) ?? [];
+                  const byStatus = new Map<StatusKey, Set<string>>();
+                  for (const s of list) {
+                    if (!byStatus.has(s.status)) byStatus.set(s.status, new Set());
+                    byStatus.get(s.status)!.add(s.employeeId);
+                  }
+                  const stripEntries = STATUS_ORDER.map((k) => ({ k, n: byStatus.get(k)?.size ?? 0 })).filter((x) => x.n > 0);
+                  const stripVisible = stripEntries.slice(0, statusInlineMax);
+                  const stripHidden = stripEntries.slice(statusInlineMax);
                   return (
-                    <Box
-                      key={ci}
-                      onClick={() => setOpenDay(cell.iso)}
+                    <Card
+                      key={iso}
+                      className="calendar-page__day-card--seven"
+                      elevation={0}
+                      onClick={() => setOpenDay(iso)}
                       sx={{
-                        cursor: "pointer",
-                        borderRadius: { xs: 1, sm: 2 },
-                        p: { xs: 0.4, sm: 1 },
-                        minHeight: { xs: 62, sm: 98 },
-                        minWidth: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        overflow: "visible",
+                        p: { xs: 0.8, sm: 1 },
                         border: "1px solid",
-                        borderColor: isToday
-                          ? "primary.main"
-                          : accentBirthday
-                            ? alpha("#e91e63", 0.55)
-                            : accentParking
-                              ? alpha("#1565c0", 0.5)
-                              : "divider",
-                        backgroundColor: isToday
-                          ? alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.18 : 0.1)
-                          : accentBirthday
-                            ? alpha("#f48fb1", theme.palette.mode === "dark" ? 0.12 : 0.08)
-                            : accentParking
-                              ? alpha("#90caf9", theme.palette.mode === "dark" ? 0.12 : 0.08)
-                              : "transparent",
-                        boxShadow: isToday ? `0 0 0 2px ${alpha(theme.palette.primary.main, 0.35)}` : "none",
-                        transition: "box-shadow 160ms, border-color 160ms",
+                        borderColor: stripLeaderOfficeMissing
+                          ? alpha(theme.palette.error.main, 0.55)
+                          : isToday
+                            ? "primary.main"
+                            : alpha(theme.palette.divider, theme.palette.mode === "dark" ? 0.88 : 0.98),
+                        background: stripLeaderOfficeMissing
+                          ? alpha(theme.palette.error.main, theme.palette.mode === "dark" ? 0.08 : 0.05)
+                          : isToday
+                            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.18)} 0%, ${alpha(theme.palette.primary.main, 0.06)} 100%)`
+                            : alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.07 : 0.04),
+                        boxShadow: stripLeaderOfficeMissing
+                          ? theme.palette.mode === "dark"
+                            ? "0 1px 4px rgba(0,0,0,0.42)"
+                            : "0 1px 4px rgba(15,23,42,0.09)"
+                          : isToday && !stripLeaderOfficeMissing
+                            ? `0 2px 10px ${alpha(theme.palette.primary.main, 0.2)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.35)}`
+                            : theme.palette.mode === "dark"
+                              ? "0 1px 4px rgba(0,0,0,0.48)"
+                              : "0 1px 4px rgba(15,23,42,0.09)",
+                        transition: "box-shadow 180ms, border-color 180ms",
                         "&:hover": {
-                          boxShadow: 3,
-                          borderColor: "primary.light",
+                          boxShadow: stripLeaderOfficeMissing
+                            ? theme.shadows[6]
+                            : isToday
+                              ? `0 4px 16px ${alpha(theme.palette.primary.main, 0.28)}, 0 0 0 1px ${alpha(theme.palette.primary.main, 0.45)}`
+                              : theme.shadows[6],
+                          borderColor: stripLeaderOfficeMissing
+                            ? alpha(theme.palette.error.main, 0.75)
+                            : isToday
+                              ? "primary.dark"
+                              : "primary.light",
                         },
                       }}
                     >
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.25}>
-                        <Typography
-                          variant="subtitle2"
-                          sx={{
-                            fontWeight: isToday ? 800 : 600,
-                            color: isToday ? "primary.main" : "text.primary",
-                            fontSize: { xs: "0.85rem", sm: "0.9rem" },
-                          }}
-                        >
-                          {dayNum}
-                        </Typography>
-                        <Stack direction="row" spacing={0.25} alignItems="center">
-                          {mbdays.length > 0 && (
-                            <Tooltip title={mbdays.map((b) => b.fullName).join(" · ")} arrow>
-                              <CakeOutlinedIcon sx={{ fontSize: { xs: 16, sm: 18 }, color: "#c2185b" }} />
-                            </Tooltip>
-                          )}
-                          {pkdays.length > 0 && (
-                            <Tooltip
-                              title={pkdays.map((p) => `${p.spotLabel}: ${p.guestName} (${p.hoursLabel})`).join("\n")}
-                              arrow
+                      <Stack spacing={0.5} sx={{ flex: 1, minHeight: 0, minWidth: 0, width: "100%" }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.5}>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{
+                                fontSize: { xs: "0.78rem", sm: "0.85rem" },
+                                fontWeight: 600,
+                                minWidth: 0,
+                                overflowWrap: "anywhere",
+                                letterSpacing: "0.01em",
+                              }}
                             >
-                              <LocalParkingIcon sx={{ fontSize: { xs: 16, sm: 18 }, color: "#0d47a1" }} />
-                            </Tooltip>
-                          )}
-                        </Stack>
-                      </Stack>
-                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5, gap: 0.25 }}>
-                        {totals.length === 0 ? (
-                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: { xs: "0.75rem", sm: "0.8125rem" } }}>
-                            —
+                              {HEBREW_WEEKDAYS[weekday]} · {monthShort}
+                            </Typography>
+                            {isToday && (
+                              <Chip
+                                size="small"
+                                label={t("today")}
+                                color="primary"
+                                sx={{ height: 20, fontSize: 11, fontWeight: 700, flexShrink: 0 }}
+                              />
+                            )}
+                          </Stack>
+                          <Typography
+                            variant="h4"
+                            sx={{
+                              fontWeight: 800,
+                              lineHeight: 1,
+                              mt: 0.35,
+                              fontSize: { xs: "1.2rem", sm: "1.5rem", md: "1.65rem" },
+                              color: isToday ? "primary.main" : "text.primary",
+                            }}
+                          >
+                            {dayNum}
                           </Typography>
-                        ) : (
-                          <>
-                            {monthTotalsVisible.map(({ k, n }) => {
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                            {stripVisible.map(({ k, n }) => {
                               const meta = statusMeta[k];
                               return (
                                 <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
@@ -675,26 +569,25 @@ export default function CalendarPage() {
                                     spacing={0.25}
                                     alignItems="center"
                                     sx={{
-                                      px: { xs: 0.3, sm: 0.5 },
-                                      py: 0.125,
+                                      px: 0.55,
+                                      py: 0.2,
                                       borderRadius: 1,
                                       bgcolor: alpha(meta.color, 0.14),
                                       color: meta.color,
-                                      fontSize: { xs: 11, sm: 12 },
-                                      fontWeight: 700,
-                                      maxWidth: "100%",
+                                      fontSize: 13,
+                                      fontWeight: 800,
                                     }}
                                   >
-                                    <meta.Icon sx={{ fontSize: { xs: 12, sm: 14 } }} />
+                                    <meta.Icon sx={{ fontSize: 15 }} />
                                     <span>{n}</span>
                                   </Stack>
                                 </Tooltip>
                               );
                             })}
-                            {monthTotalsHidden.length > 0 ? (
+                            {stripHidden.length > 0 ? (
                               <Tooltip
                                 arrow
-                                title={monthTotalsHidden
+                                title={stripHidden
                                   .map(({ k, n }) => `${t(statusMeta[k].presenceI18nKey)}: ${n}`)
                                   .join(" · ")}
                               >
@@ -703,71 +596,216 @@ export default function CalendarPage() {
                                   spacing={0.25}
                                   alignItems="center"
                                   sx={{
-                                    px: { xs: 0.3, sm: 0.45 },
-                                    py: 0.125,
+                                    px: 0.55,
+                                    py: 0.2,
                                     borderRadius: 1,
                                     bgcolor: alpha(theme.palette.text.secondary, 0.12),
                                     color: "text.secondary",
-                                    fontSize: { xs: 11, sm: 12 },
+                                    fontSize: 13,
                                     fontWeight: 800,
                                     cursor: "default",
                                   }}
                                 >
-                                  <span>{t("calendarMoreStatuses", { count: monthTotalsHidden.length })}</span>
+                                  <span>{t("calendarMoreStatuses", { count: stripHidden.length })}</span>
                                 </Stack>
                               </Tooltip>
                             ) : null}
-                          </>
-                        )}
+                          </Stack>
+                        </Box>
+
+                        <Box sx={{ flex: 1, minHeight: 4, flexShrink: 0 }} aria-hidden />
+
+                        <Stack spacing={0.5} sx={{ mt: "auto", width: "100%", minWidth: 0, pb: 0.15 }}>
+                          {bdays.length > 0 && (
+                            <Tooltip title={bdays.map((b) => b.fullName).join(" · ")} arrow>
+                              <Stack
+                                direction="row"
+                                spacing={0.5}
+                                alignItems="flex-start"
+                                sx={{
+                                  px: 0.65,
+                                  py: 0.4,
+                                  borderRadius: 1.5,
+                                  background: `linear-gradient(90deg, ${alpha("#ec407a", 0.2)} 0%, ${alpha("#ab47bc", 0.15)} 100%)`,
+                                  border: `1px solid ${alpha("#e91e63", 0.38)}`,
+                                  width: "100%",
+                                  boxSizing: "border-box",
+                                }}
+                              >
+                                <CakeOutlinedIcon sx={{ fontSize: 17, color: "#c2185b", flexShrink: 0, mt: 0.15 }} />
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    fontWeight: 800,
+                                    color: "#880e4f",
+                                    fontSize: { xs: "0.72rem", sm: "0.78rem" },
+                                    minWidth: 0,
+                                    flex: 1,
+                                    lineHeight: 1.35,
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                    overflowWrap: "anywhere",
+                                  }}
+                                >
+                                  {bdays.length === 1
+                                    ? bdays[0].fullName
+                                    : `${bdays.length} ${t("birthdayCalendarStrip")}`}
+                                </Typography>
+                              </Stack>
+                            </Tooltip>
+                          )}
+                          {pk.length > 0 && (
+                            <Tooltip
+                              title={pk.map((p) => `${p.spotLabel}: ${p.guestName} (${p.hoursLabel})`).join("\n")}
+                              arrow
+                            >
+                              <Stack
+                                direction="row"
+                                spacing={0.5}
+                                alignItems="flex-start"
+                                sx={{
+                                  px: 0.65,
+                                  py: 0.4,
+                                  borderRadius: 1.5,
+                                  background: `linear-gradient(90deg, ${alpha("#1565c0", 0.18)} 0%, ${alpha("#0277bd", 0.12)} 100%)`,
+                                  border: `1px solid ${alpha("#1565c0", 0.35)}`,
+                                  width: "100%",
+                                  boxSizing: "border-box",
+                                }}
+                              >
+                                <LocalParkingIcon sx={{ fontSize: 17, color: "#0d47a1", flexShrink: 0, mt: 0.15 }} />
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    fontWeight: 800,
+                                    color: "#0d47a1",
+                                    fontSize: { xs: "0.72rem", sm: "0.78rem" },
+                                    minWidth: 0,
+                                    flex: 1,
+                                    lineHeight: 1.35,
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                    overflowWrap: "anywhere",
+                                  }}
+                                >
+                                  {pk.length === 1
+                                    ? `${pk[0].spotLabel} → ${pk[0].guestName}`
+                                    : `${pk.length} ${t("calendarParkingStrip")}`}
+                                </Typography>
+                              </Stack>
+                            </Tooltip>
+                          )}
+                          {stripLeaderOfficeMissing ? (
+                            <Typography
+                              variant="caption"
+                              sx={(th) => ({
+                                display: "block",
+                                width: "100%",
+                                boxSizing: "border-box",
+                                px: 0.25,
+                                fontWeight: 700,
+                                color: th.palette.mode === "dark" ? th.palette.error.light : th.palette.error.dark,
+                                fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                                lineHeight: 1.35,
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                              })}
+                            >
+                              {t("calendarDayNoManagerOffice")}
+                            </Typography>
+                          ) : stripLeaderNames.length > 0 ? (
+                            <Typography
+                              variant="caption"
+                              sx={(th) => ({
+                                display: "block",
+                                width: "100%",
+                                boxSizing: "border-box",
+                                px: 0.25,
+                                fontWeight: 700,
+                                color: th.palette.mode === "dark" ? th.palette.success.light : th.palette.success.dark,
+                                fontSize: { xs: "0.7rem", sm: "0.75rem" },
+                                lineHeight: 1.35,
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                              })}
+                            >
+                              {t("calendarManagersInOffice", { names: stripLeaderNames.join(" · ") })}
+                            </Typography>
+                          ) : null}
+                        </Stack>
                       </Stack>
-                      {mbdays.length > 0 && (
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          sx={{
-                            display: "block",
-                            mt: 0.35,
-                            fontSize: { xs: "0.6875rem", sm: "0.75rem" },
-                            fontWeight: 700,
-                            color: "#ad1457",
-                          }}
-                        >
-                          {mbdays.length === 1 ? mbdays[0].fullName : `🎈 ${mbdays.length}`}
-                        </Typography>
-                      )}
-                      {pkdays.length > 0 && (
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          sx={{
-                            display: "block",
-                            mt: 0.25,
-                            fontSize: { xs: "0.6875rem", sm: "0.75rem" },
-                            fontWeight: 700,
-                            color: "#0d47a1",
-                          }}
-                        >
-                          {pkdays.length === 1
-                            ? `${pkdays[0].spotLabel} → ${pkdays[0].guestName}`
-                            : `🅿 ${pkdays.length}`}
-                        </Typography>
-                      )}
-                    </Box>
+                    </Card>
                   );
                 })}
               </Box>
-            ))}
-            </Box>
-          </Box>
+            )}
+          </Card>
         )}
-      </Card>
+
+        {calTab === 1 && (
+          <Card
+            className="calendar-page__outer-card"
+            sx={{
+              ...calendarCardSx,
+              p: { xs: 1, sm: 1.5, md: 2 },
+            }}
+          >
+            <Stack spacing={1.25} sx={{ mb: 1.5 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
+                  {t("calendarFifteenPreviewTitle")}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                  {monthLabel}
+                </Typography>
+              </Box>
+              <Button
+                fullWidth
+                variant="outlined"
+                size="large"
+                onClick={() => navigate(`/calendar/month/${encodeURIComponent(month)}`)}
+              >
+                {t("calendarOpenFullMonth")}
+              </Button>
+            </Stack>
+
+            {monthQ.isLoading ? (
+              <Skeleton variant="rectangular" height={280} sx={{ borderRadius: 1 }} />
+            ) : (
+              <Box className="calendar-page__fifteen-grid">
+                {preview15Days.map((cell) => {
+                  const cov = monthLeaderCoverageByIso.get(cell.iso);
+                  const leaderOfficeMissing = cov?.missing ?? false;
+                  const leaderNamesToday = cov?.names ?? [];
+                  return (
+                    <MonthDayCell
+                      key={cell.iso}
+                      cell={cell}
+                      today={today}
+                      leaderOfficeMissing={leaderOfficeMissing}
+                      leaderNamesToday={leaderNamesToday}
+                      birthdaysByIso={birthdaysByIso}
+                      parkingByIso={parkingByIso}
+                      statusInlineMax={statusInlineMax}
+                      t={t}
+                      onPickDay={(iso) => setOpenDay(iso)}
+                    />
+                  );
+                })}
+              </Box>
+            )}
+          </Card>
+        )}
+      </Box>
 
       <Box
         sx={(th) => ({
-          mt: 4,
-          pt: 3,
-          pb: 2,
-          px: 2,
+          mt: 1,
+          pt: 1,
+          pb: 0.75,
+          px: 1,
           borderTop: "1px solid",
           borderColor: "divider",
           textAlign: "center",
@@ -781,12 +819,15 @@ export default function CalendarPage() {
           variant="subtitle1"
           sx={(th) => ({
             direction: "ltr",
-            display: "inline-block",
+            display: "block",
+            maxWidth: "100%",
+            mx: "auto",
             fontStyle: "italic",
             letterSpacing: "0.045em",
             fontWeight: 600,
-            fontSize: { xs: "1.02rem", sm: "1.22rem" },
-            lineHeight: 1.5,
+            fontSize: { xs: "0.95rem", sm: "1.1rem" },
+            lineHeight: 1.45,
+            overflowWrap: "anywhere",
             color: alpha(th.palette.text.primary, th.palette.mode === "dark" ? 0.88 : 0.7),
           })}
         >
@@ -794,7 +835,7 @@ export default function CalendarPage() {
         </Typography>
       </Box>
 
-      <DayEditorDialog
+      <CalendarDayEditorDialog
         open={!!openDay}
         date={openDay}
         fullScreen={isXs}
@@ -808,429 +849,14 @@ export default function CalendarPage() {
         onClose={() => setOpenDay(null)}
         onChanged={async () => {
           await qc.invalidateQueries({ queryKey: ["calendar-day"] });
-          await qc.invalidateQueries({ queryKey: ["calendar-next10"] });
+          await qc.invalidateQueries({ queryKey: ["calendar-next7"] });
           await qc.invalidateQueries({ queryKey: ["calendar-month"] });
           await qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
           await qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+          await qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+          await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
         }}
       />
     </Box>
-  );
-}
-
-function DayEditorDialog({
-  open,
-  date,
-  fullScreen,
-  items,
-  loading,
-  employeeMap,
-  employees,
-  canWrite,
-  birthdaysOnDate,
-  parkingOnDate,
-  onClose,
-  onChanged,
-}: {
-  open: boolean;
-  date: string | null;
-  fullScreen?: boolean;
-  items: Schedule[];
-  loading: boolean;
-  employeeMap: Map<string, Employee>;
-  employees: Employee[];
-  canWrite: boolean;
-  birthdaysOnDate: { employeeId: string; fullName: string }[];
-  parkingOnDate: { spotLabel: string; guestName: string; hoursLabel: string }[];
-  onClose: () => void;
-  onChanged: () => Promise<void> | void;
-}) {
-  const { t } = useTranslation();
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [editor, setEditor] = useState<{
-    id?: string;
-    employeeId: string;
-    status: StatusKey;
-    hours: string;
-    note: string;
-  } | null>(null);
-
-  const weekdayLabel = useMemo(() => {
-    if (!date) return "";
-    const d = new Date(date);
-    return HEBREW_WEEKDAYS_FULL[d.getDay()];
-  }, [date]);
-
-  const grouped = useMemo(() => {
-    const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
-    for (const s of items) out[s.status].push(s);
-    return out;
-  }, [items]);
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      if (!editor || !date) return;
-      const payload: Record<string, unknown> = {
-        workDate: date,
-        status: editor.status,
-        note: editor.note || undefined,
-      };
-      if (editor.hours.trim() !== "") {
-        const h = Number(editor.hours);
-        if (!Number.isNaN(h)) payload.hours = h;
-      }
-      if (editor.id) {
-        await api.put(`/api/schedules/${editor.id}`, payload);
-      } else {
-        payload.employeeId = editor.employeeId;
-        await api.post("/api/schedules", payload);
-      }
-    },
-    onSuccess: async () => {
-      setToast({ msg: t("success"), ok: true });
-      setEditor(null);
-      await onChanged();
-    },
-    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => api.delete(`/api/schedules/${id}`),
-    onSuccess: async () => {
-      setToast({ msg: t("success"), ok: true });
-      await onChanged();
-    },
-    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
-  });
-
-  function startAdd() {
-    setEditor({ employeeId: "", status: "office", hours: "", note: "" });
-  }
-  function startEdit(s: Schedule) {
-    setEditor({
-      id: s.id,
-      employeeId: s.employeeId,
-      status: s.status,
-      hours: s.hours != null ? String(s.hours) : "",
-      note: s.note ?? "",
-    });
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="md"
-      fullScreen={!!fullScreen}
-      slotProps={{ paper: { sx: { m: fullScreen ? 0 : undefined } } }}
-    >
-      <DialogTitle sx={{ pr: fullScreen ? 6 : 2 }}>
-        <Stack
-          direction="row"
-          alignItems="flex-start"
-          justifyContent="space-between"
-          spacing={1}
-          sx={{ flexWrap: "wrap", rowGap: 1 }}
-        >
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}>
-              <CalendarIcon />
-            </Avatar>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={700}>
-                {date} · {weekdayLabel}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {items.length} שיבוצים
-              </Typography>
-            </Box>
-          </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
-            {canWrite && (
-              <Tooltip title="הוספת שיבוץ" arrow>
-                <IconButton color="primary" onClick={startAdd}>
-                  <AddIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-            <IconButton onClick={onClose} size="small">
-              <CloseIcon />
-            </IconButton>
-          </Stack>
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers sx={{ overflowY: "auto" }}>
-        {loading ? (
-          <Skeleton height={120} />
-        ) : (
-          <Stack spacing={3}>
-            {birthdaysOnDate.length > 0 && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  position: "relative",
-                  overflow: "hidden",
-                  background: `linear-gradient(125deg, ${alpha("#fce4ec", 0.95)} 0%, ${alpha("#f3e5f5", 0.9)} 45%, ${alpha("#e1f5fe", 0.85)} 100%)`,
-                  border: `1px solid ${alpha("#e91e63", 0.35)}`,
-                  boxShadow: `0 8px 24px -12px ${alpha("#c2185b", 0.35)}`,
-                }}
-              >
-                <Box
-                  aria-hidden
-                  sx={{
-                    position: "absolute",
-                    top: 6,
-                    insetInlineEnd: 10,
-                    width: 14,
-                    height: 18,
-                    borderRadius: "50% 50% 45% 45%",
-                    bgcolor: alpha("#e91e63", 0.35),
-                  }}
-                />
-                <Box
-                  aria-hidden
-                  sx={{
-                    position: "absolute",
-                    bottom: 8,
-                    insetInlineStart: 12,
-                    width: 10,
-                    height: 14,
-                    borderRadius: "50% 50% 45% 45%",
-                    bgcolor: alpha("#9c27b0", 0.3),
-                  }}
-                />
-                <Stack direction="row" spacing={1.25} alignItems="center" sx={{ position: "relative", zIndex: 1 }}>
-                  <Avatar sx={{ bgcolor: alpha("#e91e63", 0.2), color: "#ad1457" }}>
-                    <CakeOutlinedIcon />
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ color: "#880e4f" }}>
-                      {t("birthdayDayEditorBanner")}
-                    </Typography>
-                    <Stack direction="row" flexWrap="wrap" gap={0.75} useFlexGap sx={{ mt: 1 }}>
-                      {birthdaysOnDate.map((b) => (
-                        <Chip
-                          key={b.employeeId}
-                          label={b.fullName}
-                          size="small"
-                          sx={{
-                            fontWeight: 700,
-                            bgcolor: alpha("#fff", 0.85),
-                            border: `1px solid ${alpha("#e91e63", 0.25)}`,
-                          }}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-                </Stack>
-              </Box>
-            )}
-            {parkingOnDate.length > 0 && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  border: `1px solid ${alpha("#1565c0", 0.35)}`,
-                  background: `linear-gradient(125deg, ${alpha("#e3f2fd", 0.95)} 0%, ${alpha("#e8eaf6", 0.9)} 100%)`,
-                }}
-              >
-                <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                  <Avatar sx={{ bgcolor: alpha("#1565c0", 0.2), color: "#0d47a1" }}>
-                    <LocalParkingIcon />
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="subtitle2" fontWeight={800} sx={{ color: "#0d47a1" }}>
-                      {t("calendarParkingDayBanner")}
-                    </Typography>
-                    <Stack spacing={0.75} sx={{ mt: 1 }}>
-                      {parkingOnDate.map((p, i) => (
-                        <Typography key={i} variant="body2" sx={{ fontWeight: 600 }}>
-                          {p.spotLabel} → {p.guestName}{" "}
-                          <Typography component="span" variant="caption" color="text.secondary">
-                            ({p.hoursLabel})
-                          </Typography>
-                        </Typography>
-                      ))}
-                    </Stack>
-                    <Button component={RouterLink} to="/parking" size="small" sx={{ mt: 1.5 }} variant="outlined">
-                      {t("parking")}
-                    </Button>
-                  </Box>
-                </Stack>
-              </Box>
-            )}
-            {STATUS_ORDER.map((k) => {
-              const list = grouped[k];
-              if (list.length === 0) return null;
-              const meta = statusMeta[k];
-              return (
-                <Box key={k}>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                    <Avatar sx={{ bgcolor: alpha(meta.color, 0.16), color: meta.color, width: 30, height: 30 }}>
-                      <meta.Icon sx={{ fontSize: 18 }} />
-                    </Avatar>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: meta.color }}>
-                      {t(meta.i18nKey)}
-                    </Typography>
-                    <Chip size="small" label={list.length} sx={{ bgcolor: alpha(meta.color, 0.16), color: meta.color }} />
-                  </Stack>
-                  <Stack spacing={1}>
-                    {list.map((s) => {
-                      const name = employeeMap.get(s.employeeId)?.fullName ?? `…${s.employeeId.slice(-6)}`;
-                      return (
-                        <Stack
-                          key={s.id}
-                          direction={{ xs: "column", sm: "row" }}
-                          spacing={1.5}
-                          alignItems={{ xs: "stretch", sm: "center" }}
-                          sx={{
-                            px: { xs: 1, sm: 1.5 },
-                            py: 0.75,
-                            borderRadius: 1.5,
-                            bgcolor: alpha(meta.color, theme.palette.mode === "dark" ? 0.14 : 0.07),
-                            borderInlineStart: `4px solid ${meta.color}`,
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ flexGrow: 1, fontWeight: 600, wordBreak: "break-word" }}>
-                            {name}
-                          </Typography>
-                          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
-                            {s.hours != null && (
-                              <Chip size="small" label={`${s.hours} שעות`} variant="outlined" />
-                            )}
-                            {s.note && (
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{
-                                  flex: { xs: "1 1 100%", sm: "0 1 auto" },
-                                  minWidth: 0,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: { xs: "normal", sm: "nowrap" },
-                                  maxWidth: { sm: 200 },
-                                }}
-                              >
-                                {s.note}
-                              </Typography>
-                            )}
-                            {canWrite && (
-                              <Stack direction="row" spacing={0.5} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
-                              <Tooltip title={t("edit")} arrow>
-                                <IconButton size="small" color="primary" onClick={() => startEdit(s)}>
-                                  <EditIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title={t("delete")} arrow>
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => {
-                                    if (confirm(`למחוק את השיבוץ של ${name}?`)) deleteMut.mutate(s.id);
-                                  }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Stack>
-                            )}
-                          </Stack>
-                        </Stack>
-                      );
-                    })}
-                  </Stack>
-                </Box>
-              );
-            })}
-            {items.length === 0 && (
-              <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
-                {t("noData")}
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </DialogContent>
-
-      {/* Inline editor */}
-      <Dialog open={!!editor} onClose={() => setEditor(null)} fullWidth maxWidth="sm" fullScreen={isXs}>
-        <DialogTitle>
-          {editor?.id ? "עריכת שיבוץ" : "שיבוץ חדש"} — {date}
-        </DialogTitle>
-        <DialogContent dividers sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            <TextField
-              select
-              label="עובד"
-              value={editor?.employeeId ?? ""}
-              disabled={!!editor?.id}
-              onChange={(e) => setEditor((cur) => (cur ? { ...cur, employeeId: e.target.value } : cur))}
-            >
-              {employees.map((emp) => (
-                <MenuItem key={emp.id} value={emp.id}>
-                  {emp.fullName} {emp.jobTitle ? `· ${emp.jobTitle}` : ""}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              select
-              label="סטטוס"
-              value={editor?.status ?? "office"}
-              onChange={(e) =>
-                setEditor((cur) => (cur ? { ...cur, status: e.target.value as StatusKey } : cur))
-              }
-            >
-              {STATUS_ORDER.map((s) => {
-                const meta = statusMeta[s];
-                return (
-                  <MenuItem key={s} value={s}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
-                      <span>{t(s)}</span>
-                    </Stack>
-                  </MenuItem>
-                );
-              })}
-            </TextField>
-            <TextField
-              label="שעות (אופציונלי) — השאר ריק ליום מלא"
-              type="number"
-              inputProps={{ min: 0, max: 24, step: 0.5 }}
-              value={editor?.hours ?? ""}
-              onChange={(e) => setEditor((cur) => (cur ? { ...cur, hours: e.target.value } : cur))}
-              helperText="לעובד במשרד חלק מהיום וחלק מהבית — שמור שיבוץ נוסף לאותו תאריך"
-            />
-            <TextField
-              label="הערה"
-              multiline
-              minRows={2}
-              value={editor?.note ?? ""}
-              onChange={(e) => setEditor((cur) => (cur ? { ...cur, note: e.target.value } : cur))}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditor(null)}>{t("cancel")}</Button>
-          <Button
-            variant="contained"
-            disabled={!editor?.employeeId || saveMut.isPending}
-            onClick={() => saveMut.mutate()}
-          >
-            {saveMut.isPending ? t("loading") : t("save")}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)}>
-        <Alert severity={toast?.ok ? "success" : "error"} onClose={() => setToast(null)}>
-          {toast?.msg}
-        </Alert>
-      </Snackbar>
-
-      <Divider />
-    </Dialog>
   );
 }

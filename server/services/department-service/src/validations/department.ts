@@ -13,10 +13,15 @@ const imageUrlField = z
   ])
   .optional();
 
+const accentColorField = z
+  .union([z.string().regex(/^#[0-9A-Fa-f]{6}$/), z.literal("")])
+  .optional();
+
 export const createDepartmentSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   imageUrl: imageUrlField,
+  accentColor: accentColorField,
   locationId: objectId.optional(),
   managerId: objectId.optional(),
   isActive: z.boolean().optional(),

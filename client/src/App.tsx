@@ -15,6 +15,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import CalendarPage from "./pages/CalendarPage";
+import CalendarFullMonthPage from "./pages/CalendarFullMonthPage";
 import EmployeesPage from "./pages/EmployeesPage";
 import DepartmentsPage from "./pages/DepartmentsPage";
 import LocationsPage from "./pages/LocationsPage";
@@ -60,6 +61,7 @@ export default function App() {
                 >
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/calendar/month/:ym" element={<CalendarFullMonthPage />} />
                   <Route
                     path="/employees"
                     element={

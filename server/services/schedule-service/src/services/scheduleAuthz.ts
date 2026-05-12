@@ -85,3 +85,24 @@ export async function assertCanWriteSchedule(params: {
 
   throw new AppError(403, "אין הרשאה לערוך לוח זה", "FORBIDDEN");
 }
+
+/** שיבוץ המוני לפי מחלקה — אדמין לכל מחלקה; מנהל רק למחלקה שלו (ובהתאם להגדרת org). */
+export async function assertCanBulkWriteDepartmentSchedules(params: {
+  userId: string;
+  role: Role;
+  departmentId: string;
+}) {
+  if (params.role === "admin") return;
+
+  if (params.role === "manager") {
+    const allow = await settings.getManagerCanEditSchedules();
+    if (!allow) throw new AppError(403, "מנהלים לא יכולים לערוך לוחות זמנים", "FORBIDDEN");
+    const me = await empRemote.fetchEmployeeInternal(params.userId);
+    if (!me?.departmentId || me.departmentId !== params.departmentId) {
+      throw new AppError(403, "אין הרשאה לשבץ את המחלקה הזו", "FORBIDDEN");
+    }
+    return;
+  }
+
+  throw new AppError(403, "אין הרשאה", "FORBIDDEN");
+}

@@ -41,11 +41,12 @@ interface Dept {
   name: string;
   description?: string;
   imageUrl?: string;
+  accentColor?: string;
   locationId?: string;
   isActive: boolean;
 }
 
-type FormState = { name: string; description: string; imageUrl: string };
+type FormState = { name: string; description: string; imageUrl: string; accentColor: string };
 
 export default function DepartmentsPage() {
   const { t } = useTranslation();
@@ -57,7 +58,7 @@ export default function DepartmentsPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>({ name: "", description: "", imageUrl: "" });
+  const [form, setForm] = useState<FormState>({ name: "", description: "", imageUrl: "", accentColor: "" });
 
   const q = useQuery({
     queryKey: ["departments"],
@@ -66,12 +67,15 @@ export default function DepartmentsPage() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      const payload: { name: string; description?: string; imageUrl?: string } = {
+      const payload: { name: string; description?: string; imageUrl?: string; accentColor?: string } = {
         name: form.name,
         description: form.description || undefined,
       };
       const trimmed = form.imageUrl.trim();
       if (trimmed) payload.imageUrl = trimmed;
+      const ac = form.accentColor.trim();
+      if (ac) payload.accentColor = ac;
+      else if (editingId) payload.accentColor = "";
       if (editingId) return api.put(`/api/departments/${editingId}`, payload);
       return api.post("/api/departments", payload);
     },
@@ -79,7 +83,7 @@ export default function DepartmentsPage() {
       setToast({ msg: t("success"), ok: true });
       setOpen(false);
       setEditingId(null);
-      setForm({ name: "", description: "", imageUrl: "" });
+      setForm({ name: "", description: "", imageUrl: "", accentColor: "" });
       await qc.invalidateQueries({ queryKey: ["departments"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
@@ -119,7 +123,7 @@ export default function DepartmentsPage() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ name: "", description: "", imageUrl: "" });
+    setForm({ name: "", description: "", imageUrl: "", accentColor: "" });
     setOpen(true);
   }
 
@@ -129,6 +133,7 @@ export default function DepartmentsPage() {
       name: d.name,
       description: d.description ?? "",
       imageUrl: d.imageUrl && !d.imageUrl.startsWith("data:") ? d.imageUrl : "",
+      accentColor: d.accentColor && /^#[0-9A-Fa-f]{6}$/i.test(d.accentColor) ? d.accentColor : "",
     });
     setOpen(true);
   }
@@ -232,6 +237,30 @@ export default function DepartmentsPage() {
               placeholder="https://… או השאר ריק והעלה מהכרטיס"
               helperText={t("departmentImageUrlHint")}
             />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
+              <Typography component="label" htmlFor="dept-accent-color" sx={{ minWidth: 100 }}>
+                {t("departmentAccentColor")}
+              </Typography>
+              <input
+                id="dept-accent-color"
+                type="color"
+                value={/^#[0-9A-Fa-f]{6}$/i.test(form.accentColor) ? form.accentColor : "#7c4dff"}
+                onChange={(e) => setForm({ ...form, accentColor: e.target.value })}
+                style={{ width: 56, height: 40, border: "none", cursor: "pointer", borderRadius: 8 }}
+              />
+              <TextField
+                size="small"
+                label="Hex"
+                placeholder="#7C4DFF"
+                value={form.accentColor}
+                onChange={(e) => setForm({ ...form, accentColor: e.target.value })}
+                sx={{ flex: 1, minWidth: 120 }}
+                helperText={t("departmentAccentColorHint")}
+              />
+              <Button size="small" onClick={() => setForm({ ...form, accentColor: "" })}>
+                {t("departmentAccentColorClear")}
+              </Button>
+            </Stack>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setOpen(false)}>{t("cancel")}</Button>
@@ -280,7 +309,9 @@ function DepartmentCard({
       <Box
         sx={{
           height: 6,
-          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.4)})`,
+          background: dept.accentColor
+            ? `linear-gradient(90deg, ${dept.accentColor}, ${alpha(dept.accentColor, 0.45)})`
+            : `linear-gradient(90deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.4)})`,
         }}
       />
       <CardContent sx={{ flexGrow: 1, textAlign: "center", pb: 1 }}>

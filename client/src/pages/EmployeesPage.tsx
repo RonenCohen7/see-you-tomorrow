@@ -60,7 +60,7 @@ import { fileToResizedJpegDataUrl } from "../utils/imageResize";
 
 const MARITAL_STATUSES: MaritalStatus[] = ["single", "married", "divorced", "widowed", "partner"];
 
-type Dept = { id: string; name: string };
+type Dept = { id: string; name: string; accentColor?: string };
 type Loc = { id: string; name: string };
 
 type FormState = {
@@ -189,6 +189,7 @@ export default function EmployeesPage() {
     queryFn: async () => (await api.get<{ items: Loc[] }>("/api/locations")).data.items,
   });
 
+  const deptById = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d]) ?? []), [deptsQ.data]);
   const deptMap = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d.name])), [deptsQ.data]);
   const locMap = useMemo(() => new Map(locsQ.data?.map((l) => [l.id, l.name])), [locsQ.data]);
 
@@ -410,6 +411,9 @@ export default function EmployeesPage() {
               key={emp.id}
               employee={emp}
               departmentName={emp.departmentId ? deptMap?.get(emp.departmentId) : undefined}
+              departmentAccentColor={
+                emp.departmentId ? deptById.get(emp.departmentId)?.accentColor : undefined
+              }
               canWrite={canWrite}
               avatarUploading={avatarMut.isPending && avatarMut.variables?.id === emp.id}
               onAvatarUpload={(file) => requestAvatarUpload(emp.id, file)}
@@ -429,6 +433,9 @@ export default function EmployeesPage() {
         employee={openEmployee}
         fullScreen={isXs}
         departmentName={openEmployee?.departmentId ? deptMap?.get(openEmployee.departmentId) : undefined}
+        departmentAccentColor={
+          openEmployee?.departmentId ? deptById.get(openEmployee.departmentId)?.accentColor : undefined
+        }
         locationName={openEmployee?.locationId ? locMap?.get(openEmployee.locationId) : undefined}
         canWrite={canWrite}
         avatarUploading={!!openEmployee && avatarMut.isPending && avatarMut.variables?.id === openEmployee.id}
@@ -467,6 +474,7 @@ export default function EmployeesPage() {
 function EmployeeCard({
   employee,
   departmentName,
+  departmentAccentColor,
   onOpen,
   canWrite,
   avatarUploading,
@@ -474,6 +482,7 @@ function EmployeeCard({
 }: {
   employee: Employee;
   departmentName?: string;
+  departmentAccentColor?: string;
   onOpen: () => void;
   canWrite: boolean;
   avatarUploading: boolean;
@@ -481,7 +490,8 @@ function EmployeeCard({
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const accent = avatarColor(employee.id);
+  const fallbackAccent = avatarColor(employee.id);
+  const topAccent = departmentAccentColor ?? fallbackAccent;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -491,6 +501,12 @@ function EmployeeCard({
         position: "relative",
         overflow: "hidden",
         opacity: employee.isActive ? 1 : 0.65,
+        ...(departmentAccentColor
+          ? {
+              border: `2px solid ${departmentAccentColor}`,
+              boxShadow: `0 0 0 1px ${alpha(departmentAccentColor, 0.25)} inset`,
+            }
+          : {}),
         "&::before": {
           content: '""',
           position: "absolute",
@@ -498,7 +514,9 @@ function EmployeeCard({
           insetInlineStart: 0,
           insetInlineEnd: 0,
           height: 4,
-          background: `linear-gradient(90deg, ${accent} 0%, ${alpha(theme.palette.primary.main, 0.7)} 100%)`,
+          background: departmentAccentColor
+            ? `linear-gradient(90deg, ${departmentAccentColor} 0%, ${alpha(departmentAccentColor, 0.55)} 100%)`
+            : `linear-gradient(90deg, ${topAccent} 0%, ${alpha(theme.palette.primary.main, 0.7)} 100%)`,
         },
       }}
     >
@@ -580,11 +598,11 @@ function EmployeeCard({
                 sx={{
                   width: 56,
                   height: 56,
-                  bgcolor: accent,
+                  bgcolor: topAccent,
                   color: "#fff",
                   fontWeight: 700,
                   fontSize: 20,
-                  boxShadow: `0 4px 14px -2px ${alpha(accent, 0.55)}`,
+                  boxShadow: `0 4px 14px -2px ${alpha(topAccent, 0.55)}`,
                   border: `2px solid ${alpha(theme.palette.background.paper, 0.95)}`,
                   opacity: avatarUploading ? 0.55 : 1,
                 }}
@@ -680,6 +698,7 @@ function EmployeeDetailDialog({
   employee,
   fullScreen,
   departmentName,
+  departmentAccentColor,
   locationName,
   onClose,
   onEdit,
@@ -690,6 +709,7 @@ function EmployeeDetailDialog({
   employee: Employee | null;
   fullScreen?: boolean;
   departmentName?: string;
+  departmentAccentColor?: string;
   locationName?: string;
   onClose: () => void;
   onEdit?: (emp: Employee) => void;
@@ -701,7 +721,7 @@ function EmployeeDetailDialog({
   const theme = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   if (!employee) return null;
-  const accent = avatarColor(employee.id);
+  const accent = departmentAccentColor ?? avatarColor(employee.id);
   const showPhotoUpload = Boolean(canWrite && onAvatarUpload);
 
   return (

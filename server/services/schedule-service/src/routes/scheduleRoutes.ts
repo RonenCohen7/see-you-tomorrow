@@ -13,7 +13,11 @@ r.get("/week/:date", requireAuth, ctrl.week);
 
 r.get("/", requireAuth, ctrl.list);
 r.post("/range", requireAuth, ctrl.createRange);
+r.post("/department-range/preview", requireAuth, ctrl.previewDepartmentRange);
+r.post("/department-range/apply", requireAuth, ctrl.applyDepartmentRange);
+r.post("/week-grid/apply", requireAuth, ctrl.applyWeekGrid);
 r.post("/", requireAuth, ctrl.create);
+r.put("/:id/replace-range", requireAuth, ctrl.replaceRange);
 r.put("/:id", requireAuth, ctrl.update);
 r.delete("/:id", requireAuth, ctrl.remove);
 

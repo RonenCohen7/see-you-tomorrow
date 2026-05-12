@@ -67,11 +67,14 @@ export function buildTheme(mode: "light" | "dark") {
         styleOverrides: {
           html: {
             WebkitTextSizeAdjust: "100%",
-            overflowX: "hidden",
+            minWidth: 0,
+            overflowX: "auto",
           },
           body: {
             direction: "rtl",
-            overflowX: "hidden",
+            minWidth: 0,
+            overflowX: "auto",
+            overflowY: "auto",
             backgroundImage: isDark
               ? "radial-gradient(at 0% 0%, rgba(249,115,22,0.10) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(14,165,233,0.10) 0px, transparent 50%)"
               : "radial-gradient(at 0% 0%, rgba(249,115,22,0.06) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(14,165,233,0.06) 0px, transparent 50%)",

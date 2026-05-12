@@ -12,6 +12,7 @@ export function toPublic(doc: DepartmentDoc) {
     name: doc.name,
     description: doc.description,
     imageUrl: doc.imageUrl || undefined,
+    accentColor: doc.accentColor || undefined,
     locationId: doc.locationId?.toString(),
     managerId: doc.managerId?.toString(),
     isActive: doc.isActive,
@@ -29,6 +30,7 @@ export async function createDepartment(input: {
   name: string;
   description?: string;
   imageUrl?: string;
+  accentColor?: string;
   locationId?: string;
   managerId?: string;
   isActive?: boolean;
@@ -38,6 +40,7 @@ export async function createDepartment(input: {
     name: input.name,
     description: input.description,
     imageUrl: input.imageUrl || undefined,
+    accentColor: input.accentColor || undefined,
     locationId: input.locationId,
     managerId: input.managerId,
     isActive: input.isActive ?? true,
@@ -51,6 +54,7 @@ export async function updateDepartment(
     name: string;
     description: string;
     imageUrl: string;
+    accentColor: string;
     locationId: string;
     managerId: string;
     isActive: boolean;
@@ -65,6 +69,10 @@ export async function updateDepartment(
   if (input.locationId !== undefined) $set.locationId = input.locationId;
   if (input.managerId !== undefined) $set.managerId = input.managerId;
   if (input.isActive !== undefined) $set.isActive = input.isActive;
+  if (input.accentColor !== undefined) {
+    if (input.accentColor === "") $unset.accentColor = 1;
+    else $set.accentColor = input.accentColor;
+  }
   if (input.imageUrl !== undefined) {
     if (input.imageUrl === "") $unset.imageUrl = 1;
     else $set.imageUrl = input.imageUrl;

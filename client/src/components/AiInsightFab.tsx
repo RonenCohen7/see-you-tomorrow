@@ -31,6 +31,8 @@ export function AiInsightFab({ socket }: Props) {
       void qc.invalidateQueries({ queryKey: ["schedules-forward-parking"] });
       void qc.invalidateQueries({ queryKey: ["parking-spots"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     };
     socket.on("schedule:updated", bump);
     socket.on("dashboard:refresh", bump);

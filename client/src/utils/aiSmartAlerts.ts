@@ -4,7 +4,12 @@ import HomeIcon from "@mui/icons-material/Home";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
 import SickIcon from "@mui/icons-material/Sick";
+import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import type { Employee, Schedule } from "../types/models";
+import { hebrewWeekdayShort } from "./israeliWeek";
+
+/** Stable id for manager-in-office weekly coverage (next Israeli week UTC). */
+export const MANAGER_OFFICE_COVERAGE_ALERT_ID = "manager-office-coverage-next-week";
 
 /** localStorage key: last smart-alerts signature the user acknowledged on /ai */
 export const AI_ALERTS_SIGNATURE_SEEN_KEY = "syt_ai_alerts_signature_seen";
@@ -43,6 +48,80 @@ export function countLeadingNonOfficeStreak(sortedDesc: Schedule[]): number {
     n++;
   }
   return n;
+}
+
+/** Active admins/managers who count toward «at least one leader in office» per day. */
+export function leaderEmployeeIds(employees: Employee[]): Set<string> {
+  const ids = new Set<string>();
+  for (const e of employees) {
+    if (!e.isActive) continue;
+    if (e.role === "manager" || e.role === "admin") ids.add(e.id);
+  }
+  return ids;
+}
+
+/** True if at least one active admin/manager has `office` on this calendar day (YYYY-MM-DD). */
+export function dayHasLeaderOffice(employees: Employee[], schedules: Schedule[], workDateIso: string): boolean {
+  const leaders = leaderEmployeeIds(employees);
+  if (leaders.size === 0) return true;
+  return schedules.some(
+    (s) => s.workDate === workDateIso && s.status === "office" && leaders.has(s.employeeId)
+  );
+}
+
+/** Distinct leader names with `office` on this day (sorted, Hebrew locale). */
+export function leaderOfficeNamesForDay(
+  employees: Employee[],
+  schedules: Schedule[],
+  workDateIso: string
+): string[] {
+  const leaders = leaderEmployeeIds(employees);
+  const map = new Map(employees.map((e) => [e.id, e]));
+  const names = new Set<string>();
+  for (const s of schedules) {
+    if (s.workDate !== workDateIso || s.status !== "office" || !leaders.has(s.employeeId)) continue;
+    const n = map.get(s.employeeId)?.fullName?.trim();
+    if (n) names.add(n);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, "he"));
+}
+
+/** Days in `weekDays` (ISO) with no `office` schedule for any leader; sorted ascending. */
+export function findManagerOfficeCoverageGaps(
+  employees: Employee[],
+  forwardSchedules: Schedule[],
+  weekDays: string[]
+): string[] {
+  const sortedDays = [...weekDays].sort((a, b) => a.localeCompare(b));
+  const gaps: string[] = [];
+  for (const day of sortedDays) {
+    if (!dayHasLeaderOffice(employees, forwardSchedules, day)) gaps.push(day);
+  }
+  return gaps;
+}
+
+export function buildManagerOfficeCoverageAlerts(
+  employees: Employee[],
+  forwardSchedules: Schedule[],
+  weekDays: string[],
+  t: TFunction
+): SmartAlert[] {
+  const gaps = findManagerOfficeCoverageGaps(employees, forwardSchedules, weekDays);
+  if (gaps.length === 0) return [];
+
+  const labels = gaps.map((d) => `${d} (${hebrewWeekdayShort(d)})`).join(" · ");
+  return [
+    {
+      id: MANAGER_OFFICE_COVERAGE_ALERT_ID,
+      severity: "error",
+      employeeId: "system",
+      employeeName: "",
+      title: t("aiManagerOfficeCoverageTitle"),
+      detail: t("aiManagerOfficeCoverageDetail", { dates: labels }),
+      Icon: SupervisorAccountIcon,
+      color: "#b91c1c",
+    },
+  ];
 }
 
 /** Heuristic “smart” alerts from recent schedules (same logic as AI recommendations page). */

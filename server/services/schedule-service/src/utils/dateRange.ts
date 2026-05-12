@@ -51,3 +51,36 @@ export function eachUtcDayInclusive(isoFrom: string, isoTo: string): string[] {
   }
   return out;
 }
+
+export function addUtcDays(isoDate: string, deltaDays: number): string {
+  const d = utcDay(isoDate);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return toIsoDate(d);
+}
+
+/** Seven ISO dates Sun..Sat UTC starting at `weekStartSunday` (must be a UTC Sunday). */
+export function israeliWeekDatesFromSundayUtc(weekStartSunday: string): string[] {
+  const d = utcDay(weekStartSunday);
+  if (d.getUTCDay() !== 0) throw new Error("weekStartSunday must be UTC Sunday");
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) out.push(addUtcDays(weekStartSunday, i));
+  return out;
+}
+
+/** The Israeli calendar week Sun..Sat UTC that starts the Sunday after the current Sun–Sat week. */
+export function nextIsraeliWeekUtcFromReference(ref: Date = new Date()): { weekStartSunday: string; days: string[] } {
+  const y = ref.getUTCFullYear();
+  const m = ref.getUTCMonth();
+  const d = ref.getUTCDate();
+  const dow = ref.getUTCDay();
+  const thisSunday = new Date(Date.UTC(y, m, d - dow));
+  const nextSunday = new Date(thisSunday);
+  nextSunday.setUTCDate(thisSunday.getUTCDate() + 7);
+  const days: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(nextSunday);
+    x.setUTCDate(nextSunday.getUTCDate() + i);
+    days.push(toIsoDate(x));
+  }
+  return { weekStartSunday: days[0]!, days };
+}

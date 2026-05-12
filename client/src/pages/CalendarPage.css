@@ -1,0 +1,128 @@
+/**
+ * Calendar page (/calendar) — layout & grid only.
+ * Root cause of “cards under sidebar” was MainLayout drawer not reserving flex width; fixed there.
+ */
+
+.calendar-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.calendar-page__tab-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 32px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+@media (min-width: 600px) {
+  .calendar-page__tab-scroll {
+    padding-bottom: 40px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+@media (min-width: 900px) {
+  .calendar-page__tab-scroll {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+.calendar-page__outer-card {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 7 days: equal columns, centered cards — no justify-content:end (pushes toward sidebar edge) */
+.calendar-page__seven-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  direction: rtl;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 8px;
+  row-gap: 12px;
+  padding: 8px 0 20px;
+  justify-items: center;
+  align-items: stretch;
+}
+
+@media (min-width: 600px) {
+  .calendar-page__seven-grid {
+    column-gap: 10px;
+    row-gap: 16px;
+  }
+}
+
+.calendar-page__day-card--seven {
+  width: 100%;
+  max-width: min(100%, 320px);
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 12px;
+  cursor: pointer;
+  min-height: 88px;
+}
+
+@media (min-width: 600px) {
+  .calendar-page__day-card--seven {
+    max-width: 214px;
+    min-height: 100px;
+  }
+}
+
+@media (min-width: 900px) {
+  .calendar-page__day-card--seven {
+    max-width: 226px;
+  }
+}
+
+@media (max-width: 599px) {
+  .calendar-page__seven-grid {
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+  }
+
+  .calendar-page__day-card--seven {
+    max-width: 100%;
+  }
+}
+
+/* 15-day preview */
+.calendar-page__fifteen-grid {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  direction: rtl;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 8px;
+  row-gap: 8px;
+  padding: 4px 0 8px;
+  justify-items: stretch;
+}
+
+@media (min-width: 600px) {
+  .calendar-page__fifteen-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 10px;
+    row-gap: 10px;
+  }
+}

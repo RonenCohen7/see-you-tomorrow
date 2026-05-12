@@ -44,8 +44,11 @@ import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import { AiInsightFab } from "../components/AiInsightFab";
 import { BirthdayFab } from "../components/BirthdayFab";
+import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
 
 const WIDTH = 264;
+/** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
+const WIDTH_COMPACT = 220;
 
 const adminOnlyNav = ["/employees", "/departments", "/locations"];
 
@@ -74,7 +77,10 @@ export default function MainLayout() {
   const { t } = useTranslation();
   const theme = useTheme();
   const mobile = useMediaQuery(theme.breakpoints.down("md"));
+  const compactDesktop = useMediaQuery("(max-width: 1399px)");
+  const permanentDrawerW = !mobile && compactDesktop ? WIDTH_COMPACT : WIDTH;
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [screenHelpOpen, setScreenHelpOpen] = React.useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
   const role = useRole();
@@ -112,8 +118,8 @@ export default function MainLayout() {
     .slice(0, 2)
     .join("");
 
-  const drawer = (
-    <Box sx={{ width: WIDTH, pt: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+  const drawerContent = (paperWidth: number) => (
+    <Box dir="rtl" sx={{ width: paperWidth, pt: 2, height: "100%", display: "flex", flexDirection: "column" }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2, pb: 2 }}>
         <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36, fontWeight: 700 }}>
           {initials || "S"}
@@ -150,6 +156,20 @@ export default function MainLayout() {
             </Tooltip>
           );
         })}
+        <Tooltip title={t("helpFabTooltip")} placement="left" arrow disableInteractive>
+          <ListItemButton
+            onClick={() => {
+              setScreenHelpOpen(true);
+              if (mobile) setMobileOpen(false);
+            }}
+            aria-label={t("helpFabAria")}
+          >
+            <ListItemIcon sx={{ minWidth: 38, color: "text.secondary" }}>
+              <Avatar alt="" src="/help-avatar.png" variant="rounded" sx={{ width: 28, height: 28, flexShrink: 0 }} />
+            </ListItemIcon>
+            <ListItemText primary={t("helpMenuItem")} primaryTypographyProps={{ fontWeight: 500 }} />
+          </ListItemButton>
+        </Tooltip>
       </List>
       <Divider />
       <Box sx={{ p: 1 }}>
@@ -166,21 +186,38 @@ export default function MainLayout() {
   );
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100dvh", minWidth: 0, width: "100%", overflowX: "hidden" }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100dvh",
+        minHeight: "100dvh",
+        minWidth: 0,
+        width: "100%",
+        overflow: "hidden",
+      }}
+    >
       <AppBar
         position="fixed"
         sx={{
           zIndex: (th) => th.zIndex.drawer + 1,
           pt: "env(safe-area-inset-top, 0px)",
+          left: 0,
+          right: 0,
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
         }}
       >
         <Toolbar
           sx={{
             display: "flex",
             alignItems: "center",
-            gap: { xs: 0.5, sm: 1 },
-            px: { xs: 0.5, sm: 2 },
+            gap: { xs: 0.5, sm: 0.75, md: 1 },
+            px: { xs: 0.5, sm: 1, md: 1.5 },
             minHeight: { xs: 52, sm: 64 },
+            maxWidth: "100%",
+            boxSizing: "border-box",
           }}
         >
           <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)} sx={{ display: { md: "none" } }}>
@@ -196,7 +233,7 @@ export default function MainLayout() {
             spacing={{ xs: 1.25, sm: 4 }}
             alignItems="center"
             justifyContent="center"
-            sx={{ flexShrink: 0, maxWidth: { xs: "min(52vw, 220px)", sm: "none" } }}
+            sx={{ flexShrink: 0, minWidth: 0, maxWidth: { xs: "min(46vw, 200px)", sm: "min(52vw, 240px)", md: "none" } }}
           >
             <Avatar
               alt={t("appTitle")}
@@ -245,7 +282,7 @@ export default function MainLayout() {
                 sx={{
                   fontWeight: 600,
                   color: "inherit",
-                  maxWidth: { xs: 100, sm: 220, md: 280 },
+                  maxWidth: { xs: 72, sm: 160, md: 200, lg: 260 },
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -271,47 +308,79 @@ export default function MainLayout() {
           </Box>
         </Toolbar>
       </AppBar>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "row",
+          direction: "ltr",
+          flex: "1 1 0",
+          minWidth: 0,
+          minHeight: 0,
+          width: "100%",
+          overflow: "hidden",
+          gap: { xs: 0, md: 3, xl: 4 },
+        }}
+      >
       <Drawer
         variant="temporary"
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
         ModalProps={{ keepMounted: true }}
-        sx={{ display: { xs: "block", md: "none" }, [`& .MuiDrawer-paper`]: { width: WIDTH } }}
+        sx={{ display: { xs: "block", md: "none" }, [`& .MuiDrawer-paper`]: { width: WIDTH, boxSizing: "border-box" } }}
       >
-        {drawer}
+        {drawerContent(WIDTH)}
       </Drawer>
       <Drawer
         variant="permanent"
+        anchor="left"
         sx={{
           display: { xs: "none", md: "block" },
-          [`& .MuiDrawer-paper`]: { width: WIDTH, boxSizing: "border-box", borderInlineEnd: "1px solid", borderColor: "divider" },
+          width: permanentDrawerW,
+          flexShrink: 0,
+          alignSelf: "stretch",
+          [`& .MuiDrawer-paper`]: {
+            position: "relative",
+            height: "100%",
+            width: permanentDrawerW,
+            boxSizing: "border-box",
+            borderInlineEnd: "1px solid",
+            borderColor: "divider",
+          },
         }}
         open
       >
-        {drawer}
+        {drawerContent(permanentDrawerW)}
       </Drawer>
       <Box
         component="main"
         sx={{
-          flexGrow: 1,
+          direction: "rtl",
+          flex: "1 1 0%",
           minWidth: 0,
-          width: { xs: "100%", md: `calc(100% - ${WIDTH}px)` },
-          maxWidth: "100%",
-          p: { xs: 1.5, sm: 2.5, md: 3.5, lg: 4, xl: 5 },
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflowY: "auto",
+          overflowX: "hidden",
+          px: { xs: 1.5, sm: 1.75, md: 2.5, lg: 3, xl: 3.5 },
+          pb: { xs: `max(8px, env(safe-area-inset-bottom, 0px))`, md: 2 },
           mt: {
             xs: `calc(52px + env(safe-area-inset-top, 0px))`,
             sm: `calc(64px + env(safe-area-inset-top, 0px))`,
           },
-          pt: 0,
-          pb: { xs: `max(12px, env(safe-area-inset-bottom, 0px))`, md: 3 },
+          pt: { xs: 0.75, sm: 1 },
           boxSizing: "border-box",
         }}
       >
         <Box
           sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
             width: "100%",
             minWidth: 0,
-            maxWidth: { xs: "100%", xl: "min(100%, 1680px)" },
+            maxWidth: "100%",
             mx: "auto",
             boxSizing: "border-box",
           }}
@@ -319,27 +388,31 @@ export default function MainLayout() {
           <Outlet />
         </Box>
       </Box>
+      </Box>
       {user ? (
-        <Box
-          sx={{
-            position: "fixed",
-            zIndex: (th) => th.zIndex.tooltip + 1,
-            bottom: { xs: 88, sm: 24 },
-            right: 16,
-            left: "auto",
-            display: "flex",
-            flexDirection: "column-reverse",
-            alignItems: "flex-end",
-            gap: 1.25,
-            pb: "env(safe-area-inset-bottom, 0px)",
-            pr: "env(safe-area-inset-right, 0px)",
-            pointerEvents: "none",
-            "& > *": { pointerEvents: "auto" },
-          }}
-        >
-          <AiInsightFab socket={socket} />
-          <BirthdayFab socket={socket} />
-        </Box>
+        <>
+          <ScreenHelpOverlay open={screenHelpOpen} onClose={() => setScreenHelpOpen(false)} />
+          <Box
+            sx={{
+              position: "fixed",
+              zIndex: (th) => th.zIndex.tooltip + 1,
+              bottom: { xs: 88, sm: 24 },
+              right: 16,
+              left: "auto",
+              display: "flex",
+              flexDirection: "column-reverse",
+              alignItems: "flex-end",
+              gap: 1.25,
+              pb: "env(safe-area-inset-bottom, 0px)",
+              pr: "env(safe-area-inset-right, 0px)",
+              pointerEvents: "none",
+              "& > *": { pointerEvents: "auto" },
+            }}
+          >
+            <AiInsightFab socket={socket} />
+            <BirthdayFab socket={socket} />
+          </Box>
+        </>
       ) : null}
       <Snackbar
         open={newUserSnackbarOpen}

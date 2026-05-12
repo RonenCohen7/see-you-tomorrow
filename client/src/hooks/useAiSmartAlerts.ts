@@ -4,8 +4,14 @@ import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import { addDaysIsoLocal, todayIsoLocal } from "../utils/date";
-import { alertsSignature, buildSmartAlerts, sortAlertsBySeverity } from "../utils/aiSmartAlerts";
+import {
+  alertsSignature,
+  buildManagerOfficeCoverageAlerts,
+  buildSmartAlerts,
+  sortAlertsBySeverity,
+} from "../utils/aiSmartAlerts";
 import { buildJewishHolidayAlerts } from "../utils/jewishHolidayAlerts";
+import { nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { buildTrafficAwarenessAlert, fetchWeatherSmartAlerts } from "../utils/weatherTrafficAlerts";
 import {
   buildParkingOpportunityAlerts,
@@ -91,6 +97,13 @@ export function useAiSmartAlerts(enabled: boolean) {
     if (!employeesQ.data || !schedulesQ.data || !schedulesForwardQ.data) return [];
     const empMap = new Map(employeesQ.data.map((e) => [e.id, e]));
     const base = buildSmartAlerts(employeesQ.data, schedulesQ.data, t);
+    const nextWeek = nextIsraeliWeekUtcFromReference();
+    const managerCoverage = buildManagerOfficeCoverageAlerts(
+      employeesQ.data,
+      schedulesForwardQ.data,
+      nextWeek.days,
+      t
+    );
     const spots = parkingSpotsQ.data ?? [];
     const res = parkingResQ.data ?? [];
     const parkingAlerts = buildParkingOpportunityAlerts(today, spots, res, schedulesForwardQ.data, empMap, t);
@@ -98,7 +111,7 @@ export function useAiSmartAlerts(enabled: boolean) {
     const weatherAlerts = weatherAlertsQ.data ?? [];
     const trafficAlert = buildTrafficAwarenessAlert(t);
     const merged = mergeSmartAndParkingAlerts(base, parkingAlerts);
-    return sortAlertsBySeverity([...holidayAlerts, ...weatherAlerts, trafficAlert, ...merged]);
+    return sortAlertsBySeverity([...holidayAlerts, ...weatherAlerts, trafficAlert, ...managerCoverage, ...merged]);
   }, [
     employeesQ.data,
     parkingResQ.data,
