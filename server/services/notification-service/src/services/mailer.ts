@@ -16,6 +16,13 @@ export function createTransport() {
   });
 }
 
+export async function sendPlainEmail(to: string, subject: string, text: string) {
+  const transport = createTransport();
+  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
+  await transport.sendMail({ from, to, subject, text });
+  logger.info(`Plain email sent to ${to}`);
+}
+
 export async function sendScheduleEmail(
   to: string,
   ctx: { employeeName: string; workDate: string; workDateEnd?: string; status: string; location?: string }

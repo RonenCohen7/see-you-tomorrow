@@ -7,6 +7,7 @@ r.use(requireInternalSecret);
 
 r.post("/notifications/schedule-change", ctrl.scheduleChange);
 r.post("/notifications/schedule-range-change", ctrl.scheduleRangeChange);
+r.post("/notifications/meeting-invite", ctrl.meetingInvite);
 r.post("/notifications/preference-submitted", ctrl.preferenceSubmitted);
 r.post("/notifications/preference-pipeline-queued", ctrl.preferencePipelineQueued);
 r.post("/notifications/preference-pipeline-ai-ready", ctrl.preferencePipelineAiReady);

@@ -44,6 +44,22 @@ export function toPublic(doc: NotificationDoc & { _id: mongoose.Types.ObjectId }
           updatedByName: doc.scheduleContext.updatedByName,
         }
       : undefined,
+    meetingContext: doc.meetingContext
+      ? {
+          bookingId: doc.meetingContext.bookingId,
+          roomId: doc.meetingContext.roomId,
+          roomName: doc.meetingContext.roomName,
+          locationName: doc.meetingContext.locationName,
+          floor: doc.meetingContext.floor,
+          workDate: doc.meetingContext.workDate,
+          hourStart: doc.meetingContext.hourStart,
+          hourEnd: doc.meetingContext.hourEnd,
+          title: doc.meetingContext.title,
+          organizerId: doc.meetingContext.organizerId,
+          organizerName: doc.meetingContext.organizerName,
+          isUpdate: doc.meetingContext.isUpdate,
+        }
+      : undefined,
   };
 }
 
@@ -469,6 +485,95 @@ export async function handlePreferencePipelineBatchPendingManagers(payload: {
     message,
     recipientIds
   );
+}
+
+export async function handleMeetingInvite(payload: {
+  bookingId: string;
+  roomId: string;
+  roomName: string;
+  locationName: string;
+  floor?: string;
+  workDate: string;
+  hourStart?: number;
+  hourEnd?: number;
+  title: string;
+  organizerId: string;
+  organizerName: string;
+  inviteeIds: string[];
+  isUpdate?: boolean;
+}) {
+  const recipientIds = [...new Set(payload.inviteeIds)].filter(Boolean);
+  if (recipientIds.length === 0) return null;
+
+  const hoursLabel =
+    payload.hourStart != null || payload.hourEnd != null
+      ? `${payload.hourStart ?? "—"}–${payload.hourEnd ?? "—"}`
+      : "יום מלא";
+
+  const title = payload.isUpdate ? "עודכנה הזמנה לישיבה" : "הוזמנת לישיבה";
+  const floorPart = payload.floor ? ` · קומה ${payload.floor}` : "";
+  const message = `${payload.title} · ${payload.roomName} · ${payload.locationName}${floorPart} · ${payload.workDate} · ${hoursLabel} · מארגן/ת: ${payload.organizerName}`;
+
+  const meetingContext = {
+    bookingId: payload.bookingId,
+    roomId: payload.roomId,
+    roomName: payload.roomName,
+    locationName: payload.locationName,
+    ...(payload.floor ? { floor: payload.floor } : {}),
+    workDate: payload.workDate,
+    ...(payload.hourStart !== undefined ? { hourStart: payload.hourStart } : {}),
+    ...(payload.hourEnd !== undefined ? { hourEnd: payload.hourEnd } : {}),
+    title: payload.title,
+    organizerId: payload.organizerId,
+    organizerName: payload.organizerName,
+    isUpdate: payload.isUpdate ?? false,
+  };
+
+  const Notification = await model();
+  const doc = await Notification.create({
+    title,
+    message,
+    type: "meeting_invite",
+    recipientIds: recipientIds.map((id) => new mongoose.Types.ObjectId(id)),
+    channels: Array.from(NOTIFICATION_CHANNELS),
+    deliveryStatus: "pending",
+    readBy: [],
+    createdBy: new mongoose.Types.ObjectId(payload.organizerId),
+    createdAt: new Date(),
+    meetingContext,
+  });
+
+  const pub = toPublic(doc as NotificationDoc & { _id: mongoose.Types.ObjectId });
+
+  for (const rid of recipientIds) {
+    socket.emitToUser(rid, SOCKET_EVENTS.notificationNew, pub);
+  }
+  socket.emitDashboardRefresh(recipientIds);
+
+  const q = emailQueue.getEmailQueue();
+  for (const rid of recipientIds) {
+    await q.add(
+      `email-meeting-${doc._id}-${rid}`,
+      {
+        notificationKind: "meeting_invite" as const,
+        notificationId: pub.id,
+        recipientId: rid,
+        meetingSubject: title,
+        meetingBody: message,
+      },
+      {
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2000 },
+        removeOnComplete: true,
+      }
+    );
+  }
+
+  await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
+    logger.warn("meeting notification delivery status update failed");
+  });
+
+  return pub;
 }
 
 export async function listForUser(userId: string, page: number, limit: number) {

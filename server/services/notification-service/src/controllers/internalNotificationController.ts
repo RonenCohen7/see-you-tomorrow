@@ -42,6 +42,30 @@ export async function scheduleRangeChange(req: Request, res: Response) {
   res.status(201).json(doc);
 }
 
+const meetingInvitePayload = z.object({
+  bookingId: z.string(),
+  roomId: z.string(),
+  roomName: z.string(),
+  locationName: z.string(),
+  floor: z.string().optional(),
+  workDate: z.string(),
+  hourStart: z.number().optional(),
+  hourEnd: z.number().optional(),
+  title: z.string(),
+  organizerId: z.string(),
+  organizerName: z.string(),
+  inviteeIds: z.array(z.string()),
+  isUpdate: z.boolean().optional(),
+});
+
+export async function meetingInvite(req: Request, res: Response) {
+  const parsed = meetingInvitePayload.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const doc = await svc.handleMeetingInvite(parsed.data);
+  if (!doc) return res.sendStatus(204);
+  res.status(201).json(doc);
+}
+
 const preferenceSubmittedPayload = z.object({
   employeeId: z.string().regex(/^[a-f\d]{24}$/i),
   departmentId: z.string().regex(/^[a-f\d]{24}$/i).optional(),

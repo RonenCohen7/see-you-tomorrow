@@ -17,14 +17,23 @@ function redisConnection(): { host: string; port: number; password?: string } {
   }
 }
 
-export type EmailJob = {
-  notificationId: string;
-  recipientId: string;
-  workDate: string;
-  /** Inclusive end when the notification spans multiple days */
-  workDateEnd?: string;
-  status: string;
-};
+export type EmailJob =
+  | {
+      notificationKind?: "schedule_update";
+      notificationId: string;
+      recipientId: string;
+      workDate: string;
+      /** Inclusive end when the notification spans multiple days */
+      workDateEnd?: string;
+      status: string;
+    }
+  | {
+      notificationKind: "meeting_invite";
+      notificationId: string;
+      recipientId: string;
+      meetingSubject: string;
+      meetingBody: string;
+    };
 
 let queue: Queue<EmailJob> | null = null;
 
@@ -42,6 +51,10 @@ export function startEmailWorker() {
       const emp = await http.fetchEmployee(job.data.recipientId);
       if (!emp?.email) {
         logger.warn("No email for recipient", job.data.recipientId);
+        return;
+      }
+      if (job.data.notificationKind === "meeting_invite") {
+        await mailer.sendPlainEmail(emp.email, job.data.meetingSubject, job.data.meetingBody);
         return;
       }
       await mailer.sendScheduleEmail(emp.email, {
