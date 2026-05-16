@@ -87,6 +87,7 @@ mountHttp("/api/employees", EMPLOYEE_URL);
 mountHttp("/api/departments", DEPARTMENT_URL);
 mountHttp("/api/locations", LOCATION_URL);
 mountHttp("/api/parking", LOCATION_URL);
+mountHttp("/api/meeting-rooms", LOCATION_URL);
 mountHttp("/api/schedules", SCHEDULE_URL);
 mountHttp("/api/notifications", NOTIFICATION_URL);
 mountHttp("/api/ai", AI_URL);
