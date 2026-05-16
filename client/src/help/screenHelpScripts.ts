@@ -68,6 +68,14 @@ const scriptsHe: Record<string, HelpSegment[]> = {
     { text: "ההגדרות כוללות מצב תצוגה בהיר או כהה, והעדפות כלליות של הממשק." },
     { text: "שינויים נשמרים מקומית בדפדפן או בחשבון, לפי סוג ההגדרה." },
   ],
+  "/scheduling-rules": [
+    { text: "כאן מגדירים חוקי ארגון שמשפיעים על אימות לפני אישור המלצות AI ועל פרסום שינויים." },
+    { text: "סגירת מיקום מגדירה טווח תאריכים שבהם משבצות משרד באותו אתר לא עוברות אימות." },
+    {
+      text: "חוק מנהלים ביום מגדיר מינימום שורות של מנהלים במשרד לכל יום — אפשר להפעיל או לכבות כל חוק בנפרד.",
+    },
+    { text: "מחיקה מסירה חוק מהמערכת; הפעלה מחודשת אפשרית רק בהוספת חוק חדש." },
+  ],
 };
 
 const scriptsEn: Record<string, HelpSegment[]> = {
@@ -142,6 +150,18 @@ const scriptsEn: Record<string, HelpSegment[]> = {
     { text: "Settings cover light/dark mode plus general UI preferences." },
     { text: "Some values persist locally or with your account depending on type." },
   ],
+  "/scheduling-rules": [
+    {
+      text: "Define organization rules that affect validation before approving AI batches and publishing changes.",
+    },
+    {
+      text: "Location closure blocks validating office shifts at that site across the dates you pick.",
+    },
+    {
+      text: "Managers-per-day sets a minimum of managers marked office — toggle each rule on or off independently.",
+    },
+    { text: "Delete removes a rule permanently; recreate if you need it again." },
+  ],
 };
 
 function fullMonthHelp(locale: AppLocale): HelpSegment[] {
@@ -188,6 +208,7 @@ export function helpScreenTitleKey(pathname: string): string | null {
     "/notifications": "notifications",
     "/profile": "profile",
     "/settings": "settings",
+    "/scheduling-rules": "schedulingRules",
   };
   return map[key] ?? null;
 }

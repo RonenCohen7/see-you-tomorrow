@@ -3,6 +3,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import CircleIcon from "@mui/icons-material/Circle";
 import DashboardIcon from "@mui/icons-material/SpaceDashboard";
 import CalendarIcon from "@mui/icons-material/CalendarMonth";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import EmployeesIcon from "@mui/icons-material/Groups";
 import DepartmentsIcon from "@mui/icons-material/Apartment";
 import LocationsIcon from "@mui/icons-material/Place";
@@ -13,6 +14,7 @@ import AIIcon from "@mui/icons-material/AutoAwesome";
 import NotificationsListIcon from "@mui/icons-material/NotificationsActive";
 import ProfileIcon from "@mui/icons-material/AccountCircle";
 import SettingsIcon from "@mui/icons-material/Settings";
+import PolicyIcon from "@mui/icons-material/Policy";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
@@ -63,7 +65,7 @@ const WIDTH = 264;
 /** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
 const WIDTH_COMPACT = 220;
 
-const adminOnlyNav = ["/employees", "/departments", "/locations"];
+const adminOnlyNav = ["/employees", "/departments", "/locations", "/scheduling-rules"];
 /** מנהל מחלקה / אדמין בלבד — לא מוצג למשתמש עם תפקיד עובד */
 const managerAdminNav = ["/schedules", "/parking", "/ai"];
 
@@ -76,10 +78,12 @@ type NavItem = {
 const allPaths: NavItem[] = [
   { to: "/dashboard", key: "dashboard", Icon: DashboardIcon },
   { to: "/calendar", key: "calendar", Icon: CalendarIcon },
+  { to: "/meeting-rooms", key: "meetingRooms", Icon: MeetingRoomIcon },
   { to: "/preferences", key: "attendancePrefs", Icon: PlaylistAddCheckIcon },
   { to: "/employees", key: "employees", Icon: EmployeesIcon },
   { to: "/departments", key: "departments", Icon: DepartmentsIcon },
   { to: "/locations", key: "locations", Icon: LocationsIcon },
+  { to: "/scheduling-rules", key: "schedulingRules", Icon: PolicyIcon },
   { to: "/schedules", key: "schedules", Icon: SchedulesIcon },
   { to: "/team-preferences", key: "teamAttendancePrefs", Icon: FactCheckIcon },
   { to: "/preference-ai-queue", key: "preferenceAiQueueNav", Icon: HourglassBottomIcon },
@@ -198,8 +202,8 @@ export default function MainLayout() {
                 selected={selected}
                 onClick={() => mobile && setMobileOpen(false)}
               >
-                <ListItemIcon sx={{ minWidth: 38, color: selected ? "primary.main" : "text.secondary" }}>
-                  <Icon fontSize="small" />
+                <ListItemIcon sx={{ color: selected ? "primary.main" : "text.secondary" }}>
+                  <Icon fontSize="medium" />
                 </ListItemIcon>
                 <ListItemText
                   primary={t(key)}
@@ -217,7 +221,7 @@ export default function MainLayout() {
             }}
             aria-label={t("helpFabAria")}
           >
-            <ListItemIcon sx={{ minWidth: 38, color: "text.secondary" }}>
+            <ListItemIcon sx={{ color: "text.secondary" }}>
               <Avatar alt="" src="/help-avatar.png" variant="rounded" sx={{ width: 28, height: 28, flexShrink: 0 }} />
             </ListItemIcon>
             <ListItemText primary={t("helpMenuItem")} primaryTypographyProps={{ fontWeight: 500 }} />
@@ -228,8 +232,8 @@ export default function MainLayout() {
       <Box sx={{ p: 1 }}>
         <Tooltip title={t("logout")} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
           <ListItemButton onClick={() => void logout()}>
-            <ListItemIcon sx={{ minWidth: 38, color: "text.secondary" }}>
-              <LogoutIcon fontSize="small" />
+            <ListItemIcon sx={{ color: "text.secondary" }}>
+              <LogoutIcon fontSize="medium" />
             </ListItemIcon>
             <ListItemText primary={t("logout")} />
           </ListItemButton>

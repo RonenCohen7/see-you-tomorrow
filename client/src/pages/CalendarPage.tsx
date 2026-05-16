@@ -18,6 +18,7 @@ import {
 import CalendarIcon from "@mui/icons-material/CalendarMonth";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +33,7 @@ import type { StatusKey } from "../theme/theme";
 import { useRole, useAuth } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
+import type { MeetingBookingPublic } from "../types/meeting";
 import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverageBanner";
 import { nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
@@ -151,25 +153,27 @@ export default function CalendarPage() {
     staleTime: 60_000,
   });
 
-  type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
+  const meetingBookingsQ = useQuery({
+    queryKey: ["meeting-room-bookings", birthdaysRange.from, birthdaysRange.to],
+    queryFn: async () =>
+      (
+        await api.get<{ items: MeetingBookingPublic[] }>(
+          `/api/meeting-rooms/bookings?from=${birthdaysRange.from}&to=${birthdaysRange.to}`
+        )
+      ).data.items,
+    enabled: !!user,
+    staleTime: 60_000,
+  });
 
-  const parkingByIso = useMemo(() => {
-    const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
-    const m = new Map<string, ParkingDayRow[]>();
-    for (const r of parkingResQ.data ?? []) {
-      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
-      const guestName =
-        r.guestFullName && r.guestFullName.length > 0 ? r.guestFullName : r.employeeId.slice(-6);
-      const hoursLabel =
-        r.hourStart != null || r.hourEnd != null
-          ? `${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}`
-          : t("parkingFullDay");
-      const arr = m.get(r.workDate) ?? [];
-      arr.push({ spotLabel, guestName, hoursLabel });
-      m.set(r.workDate, arr);
+  const meetingsByIso = useMemo(() => {
+    const m = new Map<string, MeetingBookingPublic[]>();
+    for (const b of meetingBookingsQ.data ?? []) {
+      const arr = m.get(b.workDate) ?? [];
+      arr.push(b);
+      m.set(b.workDate, arr);
     }
     return m;
-  }, [parkingResQ.data, parkingSpotsQ.data, t]);
+  }, [meetingBookingsQ.data]);
 
   const monthQ = useQuery({
     queryKey: ["calendar-month", month],
@@ -215,7 +219,7 @@ export default function CalendarPage() {
       }
       return all;
     },
-    enabled: canWrite,
+    enabled: !!user,
   });
 
   const employeeMap = useMemo(() => {
@@ -223,6 +227,29 @@ export default function CalendarPage() {
     for (const e of employeesQ.data ?? []) m.set(e.id, e);
     return m;
   }, [employeesQ.data]);
+
+  type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
+
+  const parkingByIso = useMemo(() => {
+    const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
+    const empFullNameById = new Map((employeesQ.data ?? []).map((e) => [e.id, e.fullName]));
+    const m = new Map<string, ParkingDayRow[]>();
+    for (const r of parkingResQ.data ?? []) {
+      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
+      const guestName =
+        r.guestFullName && r.guestFullName.length > 0
+          ? r.guestFullName
+          : (empFullNameById.get(r.employeeId) ?? `…${r.employeeId.slice(-6)}`);
+      const hoursLabel =
+        r.hourStart != null || r.hourEnd != null
+          ? `${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}`
+          : t("parkingFullDay");
+      const arr = m.get(r.workDate) ?? [];
+      arr.push({ spotLabel, guestName, hoursLabel });
+      m.set(r.workDate, arr);
+    }
+    return m;
+  }, [parkingResQ.data, parkingSpotsQ.data, employeesQ.data, t]);
 
   const coverageWeek = useMemo(() => nextIsraeliWeekUtcFromReference(), [today]);
 
@@ -283,6 +310,7 @@ export default function CalendarPage() {
       void qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
       void qc.invalidateQueries({ queryKey: ["parking-spots"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void qc.invalidateQueries({ queryKey: ["meeting-room-bookings"] });
       void qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
       void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     };
@@ -402,6 +430,19 @@ export default function CalendarPage() {
             <LocalParkingIcon sx={{ fontSize: 14 }} />
           </Avatar>
         </Tooltip>
+        <Tooltip title={t("calendarMeetingLegend")} arrow>
+          <Avatar
+            sx={{
+              width: 26,
+              height: 26,
+              bgcolor: alpha("#00695c", 0.14),
+              color: "#00695c",
+              border: `1.5px solid ${alpha("#00695c", 0.5)}`,
+            }}
+          >
+            <MeetingRoomIcon sx={{ fontSize: 14 }} />
+          </Avatar>
+        </Tooltip>
         {canWrite ? (
           <Tooltip title={t("calendarManagerGapLegend")} arrow>
             <Avatar
@@ -491,6 +532,7 @@ export default function CalendarPage() {
                   const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso, intlTag);
                   const bdays = birthdaysByIso.get(iso) ?? [];
                   const pk = parkingByIso.get(iso) ?? [];
+                  const mt = meetingsByIso.get(iso) ?? [];
                   const aiRowCount = list.filter((s) => s.source === "ai").length;
                   const byStatus = new Map<StatusKey, Set<string>>();
                   for (const s of list) {
@@ -726,6 +768,45 @@ export default function CalendarPage() {
                               </Stack>
                             </Tooltip>
                           )}
+                          {mt.length > 0 && (
+                            <Tooltip
+                              title={mt.map((m) => `${m.roomName}: ${m.title}`).join("\n")}
+                              arrow
+                            >
+                              <Stack
+                                direction="row"
+                                spacing={0.5}
+                                alignItems="flex-start"
+                                sx={{
+                                  px: 0.65,
+                                  py: 0.4,
+                                  borderRadius: 1.5,
+                                  background: `linear-gradient(90deg, ${alpha("#00695c", 0.18)} 0%, ${alpha("#004d40", 0.12)} 100%)`,
+                                  border: `1px solid ${alpha("#00695c", 0.35)}`,
+                                  width: "100%",
+                                  boxSizing: "border-box",
+                                }}
+                              >
+                                <MeetingRoomIcon sx={{ fontSize: 17, color: "#004d40", flexShrink: 0, mt: 0.15 }} />
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    fontWeight: 800,
+                                    color: "#004d40",
+                                    fontSize: { xs: "0.72rem", sm: "0.78rem" },
+                                    minWidth: 0,
+                                    flex: 1,
+                                    lineHeight: 1.35,
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                    overflowWrap: "anywhere",
+                                  }}
+                                >
+                                  {mt.length === 1 ? `${mt[0].roomName}: ${mt[0].title}` : `${mt.length} ${t("calendarMeetingStrip")}`}
+                                </Typography>
+                              </Stack>
+                            </Tooltip>
+                          )}
                           {stripLeaderOfficeMissing ? (
                             <Typography
                               variant="caption"
@@ -819,6 +900,7 @@ export default function CalendarPage() {
                       leaderNamesToday={leaderNamesToday}
                       birthdaysByIso={birthdaysByIso}
                       parkingByIso={parkingByIso}
+                      meetingsByIso={meetingsByIso}
                       statusInlineMax={statusInlineMax}
                       t={t}
                       onPickDay={(iso) => setOpenDay(iso)}
@@ -877,6 +959,9 @@ export default function CalendarPage() {
         canWrite={canWrite}
         birthdaysOnDate={openDay ? (birthdaysByIso.get(openDay) ?? []) : []}
         parkingOnDate={openDay ? (parkingByIso.get(openDay) ?? []) : []}
+        parkingSpots={parkingSpotsQ.data ?? []}
+        parkingDayReservations={openDay ? (parkingResQ.data ?? []).filter((r) => r.workDate === openDay) : []}
+        meetingsOnDate={openDay ? (meetingsByIso.get(openDay) ?? []) : []}
         onClose={() => setOpenDay(null)}
         onChanged={async () => {
           await qc.invalidateQueries({ queryKey: ["calendar-day"] });
@@ -884,6 +969,7 @@ export default function CalendarPage() {
           await qc.invalidateQueries({ queryKey: ["calendar-month"] });
           await qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
           await qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+          await qc.invalidateQueries({ queryKey: ["meeting-room-bookings"] });
           await qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
           await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
         }}

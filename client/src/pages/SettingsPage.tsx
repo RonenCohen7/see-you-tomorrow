@@ -15,6 +15,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
 import { useThemeMode } from "../theme/ThemeModeContext";
 import { useRole } from "../store/authContext";
 import React from "react";
@@ -48,42 +49,6 @@ export default function SettingsPage() {
       preferenceRemindersEnabled: boolean;
     }>) => api.patch("/api/schedules/org-settings", patch),
     onSuccess: async () => qc.invalidateQueries({ queryKey: ["org-settings"] }),
-  });
-
-  const rulesQ = useQuery({
-    queryKey: ["scheduling-rules"],
-    queryFn: async () =>
-      (
-        await api.get<{
-          items: { id: string; ruleType: string; payload: Record<string, unknown> }[];
-        }>("/api/schedules/scheduling-rules")
-      ).data.items,
-    enabled: role === "admin",
-  });
-
-  const [rlLoc, setRlLoc] = React.useState("");
-  const [rlFrom, setRlFrom] = React.useState("");
-  const [rlTo, setRlTo] = React.useState("");
-  const [rlNote, setRlNote] = React.useState("");
-
-  const createRuleMut = useMutation({
-    mutationFn: async () =>
-      api.post("/api/schedules/scheduling-rules", {
-        ruleType: "location_unavailable",
-        payload: {
-          locationId: rlLoc.trim(),
-          effectiveFrom: rlFrom,
-          ...(rlTo.trim() ? { effectiveTo: rlTo.trim() } : {}),
-          ...(rlNote.trim() ? { note: rlNote.trim() } : {}),
-        },
-      }),
-    onSuccess: async () => {
-      setRlLoc("");
-      setRlFrom("");
-      setRlTo("");
-      setRlNote("");
-      await qc.invalidateQueries({ queryKey: ["scheduling-rules"] });
-    },
   });
 
   const [prefMinDraft, setPrefMinDraft] = React.useState(7);
@@ -167,34 +132,14 @@ export default function SettingsPage() {
           </Stack>
 
           <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-            חוקי שיבוץ (סגירת מיקום וכו׳)
+            {t("settingsSchedulingRulesHeading")}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            דוגמה: מיקום לא זמין בטווח תאריכים — נאכף בווידוי לפני אישור המלצות AI.
+            {t("settingsSchedulingRulesBlurb")}
           </Typography>
-          <Stack spacing={1} sx={{ maxWidth: 520, mb: 2 }}>
-            <TextField
-              label="מזהה מיקום (ObjectId)"
-              size="small"
-              value={rlLoc}
-              onChange={(e) => setRlLoc(e.target.value)}
-            />
-            <TextField label="מתאריך" type="date" size="small" value={rlFrom} onChange={(e) => setRlFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField label="עד תאריך (אופציונלי)" type="date" size="small" value={rlTo} onChange={(e) => setRlTo(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField label="הערה" size="small" value={rlNote} onChange={(e) => setRlNote(e.target.value)} />
-            <Button
-              variant="contained"
-              disabled={createRuleMut.isPending || rlLoc.length < 8 || rlFrom.length < 8}
-              onClick={() => createRuleMut.mutate()}
-            >
-              הוסף חוק
-            </Button>
-          </Stack>
-          {(rulesQ.data ?? []).map((r) => (
-            <Alert key={r.id} severity="info" sx={{ mb: 1 }}>
-              {r.ruleType}: {JSON.stringify(r.payload)}
-            </Alert>
-          ))}
+          <Button component={RouterLink} to="/scheduling-rules" variant="outlined" size="small" sx={{ mb: 3 }}>
+            {t("settingsSchedulingRulesCta")}
+          </Button>
 
           <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
             הודעת מערכת (לכל המחוברים)

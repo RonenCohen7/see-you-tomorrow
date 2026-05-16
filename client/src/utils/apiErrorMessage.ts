@@ -13,6 +13,10 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
       }
       return "לא ניתן להתחבר לשרת. ודא שה־gateway רץ (פורט 4000), ש-MongoDB זמין, ושהרצת npm run dev מהשורש (פקודה אחת בשורה).";
     }
+    return fallback;
+  }
+  if (err instanceof Error && typeof err.message === "string" && err.message.trim() !== "") {
+    return err.message;
   }
   return fallback;
 }

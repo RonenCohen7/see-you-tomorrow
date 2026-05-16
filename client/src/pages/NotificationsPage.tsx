@@ -2,6 +2,7 @@ import EventNoteIcon from "@mui/icons-material/EventNote";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import PersonIcon from "@mui/icons-material/Person";
 import EditCalendarIcon from "@mui/icons-material/EditCalendar";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import {
   Box,
   Button,
@@ -84,6 +85,7 @@ export default function NotificationsPage() {
           {items.map((n, index) => {
             const read = isReadForUser(n, user?.id);
             const sc = n.scheduleContext;
+            const mc = n.meetingContext;
             const statusKey = (sc?.status ?? "") as StatusKey;
             const sm = statusMeta[statusKey];
             const isLast = index === items.length - 1;
@@ -238,6 +240,72 @@ export default function NotificationsPage() {
                             {t("notificationsGoSchedules")}
                           </Button>
                         ) : null}
+                      </Stack>
+                    ) : mc && n.type === "meeting_invite" ? (
+                      <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <MeetingRoomIcon sx={{ fontSize: 20, color: "#00695c" }} />
+                          <Typography variant="body2" fontWeight={700}>
+                            {mc.roomName}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            · {mc.locationName}
+                          </Typography>
+                          {mc.floor ? (
+                            <Chip size="small" variant="outlined" label={`${t("notificationsMeetingFloor")}: ${mc.floor}`} />
+                          ) : null}
+                          {mc.isUpdate ? (
+                            <Chip size="small" color="secondary" variant="outlined" label={t("notificationsMeetingUpdated")} />
+                          ) : null}
+                        </Stack>
+
+                        <Typography variant="body2" fontWeight={700}>
+                          {mc.title}
+                        </Typography>
+
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <EventNoteIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                          <Typography variant="body2" fontWeight={700}>
+                            {t("notificationsWorkDate")}
+                          </Typography>
+                          <Typography variant="body2" component="span" lang="en" sx={{ direction: "ltr", unicodeBidi: "plaintext" }}>
+                            {mc.workDate}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            ·{" "}
+                            {mc.hourStart != null || mc.hourEnd != null
+                              ? `${mc.hourStart ?? "—"}–${mc.hourEnd ?? "—"}`
+                              : t("meetingFullDay")}
+                          </Typography>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <PersonIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+                          <Typography variant="body2" fontWeight={700}>
+                            {t("notificationsMeetingOrganizer")}
+                          </Typography>
+                          <Typography variant="body2">{mc.organizerName}</Typography>
+                        </Stack>
+
+                        <Divider sx={{ my: 0.5 }} />
+
+                        <Typography variant="caption" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+                          {n.message}
+                        </Typography>
+
+                        <Button
+                          component={RouterLink}
+                          to={
+                            user?.id === mc.organizerId || user?.role === "admin"
+                              ? `/meeting-rooms?edit=${encodeURIComponent(mc.bookingId)}`
+                              : "/meeting-rooms"
+                          }
+                          size="small"
+                          variant="outlined"
+                          sx={{ alignSelf: "flex-start", mt: 0.5 }}
+                        >
+                          {t("notificationsGoMeetingRooms")}
+                        </Button>
                       </Stack>
                     ) : (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>

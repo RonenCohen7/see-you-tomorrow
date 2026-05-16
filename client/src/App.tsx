@@ -12,6 +12,8 @@ import AdminRoute from "./components/AdminRoute";
 import ManagerOrAdminRoute from "./components/ManagerOrAdminRoute";
 import MainLayout from "./layouts/MainLayout";
 import HomePage from "./pages/HomePage";
+import AboutPage from "./pages/AboutPage";
+import PricingPage from "./pages/PricingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -27,11 +29,13 @@ import NotificationsPage from "./pages/NotificationsPage";
 import AIRecommendationsPage from "./pages/AIRecommendationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
+import SchedulingRulesPage from "./pages/SchedulingRulesPage";
 import ReportsPage from "./pages/ReportsPage";
 import EmployeeRoute from "./components/EmployeeRoute";
 import AttendancePreferencesPage from "./pages/AttendancePreferencesPage";
 import TeamAttendancePreferencesPage from "./pages/TeamAttendancePreferencesPage";
 import PreferenceAiQueuePage from "./pages/PreferenceAiQueuePage";
+import MeetingRoomsPage from "./pages/MeetingRoomsPage";
 
 const qc = new QueryClient();
 
@@ -57,6 +61,8 @@ export default function App() {
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -70,6 +76,7 @@ export default function App() {
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/calendar/month/:ym" element={<CalendarFullMonthPage />} />
+                  <Route path="/meeting-rooms" element={<MeetingRoomsPage />} />
                   <Route
                     path="/employees"
                     element={
@@ -91,6 +98,14 @@ export default function App() {
                     element={
                       <AdminRoute>
                         <LocationsPage />
+                      </AdminRoute>
+                    }
+                  />
+                  <Route
+                    path="/scheduling-rules"
+                    element={
+                      <AdminRoute>
+                        <SchedulingRulesPage />
                       </AdminRoute>
                     }
                   />

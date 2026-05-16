@@ -49,6 +49,7 @@ import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverageBanner";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { scheduleNoteShortDisplay } from "../utils/scheduleNoteDisplay";
 import { todayIsoLocal } from "../utils/date";
 import { utcWeekdayShort, nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
@@ -648,7 +649,22 @@ export default function ScheduleManagementPage() {
       headerAlign: "center",
       valueFormatter: (v) => (v == null || v === "" ? "—" : `${v}h`),
     },
-    { field: "note", headerName: t("notificationsNoteLabel"), flex: 1, minWidth: 120, cellClassName: "syt-cell-wrap" },
+    {
+      field: "note",
+      headerName: t("notificationsNoteLabel"),
+      flex: 1,
+      minWidth: 120,
+      cellClassName: "syt-cell-wrap",
+      sortable: false,
+      renderCell: ({ row }) => {
+        const display = scheduleNoteShortDisplay(row.note, () => t("schedulesNoteAiMockDisplay"));
+        return (
+          <Typography variant="body2" component="span" sx={{ py: 0.25 }}>
+            {display || "—"}
+          </Typography>
+        );
+      },
+    },
   ];
 
   const weeklyEmpsList = weeklyEmpsQ.data?.items ?? [];
@@ -840,7 +856,8 @@ export default function ScheduleManagementPage() {
         }}
       >
         <DataGrid
-          density="compact"
+          density="standard"
+          rowHeight={44}
           rows={filteredScheduleRows}
           getRowId={(r) => r.id}
           loading={schedulesQ.isLoading || employeesQ.isLoading}
@@ -874,7 +891,7 @@ export default function ScheduleManagementPage() {
             "& .MuiDataGrid-cell": {
               borderColor: "divider",
               alignItems: "flex-start",
-              py: 0.5,
+              py: 0.75,
             },
             "& .MuiDataGrid-cell.syt-cell-wrap": {
               whiteSpace: "normal",

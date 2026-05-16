@@ -26,6 +26,7 @@ import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
+import type { MeetingBookingPublic } from "../types/meeting";
 import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -121,25 +122,27 @@ export default function CalendarFullMonthPage() {
     staleTime: 60_000,
   });
 
-  type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
+  const meetingBookingsQ = useQuery({
+    queryKey: ["meeting-room-bookings", birthdaysRange.from, birthdaysRange.to],
+    queryFn: async () =>
+      (
+        await api.get<{ items: MeetingBookingPublic[] }>(
+          `/api/meeting-rooms/bookings?from=${birthdaysRange.from}&to=${birthdaysRange.to}`
+        )
+      ).data.items,
+    enabled: !!user,
+    staleTime: 60_000,
+  });
 
-  const parkingByIso = useMemo(() => {
-    const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
-    const m = new Map<string, ParkingDayRow[]>();
-    for (const r of parkingResQ.data ?? []) {
-      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
-      const guestName =
-        r.guestFullName && r.guestFullName.length > 0 ? r.guestFullName : r.employeeId.slice(-6);
-      const hoursLabel =
-        r.hourStart != null || r.hourEnd != null
-          ? `${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}`
-          : t("parkingFullDay");
-      const arr = m.get(r.workDate) ?? [];
-      arr.push({ spotLabel, guestName, hoursLabel });
-      m.set(r.workDate, arr);
+  const meetingsByIso = useMemo(() => {
+    const m = new Map<string, MeetingBookingPublic[]>();
+    for (const b of meetingBookingsQ.data ?? []) {
+      const arr = m.get(b.workDate) ?? [];
+      arr.push(b);
+      m.set(b.workDate, arr);
     }
     return m;
-  }, [parkingResQ.data, parkingSpotsQ.data, t]);
+  }, [meetingBookingsQ.data]);
 
   const monthQ = useQuery({
     queryKey: ["calendar-month", month],
@@ -168,7 +171,7 @@ export default function CalendarFullMonthPage() {
       }
       return all;
     },
-    enabled: canWrite,
+    enabled: !!user,
   });
 
   const employeeMap = useMemo(() => {
@@ -176,6 +179,29 @@ export default function CalendarFullMonthPage() {
     for (const e of employeesQ.data ?? []) m.set(e.id, e);
     return m;
   }, [employeesQ.data]);
+
+  type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
+
+  const parkingByIso = useMemo(() => {
+    const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
+    const empFullNameById = new Map((employeesQ.data ?? []).map((e) => [e.id, e.fullName]));
+    const m = new Map<string, ParkingDayRow[]>();
+    for (const r of parkingResQ.data ?? []) {
+      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
+      const guestName =
+        r.guestFullName && r.guestFullName.length > 0
+          ? r.guestFullName
+          : (empFullNameById.get(r.employeeId) ?? `…${r.employeeId.slice(-6)}`);
+      const hoursLabel =
+        r.hourStart != null || r.hourEnd != null
+          ? `${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}`
+          : t("parkingFullDay");
+      const arr = m.get(r.workDate) ?? [];
+      arr.push({ spotLabel, guestName, hoursLabel });
+      m.set(r.workDate, arr);
+    }
+    return m;
+  }, [parkingResQ.data, parkingSpotsQ.data, employeesQ.data, t]);
 
   const managerMonthSchedulesQ = useQuery({
     queryKey: ["schedules-manager-month", month, monthEndIso],
@@ -220,6 +246,7 @@ export default function CalendarFullMonthPage() {
       void qc.invalidateQueries({ queryKey: ["calendar-day"] });
       void qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void qc.invalidateQueries({ queryKey: ["meeting-room-bookings"] });
       void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     };
     socket.on("schedule:updated", invalidate);
@@ -267,6 +294,7 @@ export default function CalendarFullMonthPage() {
     await qc.invalidateQueries({ queryKey: ["calendar-month"] });
     await qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
     await qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+    await qc.invalidateQueries({ queryKey: ["meeting-room-bookings"] });
     await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
   };
 
@@ -465,6 +493,7 @@ export default function CalendarFullMonthPage() {
                         leaderNamesToday={leaderNamesToday}
                         birthdaysByIso={birthdaysByIso}
                         parkingByIso={parkingByIso}
+                        meetingsByIso={meetingsByIso}
                         statusInlineMax={statusInlineMax}
                         t={t}
                         onPickDay={setOpenDay}
@@ -489,6 +518,9 @@ export default function CalendarFullMonthPage() {
         canWrite={canWrite}
         birthdaysOnDate={openDay ? (birthdaysByIso.get(openDay) ?? []) : []}
         parkingOnDate={openDay ? (parkingByIso.get(openDay) ?? []) : []}
+        parkingSpots={parkingSpotsQ.data ?? []}
+        parkingDayReservations={openDay ? (parkingResQ.data ?? []).filter((r) => r.workDate === openDay) : []}
+        meetingsOnDate={openDay ? (meetingsByIso.get(openDay) ?? []) : []}
         onClose={() => setOpenDay(null)}
         onChanged={invalidateDay}
       />

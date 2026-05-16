@@ -24,6 +24,7 @@ import {
 import CalendarIcon from "@mui/icons-material/CalendarMonth";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
@@ -32,11 +33,17 @@ import { useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
+import type { MeetingBookingPublic } from "../types/meeting";
+import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { compareSchedulesForCalendarRoster } from "../utils/calendarRosterSort";
+import { useAuth } from "../store/authContext";
 
 export function CalendarDayEditorDialog({
   open,
@@ -49,6 +56,9 @@ export function CalendarDayEditorDialog({
   canWrite,
   birthdaysOnDate,
   parkingOnDate,
+  parkingSpots,
+  parkingDayReservations,
+  meetingsOnDate,
   onClose,
   onChanged,
 }: {
@@ -62,11 +72,17 @@ export function CalendarDayEditorDialog({
   canWrite: boolean;
   birthdaysOnDate: { employeeId: string; fullName: string }[];
   parkingOnDate: { spotLabel: string; guestName: string; hoursLabel: string }[];
+  parkingSpots?: ParkingSpotPublic[];
+  parkingDayReservations?: ParkingReservationPublic[];
+  meetingsOnDate: MeetingBookingPublic[];
   onClose: () => void;
   onChanged: () => Promise<void> | void;
 }) {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const rosterSortLocale = appIntlLocale(locale);
   const theme = useTheme();
+  const { user } = useAuth();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [editor, setEditor] = useState<{
@@ -91,8 +107,56 @@ export function CalendarDayEditorDialog({
   const grouped = useMemo(() => {
     const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
     for (const s of items) out[s.status].push(s);
+    const cmp = (a: Schedule, b: Schedule) =>
+      compareSchedulesForCalendarRoster(a, b, employeeMap, rosterSortLocale);
+    for (const k of STATUS_ORDER) {
+      out[k].sort(cmp);
+    }
     return out;
-  }, [items]);
+  }, [items, employeeMap, rosterSortLocale]);
+
+  /** Short allocation label per employee (spot id/label); only when reservation or matched fixed spot. */
+  const parkingSpotSummaryByEmployeeId = useMemo(() => {
+    const spots = parkingSpots ?? [];
+    const resList = parkingDayReservations ?? [];
+    const spotById = new Map(spots.map((s) => [s.id, s]));
+    const byEmp = new Map<string, Set<string>>();
+
+    const addLine = (employeeId: string, line: string) => {
+      if (!employeeId || !line) return;
+      let set = byEmp.get(employeeId);
+      if (!set) {
+        set = new Set<string>();
+        byEmp.set(employeeId, set);
+      }
+      set.add(line);
+    };
+
+    for (const r of resList) {
+      const spot = spotById.get(r.spotId);
+      const spotLabel = spot?.label?.trim() || t("parkingColSpot");
+      const partial = r.hourStart != null || r.hourEnd != null;
+      const line = partial ? `${spotLabel} · ${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}` : spotLabel;
+      addLine(r.employeeId, line);
+    }
+
+    for (const sched of items) {
+      if (sched.status !== "office") continue;
+      for (const spot of spots) {
+        if (!spot.isActive) continue;
+        if (spot.assignedEmployeeId !== sched.employeeId) continue;
+        if (sched.locationId && spot.locationId !== sched.locationId) continue;
+        const label = spot.label?.trim() || t("parkingColSpot");
+        addLine(sched.employeeId, label);
+      }
+    }
+
+    const m = new Map<string, string[]>();
+    for (const [employeeId, set] of byEmp) {
+      m.set(employeeId, [...set]);
+    }
+    return m;
+  }, [items, parkingSpots, parkingDayReservations, t]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -290,6 +354,90 @@ export function CalendarDayEditorDialog({
                 </Stack>
               </Box>
             )}
+            {meetingsOnDate.length > 0 && (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 2,
+                  border: `1px solid ${alpha("#00695c", 0.35)}`,
+                  background: `linear-gradient(125deg, ${alpha("#e0f2f1", 0.95)} 0%, ${alpha("#eceff1", 0.9)} 100%)`,
+                }}
+              >
+                <Stack direction="row" spacing={1.25} alignItems="flex-start">
+                  <Avatar sx={{ bgcolor: alpha("#00695c", 0.2), color: "#004d40" }}>
+                    <MeetingRoomIcon />
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="subtitle2" fontWeight={800} sx={{ color: "#004d40" }}>
+                      {t("calendarMeetingDayBanner")}
+                    </Typography>
+                    <Stack spacing={1.25} sx={{ mt: 1 }}>
+                      {meetingsOnDate.map((m) => {
+                        const hours =
+                          m.hourStart != null || m.hourEnd != null
+                            ? `${m.hourStart ?? "—"}–${m.hourEnd ?? "—"}`
+                            : t("meetingFullDay");
+                        const canEditMeeting = user?.role === "admin" || user?.id === m.organizerId;
+                        return (
+                          <Box key={m.id}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {m.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {m.roomName} · {m.locationName}
+                              {m.floor ? ` · ${t("meetingFieldFloor")} ${m.floor}` : ""}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block" lang="en" sx={{ direction: "ltr", unicodeBidi: "plaintext" }}>
+                              {date} · {hours}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {t("meetingColOrganizer")}: {m.organizerName}
+                            </Typography>
+                            {m.invitees?.length ? (
+                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                {t("meetingInviteesHeading")}: {m.invitees.map((i) => i.fullName).join(", ")}
+                              </Typography>
+                            ) : null}
+                            {(m.materials ?? []).length > 0 ? (
+                              <Stack spacing={0.35} sx={{ mt: 0.75 }}>
+                                <Typography variant="caption" fontWeight={700}>
+                                  {t("meetingCalendarMaterials")}
+                                </Typography>
+                                {(m.materials ?? []).map((mat, idx) =>
+                                  mat.kind === "link" ? (
+                                    <Typography key={`lnk-${idx}`} variant="caption">
+                                      <Box component="a" href={mat.url} target="_blank" rel="noopener noreferrer">
+                                        {mat.label?.trim() || mat.url}
+                                      </Box>
+                                    </Typography>
+                                  ) : (
+                                    <Typography key={`fil-${idx}`} variant="caption">
+                                      <Box component="a" href={mat.dataUrl} download={mat.fileName}>
+                                        {mat.fileName}
+                                      </Box>
+                                    </Typography>
+                                  )
+                                )}
+                              </Stack>
+                            ) : null}
+                            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                              {canEditMeeting ? (
+                                <Button component={RouterLink} to={`/meeting-rooms?edit=${encodeURIComponent(m.id)}`} size="small" variant="outlined">
+                                  {t("meetingEdit")}
+                                </Button>
+                              ) : null}
+                              <Button component={RouterLink} to={`/meeting-rooms?date=${encodeURIComponent(date ?? "")}`} size="small" variant="text">
+                                {t("meetingGoBookRoom")}
+                              </Button>
+                            </Stack>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                </Stack>
+              </Box>
+            )}
             {STATUS_ORDER.map((k) => {
               const list = grouped[k];
               if (list.length === 0) return null;
@@ -308,6 +456,11 @@ export function CalendarDayEditorDialog({
                   <Stack spacing={1}>
                     {list.map((s) => {
                       const name = employeeMap.get(s.employeeId)?.fullName ?? `…${s.employeeId.slice(-6)}`;
+                      const parkingAllocated =
+                        k === "office"
+                          ? (parkingSpotSummaryByEmployeeId.get(s.employeeId) ?? []).join(" · ")
+                          : "";
+
                       return (
                         <Stack
                           key={s.id}
@@ -322,9 +475,28 @@ export function CalendarDayEditorDialog({
                             borderInlineStart: `4px solid ${meta.color}`,
                           }}
                         >
-                          <Typography variant="body2" sx={{ flexGrow: 1, fontWeight: 600, wordBreak: "break-word" }}>
-                            {name}
-                          </Typography>
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: "break-word" }}>
+                              {name}
+                            </Typography>
+                            {k === "office" && parkingAllocated ? (
+                              <Stack
+                                direction="row"
+                                spacing={0.75}
+                                alignItems="flex-start"
+                                sx={{ mt: 0.35, flexWrap: "wrap", rowGap: 0.35 }}
+                              >
+                                <LocalParkingIcon sx={{ fontSize: 15, mt: "1px", color: "warning.main", flexShrink: 0 }} />
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: "warning.dark", fontWeight: 700 }}
+                                  component="span"
+                                >
+                                  {parkingAllocated}
+                                </Typography>
+                              </Stack>
+                            ) : null}
+                          </Box>
                           <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
                             {s.source === "ai" && (
                               <Chip

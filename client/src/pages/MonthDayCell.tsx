@@ -1,11 +1,19 @@
 import { Box, Stack, Tooltip, Typography, alpha, useTheme } from "@mui/material";
 import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import type { TFunction } from "i18next";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
+import type { MeetingBookingPublic } from "../types/meeting";
 import type { DayAgg } from "./calendarConstants";
+
+function truncateMeetingTitle(s: string, max = 42) {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
 
 export type MonthDayCellModel = { iso: string; agg?: DayAgg };
 
@@ -16,6 +24,7 @@ export function MonthDayCell({
   leaderNamesToday,
   birthdaysByIso,
   parkingByIso,
+  meetingsByIso,
   statusInlineMax,
   t,
   onPickDay,
@@ -27,6 +36,7 @@ export function MonthDayCell({
   leaderNamesToday: string[];
   birthdaysByIso: Map<string, { employeeId: string; fullName: string }[]>;
   parkingByIso: Map<string, { spotLabel: string; guestName: string; hoursLabel: string }[]>;
+  meetingsByIso: Map<string, MeetingBookingPublic[]>;
   statusInlineMax: number;
   t: TFunction;
   onPickDay: (iso: string) => void;
@@ -43,8 +53,10 @@ export function MonthDayCell({
   const monthTotalsHidden = totals.slice(statusInlineMax);
   const mbdays = birthdaysByIso.get(cell.iso) ?? [];
   const pkdays = parkingByIso.get(cell.iso) ?? [];
+  const mtdays = meetingsByIso.get(cell.iso) ?? [];
   const accentBirthday = mbdays.length > 0;
   const accentParking = pkdays.length > 0 && !accentBirthday;
+  const accentMeeting = mtdays.length > 0 && !accentBirthday && !accentParking;
 
   const aiAssignments = cell.agg?.aiAssignments ?? 0;
   const pad = compact ? { xs: 0.35, sm: 0.5 } : { xs: 0.3, sm: 0.65 };
@@ -74,7 +86,9 @@ export function MonthDayCell({
             : accentBirthday
               ? alpha("#e91e63", 0.45)
               : accentParking
-                ? alpha("#1565c0", 0.45)
+              ? alpha("#1565c0", 0.45)
+              : accentMeeting
+                ? alpha("#00695c", 0.42)
                 : "divider",
         backgroundColor: leaderOfficeMissing
           ? alpha(theme.palette.error.main, theme.palette.mode === "dark" ? 0.07 : 0.05)
@@ -84,7 +98,9 @@ export function MonthDayCell({
               ? alpha("#f48fb1", theme.palette.mode === "dark" ? 0.1 : 0.06)
               : accentParking
                 ? alpha("#90caf9", theme.palette.mode === "dark" ? 0.1 : 0.06)
-                : "transparent",
+                : accentMeeting
+                  ? alpha("#80cbc4", theme.palette.mode === "dark" ? 0.1 : 0.06)
+                  : "transparent",
         boxShadow:
           isToday && !leaderOfficeMissing
             ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.35)}`
@@ -119,6 +135,24 @@ export function MonthDayCell({
               arrow
             >
               <LocalParkingIcon sx={{ fontSize: compact ? 14 : { xs: 16, sm: 18 }, color: "#0d47a1" }} />
+            </Tooltip>
+          )}
+          {mtdays.length > 0 && (
+            <Tooltip
+              title={mtdays
+                .map((m) =>
+                  [
+                    m.roomName,
+                    truncateMeetingTitle(m.title, 48),
+                    m.hourStart != null || m.hourEnd != null
+                      ? `${m.hourStart ?? "—"}–${m.hourEnd ?? "—"}`
+                      : t("meetingFullDay"),
+                  ].join(" · ")
+                )
+                .join("\n")}
+              arrow
+            >
+              <MeetingRoomIcon sx={{ fontSize: compact ? 14 : { xs: 16, sm: 18 }, color: "#004d40" }} />
             </Tooltip>
           )}
           {aiAssignments > 0 && (
@@ -226,6 +260,24 @@ export function MonthDayCell({
           }}
         >
           {pkdays.length === 1 ? `${pkdays[0].spotLabel} → ${pkdays[0].guestName}` : `🅿 ${pkdays.length}`}
+        </Typography>
+      )}
+      {mtdays.length > 0 && (
+        <Typography
+          variant="caption"
+          noWrap={!compact}
+          sx={{
+            display: "block",
+            mt: 0.25,
+            fontSize: compact ? "0.62rem" : { xs: "0.6875rem", sm: "0.75rem" },
+            fontWeight: 700,
+            color: "#004d40",
+            ...(compact ? { whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.25 } : {}),
+          }}
+        >
+          {mtdays.length === 1
+            ? `${mtdays[0].roomName}: ${truncateMeetingTitle(mtdays[0].title, compact ? 28 : 36)}`
+            : `${t("calendarMeetingStrip")} (${mtdays.length})`}
         </Typography>
       )}
       {leaderOfficeMissing ? (

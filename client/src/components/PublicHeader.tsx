@@ -41,6 +41,12 @@ export default function PublicHeader() {
           {t("appTitle")}
         </Typography>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+          <Button component={RouterLink} to="/about" color="inherit" size="small">
+            {t("publicNavAbout")}
+          </Button>
+          <Button component={RouterLink} to="/pricing" color="inherit" size="small">
+            {t("publicNavPricing")}
+          </Button>
           <PublicLanguageToggle />
           {user ? (
             <Button component={RouterLink} to="/dashboard" variant="contained" color="primary">

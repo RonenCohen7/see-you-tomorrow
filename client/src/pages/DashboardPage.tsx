@@ -26,6 +26,7 @@ import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { Employee } from "../types/models";
 import DashboardIcon from "@mui/icons-material/SpaceDashboard";
 import CalendarIcon from "@mui/icons-material/CalendarMonth";
+import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import EmployeesIcon from "@mui/icons-material/Groups";
 import DepartmentsIcon from "@mui/icons-material/Apartment";
 import LocationsIcon from "@mui/icons-material/Place";
@@ -47,6 +48,13 @@ type NavTile = {
 
 const tiles: NavTile[] = [
   { to: "/calendar", i18nKey: "calendar", Icon: CalendarIcon, descriptionKey: "dashTileCalendarDesc", color: "#0ea5e9" },
+  {
+    to: "/meeting-rooms",
+    i18nKey: "meetingRooms",
+    Icon: MeetingRoomIcon,
+    descriptionKey: "dashTileMeetingRoomsDesc",
+    color: "#0d9488",
+  },
   {
     to: "/schedules",
     i18nKey: "schedules",

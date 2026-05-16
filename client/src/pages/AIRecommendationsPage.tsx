@@ -162,6 +162,8 @@ export default function AIRecommendationsPage() {
       void queryClient.invalidateQueries({ queryKey: ["schedules-forward-parking"] });
       void queryClient.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
       void queryClient.invalidateQueries({ queryKey: ["schedules-manager-month"] });
+      void queryClient.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void queryClient.invalidateQueries({ queryKey: ["parking-spots"] });
     },
     onError: () => setToast({ msg: t("error"), ok: false }),
   });

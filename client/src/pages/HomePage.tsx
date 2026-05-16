@@ -76,6 +76,17 @@ export default function HomePage() {
               >
                 {t("homeHeroSubtitle")}
               </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center">
+                <Button component={RouterLink} to="/about" variant="text" size="medium" sx={{ opacity: 0.95 }}>
+                  {t("publicNavAbout")}
+                </Button>
+                <Typography component="span" variant="body2" color="text.secondary" sx={{ alignSelf: "center" }}>
+                  ·
+                </Typography>
+                <Button component={RouterLink} to="/pricing" variant="text" size="medium" sx={{ opacity: 0.95 }}>
+                  {t("publicNavPricing")}
+                </Button>
+              </Stack>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ pt: 1 }}>
                 <Button component={RouterLink} to="/login" variant="contained" size="large">
                   {t("loginUserOrAdmin")}
@@ -168,6 +179,18 @@ export default function HomePage() {
               </Card>
             </Box>
           </Stack>
+
+          <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" sx={{ mt: 3 }}>
+            <Button component={RouterLink} to="/about" variant="outlined" color="inherit" size="small">
+              {t("publicNavAbout")}
+            </Button>
+            <Button component={RouterLink} to="/pricing" variant="outlined" color="inherit" size="small">
+              {t("publicNavPricing")}
+            </Button>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", textAlign: "center", mt: 1.5 }}>
+            {t("homeLinksAboutPricing")}
+          </Typography>
         </Container>
       </Box>
     </Box>

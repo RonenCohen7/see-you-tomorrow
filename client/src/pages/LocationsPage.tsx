@@ -151,6 +151,15 @@ export default function LocationsPage() {
         )}
       </Stack>
 
+      <Stack sx={{ mb: 2.5, maxWidth: 800, gap: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          {t("locationsPagePurpose")}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {t("locationsPageUpdateImportance")}
+        </Typography>
+      </Stack>
+
       {q.isLoading ? (
         <Box
           sx={{

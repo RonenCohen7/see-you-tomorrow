@@ -118,6 +118,8 @@ export default function PreferenceAiQueuePage() {
       await qc.invalidateQueries({ queryKey: ["ai-batches-pending-pipeline"] });
       void qc.invalidateQueries({ queryKey: ["schedules-all"] });
       void qc.invalidateQueries({ queryKey: ["schedules-recent"] });
+      void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+      void qc.invalidateQueries({ queryKey: ["parking-spots"] });
     },
     onError: () => setToast({ ok: false, msg: t("error") }),
   });

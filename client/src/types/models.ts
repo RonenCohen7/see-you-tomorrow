@@ -56,4 +56,18 @@ export interface NotificationItem {
     updatedBy?: string;
     updatedByName?: string;
   };
+  meetingContext?: {
+    bookingId: string;
+    roomId: string;
+    roomName: string;
+    locationName: string;
+    floor?: string;
+    workDate: string;
+    hourStart?: number;
+    hourEnd?: number;
+    title: string;
+    organizerId: string;
+    organizerName: string;
+    isUpdate?: boolean;
+  };
 }

@@ -160,6 +160,12 @@ export function buildTheme(mode: "light" | "dark", direction: "rtl" | "ltr") {
           }),
         },
       },
+      /** RTL + narrow drawers: avoid icons shrinking to invisible width next to wrapping labels */
+      MuiListItemIcon: {
+        styleOverrides: {
+          root: { minWidth: 42, flexShrink: 0, justifyContent: "center", display: "flex" },
+        },
+      },
       MuiTooltip: {
         styleOverrides: {
           tooltip: {

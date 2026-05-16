@@ -296,6 +296,11 @@ export default function ParkingManagementPage() {
             </Stack>
           )}
         </Stack>
+        {canManageSpots ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 760, lineHeight: 1.5 }}>
+            {t("parkingFixedManagerHint")}
+          </Typography>
+        ) : null}
         <Box
           sx={{
             display: "grid",
@@ -377,6 +382,8 @@ export default function ParkingManagementPage() {
                       {(employeesQ.data ?? []).map((e) => (
                         <MenuItem key={e.id} value={e.id}>
                           {e.fullName}
+                          {(e.role === "manager" || e.role === "admin") &&
+                            ` · ${t("parkingRoleLeadership")}`}
                         </MenuItem>
                       ))}
                     </TextField>
