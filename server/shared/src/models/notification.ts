@@ -13,6 +13,7 @@ export const NOTIFICATION_TYPES = [
   "preference_pipeline_applied",
   "preference_pipeline_rejected",
   "preference_pipeline_no_location",
+  "meeting_invite",
   "system",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -41,6 +42,22 @@ export interface ScheduleNotificationContext {
   updatedByName?: string;
 }
 
+export interface MeetingNotificationContext {
+  bookingId: string;
+  roomId: string;
+  roomName: string;
+  locationName: string;
+  floor?: string;
+  workDate: string;
+  hourStart?: number;
+  hourEnd?: number;
+  title: string;
+  organizerId: string;
+  organizerName: string;
+  /** True when booking was updated (invitee notification refresh). */
+  isUpdate?: boolean;
+}
+
 export interface NotificationDoc {
   _id: import("mongoose").Types.ObjectId;
   title: string;
@@ -54,6 +71,7 @@ export interface NotificationDoc {
   createdAt: Date;
   /** Populated for schedule_update — richer UI without extra round-trips. */
   scheduleContext?: ScheduleNotificationContext;
+  meetingContext?: MeetingNotificationContext;
 }
 
 const readBySchema = new Schema<ReadByEntry>(
@@ -79,6 +97,24 @@ const scheduleContextSchema = new Schema(
   { _id: false }
 );
 
+const meetingContextSchema = new Schema(
+  {
+    bookingId: { type: String },
+    roomId: { type: String },
+    roomName: { type: String },
+    locationName: { type: String },
+    floor: { type: String },
+    workDate: { type: String },
+    hourStart: { type: Number },
+    hourEnd: { type: Number },
+    title: { type: String },
+    organizerId: { type: String },
+    organizerName: { type: String },
+    isUpdate: { type: Boolean },
+  },
+  { _id: false }
+);
+
 const notificationSchema = new Schema<NotificationDoc>(
   {
     title: { type: String, required: true },
@@ -99,6 +135,7 @@ const notificationSchema = new Schema<NotificationDoc>(
     createdBy: { type: Schema.Types.ObjectId, ref: "Employee" },
     createdAt: { type: Date, default: () => new Date() },
     scheduleContext: { type: scheduleContextSchema, required: false },
+    meetingContext: { type: meetingContextSchema, required: false },
   },
   { timestamps: false }
 );

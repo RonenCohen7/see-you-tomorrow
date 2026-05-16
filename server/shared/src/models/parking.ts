@@ -63,3 +63,6 @@ export function getParkingReservationModel(conn: Connection): Model<ParkingReser
     conn.model<ParkingReservationDoc>("ParkingReservation", parkingReservationSchema)
   );
 }
+
+/** Reservations carrying this note are created/removed automatically by schedule sync when rule `manager_office_auto_parking` is active. */
+export const AUTO_MANAGER_OFFICE_RESERVATION_NOTE = "[auto-manager-office]";

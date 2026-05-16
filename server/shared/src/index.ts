@@ -7,6 +7,7 @@ export * from "./middleware/rbac.js";
 export * from "./models/department.js";
 export * from "./models/employee.js";
 export * from "./models/location.js";
+export * from "./models/meetingRoom.js";
 export * from "./models/notification.js";
 export * from "./models/organizationSettings.js";
 export * from "./models/parking.js";

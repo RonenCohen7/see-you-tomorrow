@@ -5,6 +5,8 @@ import { Schema } from "mongoose";
 export const SCHEDULING_RULE_TYPES = [
   "location_unavailable",
   "min_managers_office_daily",
+  /** Behavioral: when active, reserving a temporary parking slot for manager/admin rows with office+locationID (handled by schedule → location sync). Not used for AI validation. */
+  "manager_office_auto_parking",
 ] as const;
 export type SchedulingRuleType = (typeof SCHEDULING_RULE_TYPES)[number];
 
