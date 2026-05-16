@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
+import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { useAuth, useRole } from "../store/authContext";
 import type { Employee } from "../types/models";
 import { addDaysIsoLocal, todayIsoLocal } from "../utils/date";
@@ -59,7 +60,8 @@ export default function ParkingManagementPage() {
 
   const locationsQ = useQuery({
     queryKey: ["locations-for-parking"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/locations")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(locationsPickerUrl())).data.items,
     enabled: isAdmin,
   });
 

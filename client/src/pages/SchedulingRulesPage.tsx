@@ -35,6 +35,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
+import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 
 export type RuleType = "location_unavailable" | "min_managers_office_daily" | "manager_office_auto_parking";
@@ -179,7 +180,7 @@ export default function SchedulingRulesPage() {
   const locationsQ = useQuery({
     queryKey: ["locations"],
     queryFn: async () =>
-      ensureItems<Loc>((await api.get<{ items?: unknown }>("/api/locations")).data.items),
+      ensureItems<Loc>((await api.get<{ items?: unknown }>(locationsPickerUrl())).data.items),
     refetchOnMount: "always",
   });
 

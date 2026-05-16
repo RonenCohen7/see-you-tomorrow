@@ -40,6 +40,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { useAuth, useRole } from "../store/authContext";
 import type { Employee } from "../types/models";
 import type {
@@ -125,7 +126,8 @@ export default function MeetingRoomsPage() {
 
   const locationsQ = useQuery({
     queryKey: ["locations-for-meeting-admin"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/locations")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(locationsPickerUrl())).data.items,
     enabled: !!user && isAdmin,
   });
 

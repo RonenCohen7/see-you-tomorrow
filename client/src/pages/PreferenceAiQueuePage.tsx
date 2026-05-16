@@ -23,6 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
+import { departmentsPickerUrl } from "../utils/referencePickerUrls";
 import type { Employee } from "../types/models";
 import { useAuth, useRole } from "../store/authContext";
 import { preferenceAiQueueDisplayNotes } from "../utils/preferenceAiQueueDisplayNotes";
@@ -60,7 +61,8 @@ export default function PreferenceAiQueuePage() {
 
   const deptsQ = useQuery({
     queryKey: ["departments-ai-queue"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/departments")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(departmentsPickerUrl())).data.items,
     enabled: role === "admin",
   });
 

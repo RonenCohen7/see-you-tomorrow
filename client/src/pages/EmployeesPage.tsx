@@ -40,6 +40,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 import EmployeesIcon from "@mui/icons-material/PeopleAlt";
 import AssessmentOutlined from "@mui/icons-material/AssessmentOutlined";
 import EmailIcon from "@mui/icons-material/EmailOutlined";
@@ -88,8 +89,8 @@ import { fileToResizedJpegDataUrl } from "../utils/imageResize";
 
 const MARITAL_STATUSES: MaritalStatus[] = ["single", "married", "divorced", "widowed", "partner"];
 
-type Dept = { id: string; name: string; accentColor?: string };
-type Loc = { id: string; name: string };
+type Dept = { id: string; name: string; accentColor?: string; isActive?: boolean };
+type Loc = { id: string; name: string; isActive?: boolean };
 
 type FormState = {
   fullName: string;
@@ -126,6 +127,24 @@ const emptyForm: FormState = {
   emergencyContact: "",
   notes: "",
 };
+
+function looseEmailOk(s: string): boolean {
+  const trimmed = s.trim();
+  if (!trimmed) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+/** Subtle background on required outlined fields — warm when empty/invalid, cool when satisfied. */
+function requiredOutlinedFieldSx(theme: Theme, satisfied: boolean): SxProps<Theme> {
+  const okBg = alpha(theme.palette.success.main, theme.palette.mode === "dark" ? 0.14 : 0.072);
+  const needBg = alpha(theme.palette.warning.main, theme.palette.mode === "dark" ? 0.16 : 0.09);
+  return {
+    "& .MuiOutlinedInput-root": {
+      backgroundColor: satisfied ? okBg : needBg,
+      transition: theme.transitions.create(["background-color"], { duration: theme.transitions.duration.shorter }),
+    },
+  };
+}
 
 function isEmployeeFormComplete(form: FormState, isEdit: boolean): boolean {
   const oidDept = /^[a-f\d]{24}$/i.test(form.departmentId.trim());
@@ -350,6 +369,28 @@ export default function EmployeesPage() {
   const deptById = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d]) ?? []), [deptsQ.data]);
   const deptMap = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d.name])), [deptsQ.data]);
   const locMap = useMemo(() => new Map(locsQ.data?.map((l) => [l.id, l.name])), [locsQ.data]);
+
+  const deptPickerOptions = useMemo(() => {
+    const all = deptsQ.data ?? [];
+    const active = all.filter((d) => d.isActive !== false);
+    const cid = form.departmentId.trim();
+    if (/^[a-f\d]{24}$/i.test(cid) && !active.some((d) => d.id === cid)) {
+      const cur = all.find((d) => d.id === cid);
+      if (cur) return [...active, cur];
+    }
+    return active;
+  }, [deptsQ.data, form.departmentId]);
+
+  const locPickerOptions = useMemo(() => {
+    const all = locsQ.data ?? [];
+    const active = all.filter((l) => l.isActive !== false);
+    const lid = form.locationId.trim();
+    if (/^[a-f\d]{24}$/i.test(lid) && !active.some((l) => l.id === lid)) {
+      const cur = all.find((l) => l.id === lid);
+      if (cur) return [...active, cur];
+    }
+    return active;
+  }, [locsQ.data, form.locationId]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -730,8 +771,8 @@ export default function EmployeesPage() {
         editingId={editingId}
         form={form}
         setForm={setForm}
-        departments={deptsQ.data ?? []}
-        locations={locsQ.data ?? []}
+        departments={deptPickerOptions}
+        locations={locPickerOptions}
         isPending={saveMut.isPending}
         isSaveDisabled={!isEmployeeFormComplete(form, !!editingId) || saveMut.isPending}
         onClose={() => {
@@ -2047,6 +2088,7 @@ function EmployeeFormDialog({
   onSubmit: () => void;
 }) {
   const { t } = useTranslation();
+  const theme = useTheme();
 
   return (
     <Dialog
@@ -2068,6 +2110,7 @@ function EmployeeFormDialog({
             label={t("fullName")}
             value={form.fullName}
             onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, !!form.fullName.trim())}
           />
           <TextField
             required
@@ -2076,13 +2119,14 @@ function EmployeeFormDialog({
             InputLabelProps={{ shrink: true }}
             value={form.birthDate}
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, !!form.birthDate.trim())}
           />
           <TextField
             required
             label={t("address")}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
-            sx={{ gridColumn: { sm: "1 / span 2" } }}
+            sx={{ gridColumn: { sm: "1 / span 2" }, ...requiredOutlinedFieldSx(theme, !!form.address.trim()) }}
           />
           <TextField
             required
@@ -2090,6 +2134,7 @@ function EmployeeFormDialog({
             label={t("maritalStatus")}
             value={form.maritalStatus}
             onChange={(e) => setForm({ ...form, maritalStatus: e.target.value as MaritalStatus | "" })}
+            sx={requiredOutlinedFieldSx(theme, Boolean(form.maritalStatus))}
           >
             <MenuItem value="" disabled>
               {t("selectMaritalPlaceholder")}
@@ -2119,18 +2164,22 @@ function EmployeeFormDialog({
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, looseEmailOk(form.email))}
           />
           <TextField
             required
             label={t("phone")}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, !!form.phone.trim())}
           />
           <TextField
             label={editingId ? `${t("password")} (השאר ריק כדי לא לשנות)` : t("password")}
             type="password"
             value={form.password}
+            required={!editingId}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
+            sx={editingId ? undefined : requiredOutlinedFieldSx(theme, form.password.trim().length >= 8)}
           />
           <TextField
             label="תמונה (URL)"
@@ -2150,6 +2199,7 @@ function EmployeeFormDialog({
             label={t("jobTitle")}
             value={form.jobTitle}
             onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, !!form.jobTitle.trim())}
           />
           <TextField
             select
@@ -2167,6 +2217,7 @@ function EmployeeFormDialog({
             label={t("department")}
             value={form.departmentId}
             onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+            sx={requiredOutlinedFieldSx(theme, /^[a-f\d]{24}$/i.test(form.departmentId.trim()))}
           >
             <MenuItem value="" disabled>
               {t("selectDepartmentPlaceholder")}
@@ -2174,6 +2225,7 @@ function EmployeeFormDialog({
             {departments.map((d) => (
               <MenuItem key={d.id} value={d.id}>
                 {d.name}
+                {d.isActive === false ? ` (${t("inactive")})` : ""}
               </MenuItem>
             ))}
           </TextField>
@@ -2187,6 +2239,7 @@ function EmployeeFormDialog({
             {locations.map((l) => (
               <MenuItem key={l.id} value={l.id}>
                 {l.name}
+                {l.isActive === false ? ` (${t("inactive")})` : ""}
               </MenuItem>
             ))}
           </TextField>

@@ -128,6 +128,11 @@ export const heTranslation = {
     "כאן מוגדרים הסניפים והמשרדים הפיזיים של הארגון — שם לתצוגה, כתובת, קיבולת והצגת מפה. המיקומים משמשים לשיוך עובדים ומחלקות, לחדרי ישיבות, לחוקי שיבוץ ולמשאבי משרד (למשל חניות).",
   locationsPageUpdateImportance:
     "חשוב לעדכן את הפרטים בכל פתיחת סניף, החלפת כתובת או שינוי בתכולת המקום. נתונים מעודכנים מבטיחים דיוק בלוח הזמנים, בהקצאות ובמפות — ומפחיתים בלבול בקרב העובדים.",
+  locationsDeleteConfirm: "לסמן את המיקום «{{name}}» כלא פעיל? (הרשומה נשארת במערכת לצורך שיבוץ והיסטוריה.)",
+  locationsSoftDeletedToast: "המיקום סומן כלא פעיל.",
+  locationsNoActiveMatch: "אין מיקומים פעילים להצגה. כבה את המסנן או הפעל מיקום מחדש.",
+  locationsShowAll: "הצג את כל המיקומים",
+  locationActivatedToast: "המיקום הוגדר מחדש כפעיל.",
   schedulesNoteAiMockDisplay: "שובץ על ידי AI ואושר על ידי הנהלה",
   schedules: "לוחות זמנים",
   parking: "חניות",
@@ -716,6 +721,11 @@ export const heTranslation = {
   departmentAccentColor: "צבע מסגרת",
   departmentAccentColorHint: "משמש למסגרת כרטיסי עובדים במחלקה זו. פורמט הקסה עם סולמית, למשל #7C4DFF",
   departmentAccentColorClear: "ללא צבע",
+  departmentsDeleteConfirm: "לסמן את המחלקה «{{name}}» כלא פעילה? (לא ניתן למחוק לצמיתות אם מקושרת לעובדים.)",
+  departmentsSoftDeletedToast: "המחלקה סומנה כלא פעילה.",
+  departmentsNoActiveMatch: "אין מחלקות פעילות להצגה. כבה את המסנן או עדכן מחלקה לפעילה.",
+  departmentsShowAll: "הצג את כל המחלקות",
+  departmentActivatedToast: "המחלקה הוגדרה מחדש כפעילה.",
   schedulesEditRangeReplaceWarning:
     "שמירת טווח תאריכים מוחקת את כל השיבוצים של העובד בימים האלה (כולל פיצולי שעות) ומחליפה בשיבוץ אחיד לפי הסטטוס וההערה שבחרתם.",
   deptBulkOpen: "שיבוץ למחלקה",

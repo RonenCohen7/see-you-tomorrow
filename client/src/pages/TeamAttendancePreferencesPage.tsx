@@ -22,6 +22,7 @@ import FactCheckIcon from "@mui/icons-material/FactCheck";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
+import { departmentsPickerUrl } from "../utils/referencePickerUrls";
 import type { Employee } from "../types/models";
 import { useTranslation } from "react-i18next";
 import { useAuth, useRole } from "../store/authContext";
@@ -69,7 +70,8 @@ export default function TeamAttendancePreferencesPage() {
 
   const departmentsQ = useQuery({
     queryKey: ["departments-team-prefs"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/departments")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(departmentsPickerUrl())).data.items,
     enabled: role === "admin",
   });
 

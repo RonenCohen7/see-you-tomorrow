@@ -81,7 +81,7 @@ const emptyForm: FormState = {
   note: "",
 };
 
-type DeptOption = { id: string; name: string };
+type DeptOption = { id: string; name: string; isActive?: boolean };
 
 type DeptBulkFormState = {
   departmentId: string;
@@ -339,9 +339,13 @@ export default function ScheduleManagementPage() {
   });
 
   const departmentChoices = useMemo(() => {
-    const items = deptsQ.data ?? [];
-    if (role === "manager" && user?.departmentId) return items.filter((d) => d.id === user.departmentId);
-    return items;
+    const raw = deptsQ.data ?? [];
+    const activeOnly = raw.filter((d) => d.isActive !== false);
+    if (role === "manager" && user?.departmentId) {
+      const mine = raw.find((d) => d.id === user.departmentId);
+      return mine ? [mine] : [];
+    }
+    return activeOnly;
   }, [deptsQ.data, role, user?.departmentId]);
 
   const weeklyWeekStart = weeklyWeek?.weekStartSunday;

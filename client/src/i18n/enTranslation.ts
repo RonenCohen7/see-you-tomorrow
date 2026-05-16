@@ -131,6 +131,11 @@ export const enTranslation = {
     "Define your organization’s physical sites and offices — display name, address, capacity, and map preview. Locations are used for employee and department assignment, meeting rooms, scheduling rules, and on-site resources such as parking.",
   locationsPageUpdateImportance:
     "Keep this information current whenever you open or move a site or change how much space you have. Up-to-date details keep schedules, allocations, and maps accurate — and reduce confusion for staff.",
+  locationsDeleteConfirm: "Mark location «{{name}}» as inactive? (The record stays for assignments and history.)",
+  locationsSoftDeletedToast: "Location marked inactive.",
+  locationsNoActiveMatch: "No active locations match. Turn off the filter or reactivate one.",
+  locationsShowAll: "Show all locations",
+  locationActivatedToast: "Location is active again.",
   schedulesNoteAiMockDisplay: "Scheduled by AI and approved by management",
   schedules: "Schedules",
   parking: "Parking",
@@ -718,6 +723,11 @@ export const enTranslation = {
   departmentAccentColor: "Accent color",
   departmentAccentColorHint: "Employee card border color — hex with hash e.g. #7C4DFF",
   departmentAccentColorClear: "None",
+  departmentsDeleteConfirm: "Mark department «{{name}}» as inactive? (Records stay in the system for linked employees.)",
+  departmentsSoftDeletedToast: "Department marked inactive.",
+  departmentsNoActiveMatch: "No active departments match. Turn off the filter or reactivate a department.",
+  departmentsShowAll: "Show all departments",
+  departmentActivatedToast: "Department is active again.",
   schedulesEditRangeReplaceWarning:
     "Saving a date range deletes all assignments for those days (including split hours) and replaces them with one uniform row.",
   deptBulkOpen: "Department scheduling",

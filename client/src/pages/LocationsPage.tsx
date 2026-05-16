@@ -7,6 +7,7 @@ import {
   CardActions,
   CardContent,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -17,6 +18,7 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -67,11 +69,25 @@ export default function LocationsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ name: "", city: "", country: "", address: "", capacity: 50 });
+  const [activeOnly, setActiveOnly] = useState(false);
 
   const q = useQuery({
-    queryKey: ["locations"],
-    queryFn: async () => (await api.get<{ items: Loc[] }>("/api/locations")).data,
+    queryKey: ["locations", activeOnly],
+    queryFn: async () => {
+      const qs = activeOnly ? "?isActive=true" : "";
+      return (await api.get<{ items: Loc[] }>(`/api/locations${qs}`)).data;
+    },
   });
+
+  async function invalidateLocationCaches() {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["locations"] }),
+      qc.invalidateQueries({ queryKey: ["locations-for-emp"] }),
+      qc.invalidateQueries({ queryKey: ["locations-for-parking"] }),
+      qc.invalidateQueries({ queryKey: ["locations-for-meeting-admin"] }),
+      qc.invalidateQueries({ queryKey: ["locations-for-ai"] }),
+    ]);
+  }
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -90,7 +106,7 @@ export default function LocationsPage() {
       setOpen(false);
       setEditingId(null);
       setForm({ name: "", city: "", country: "", address: "", capacity: 50 });
-      await qc.invalidateQueries({ queryKey: ["locations"] });
+      await invalidateLocationCaches();
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -98,8 +114,17 @@ export default function LocationsPage() {
   const deleteMut = useMutation({
     mutationFn: async (id: string) => api.delete(`/api/locations/${id}`),
     onSuccess: async () => {
-      setToast({ msg: t("success"), ok: true });
-      await qc.invalidateQueries({ queryKey: ["locations"] });
+      setToast({ msg: t("locationsSoftDeletedToast"), ok: true });
+      await invalidateLocationCaches();
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
+
+  const activateLocMut = useMutation({
+    mutationFn: async (id: string) => api.put(`/api/locations/${id}`, { isActive: true }),
+    onSuccess: async () => {
+      setToast({ msg: t("locationActivatedToast"), ok: true });
+      await invalidateLocationCaches();
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -137,18 +162,31 @@ export default function LocationsPage() {
           </Typography>
           <Chip size="small" label={`${q.data?.items?.length ?? 0} ${t("total")}`} />
         </Stack>
-        {canWrite && (
-          <Tooltip title={t("newLocationTooltip")} placement="left" arrow disableInteractive>
-            <Button
-              variant="contained"
-              onClick={openCreate}
-              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
-              aria-label={t("newLocationTooltip")}
-            >
-              <AddIcon />
-            </Button>
-          </Tooltip>
-        )}
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Switch
+              checked={activeOnly}
+              onChange={(_, c) => setActiveOnly(c)}
+              size="small"
+              id="locations-active-only"
+            />
+            <Typography component="label" htmlFor="locations-active-only" variant="body2" sx={{ cursor: "pointer" }}>
+              {t("activeOnly")}
+            </Typography>
+          </Stack>
+          {canWrite && (
+            <Tooltip title={t("newLocationTooltip")} placement="left" arrow disableInteractive>
+              <Button
+                variant="contained"
+                onClick={openCreate}
+                sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+                aria-label={t("newLocationTooltip")}
+              >
+                <AddIcon />
+              </Button>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
 
       <Stack sx={{ mb: 2.5, maxWidth: 800, gap: 1 }}>
@@ -177,7 +215,18 @@ export default function LocationsPage() {
           ))}
         </Box>
       ) : (q.data?.items?.length ?? 0) === 0 ? (
-        <EmptyState onAdd={openCreate} canAdd={canWrite} />
+        activeOnly ? (
+          <Card sx={{ textAlign: "center", p: 4 }}>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+              {t("locationsNoActiveMatch")}
+            </Typography>
+            <Button variant="outlined" onClick={() => setActiveOnly(false)}>
+              {t("locationsShowAll")}
+            </Button>
+          </Card>
+        ) : (
+          <EmptyState onAdd={openCreate} canAdd={canWrite} />
+        )
       ) : (
         <Box
           sx={{
@@ -269,6 +318,25 @@ export default function LocationsPage() {
                       "& .MuiLinearProgress-bar": { bgcolor: "secondary.main" },
                     }}
                   />
+                  {canWrite && !l.isActive ? (
+                    <Stack sx={{ mt: 1.25 }}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        fullWidth
+                        onClick={() => activateLocMut.mutate(l.id)}
+                        disabled={activateLocMut.isPending && activateLocMut.variables === l.id}
+                        startIcon={
+                          activateLocMut.isPending && activateLocMut.variables === l.id ? (
+                            <CircularProgress color="inherit" size={14} sx={{ mr: -0.5 }} />
+                          ) : undefined
+                        }
+                      >
+                        {t("activate")}
+                      </Button>
+                    </Stack>
+                  ) : null}
 
                   {mapQ ? (
                     <Box sx={{ mt: 1.5 }}>
@@ -317,16 +385,23 @@ export default function LocationsPage() {
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title={t("delete")} arrow>
-                      <IconButton
-                        color="error"
-                        onClick={() => {
-                          if (confirm(`למחוק את "${l.name}"?`)) deleteMut.mutate(l.id);
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
+                    {l.isActive ? (
+                      <Tooltip title={t("delete")} arrow>
+                        <IconButton
+                          color="error"
+                          disabled={deleteMut.isPending && deleteMut.variables === l.id}
+                          onClick={() => {
+                            if (window.confirm(t("locationsDeleteConfirm", { name: l.name }))) deleteMut.mutate(l.id);
+                          }}
+                        >
+                          {deleteMut.isPending && deleteMut.variables === l.id ? (
+                            <CircularProgress size={22} color="inherit" />
+                          ) : (
+                            <DeleteIcon />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                    ) : null}
                   </CardActions>
                 )}
               </Card>

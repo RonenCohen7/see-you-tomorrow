@@ -16,6 +16,7 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  Switch,
   TextField,
   Tooltip,
   Typography,
@@ -30,6 +31,7 @@ import AddIcon from "@mui/icons-material/AddCircle";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import type { TFunction } from "i18next";
 import api from "../services/api";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
@@ -59,10 +61,14 @@ export default function DepartmentsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ name: "", description: "", imageUrl: "", accentColor: "" });
+  const [activeOnly, setActiveOnly] = useState(false);
 
   const q = useQuery({
-    queryKey: ["departments"],
-    queryFn: async () => (await api.get<{ items: Dept[] }>("/api/departments")).data,
+    queryKey: ["departments", activeOnly],
+    queryFn: async () => {
+      const qs = activeOnly ? "?isActive=true" : "";
+      return (await api.get<{ items: Dept[] }>(`/api/departments${qs}`)).data;
+    },
   });
 
   const saveMut = useMutation({
@@ -85,6 +91,11 @@ export default function DepartmentsPage() {
       setEditingId(null);
       setForm({ name: "", description: "", imageUrl: "", accentColor: "" });
       await qc.invalidateQueries({ queryKey: ["departments"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-emp"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-ai"] });
+      await qc.invalidateQueries({ queryKey: ["departments-ai-queue"] });
+      await qc.invalidateQueries({ queryKey: ["departments-team-prefs"] });
+      await qc.invalidateQueries({ queryKey: ["department-by-id-ai-fallback"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -92,12 +103,30 @@ export default function DepartmentsPage() {
   const deleteMut = useMutation({
     mutationFn: async (id: string) => api.delete(`/api/departments/${id}`),
     onSuccess: async () => {
-      setToast({ msg: t("success"), ok: true });
+      setToast({ msg: t("departmentsSoftDeletedToast"), ok: true });
       await qc.invalidateQueries({ queryKey: ["departments"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-emp"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-ai"] });
+      await qc.invalidateQueries({ queryKey: ["departments-ai-queue"] });
+      await qc.invalidateQueries({ queryKey: ["departments-team-prefs"] });
+      await qc.invalidateQueries({ queryKey: ["department-by-id-ai-fallback"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
 
+  const activateDeptMut = useMutation({
+    mutationFn: async (id: string) => api.put(`/api/departments/${id}`, { isActive: true }),
+    onSuccess: async () => {
+      setToast({ msg: t("departmentActivatedToast"), ok: true });
+      await qc.invalidateQueries({ queryKey: ["departments"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-emp"] });
+      await qc.invalidateQueries({ queryKey: ["departments-for-ai"] });
+      await qc.invalidateQueries({ queryKey: ["departments-ai-queue"] });
+      await qc.invalidateQueries({ queryKey: ["departments-team-prefs"] });
+      await qc.invalidateQueries({ queryKey: ["department-by-id-ai-fallback"] });
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
   const avatarMut = useMutation({
     mutationFn: async ({ id, file }: { id: string; file: File }) => {
       const imageUrl = await fileToResizedJpegDataUrl(file);
@@ -106,6 +135,7 @@ export default function DepartmentsPage() {
     onSuccess: () => {
       setToast({ msg: t("success"), ok: true });
       void qc.invalidateQueries({ queryKey: ["departments"] });
+      void qc.invalidateQueries({ queryKey: ["departments-for-emp"] });
     },
     onError: (err) => {
       let msg = apiErrorMessage(err, t("error"));
@@ -153,18 +183,31 @@ export default function DepartmentsPage() {
           </Typography>
           <Chip size="small" label={`${q.data?.items?.length ?? 0} ${t("total")}`} />
         </Stack>
-        {canWrite && (
-          <Tooltip title={t("newDepartmentTooltip")} placement="left" arrow disableInteractive>
-            <Button
-              variant="contained"
-              onClick={openCreate}
-              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
-              aria-label={t("newDepartmentTooltip")}
-            >
-              <AddIcon />
-            </Button>
-          </Tooltip>
-        )}
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Switch
+              checked={activeOnly}
+              onChange={(_, c) => setActiveOnly(c)}
+              size="small"
+              id="departments-active-only"
+            />
+            <Typography component="label" htmlFor="departments-active-only" variant="body2" sx={{ cursor: "pointer" }}>
+              {t("activeOnly")}
+            </Typography>
+          </Stack>
+          {canWrite && (
+            <Tooltip title={t("newDepartmentTooltip")} placement="left" arrow disableInteractive>
+              <Button
+                variant="contained"
+                onClick={openCreate}
+                sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+                aria-label={t("newDepartmentTooltip")}
+              >
+                <AddIcon />
+              </Button>
+            </Tooltip>
+          )}
+        </Stack>
       </Stack>
 
       {q.isLoading ? (
@@ -184,7 +227,18 @@ export default function DepartmentsPage() {
           ))}
         </Box>
       ) : (q.data?.items?.length ?? 0) === 0 ? (
-        <EmptyState onAdd={openCreate} canAdd={canWrite} />
+        activeOnly ? (
+          <Card sx={{ textAlign: "center", p: 4 }}>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+              {t("departmentsNoActiveMatch")}
+            </Typography>
+            <Button variant="outlined" onClick={() => setActiveOnly(false)}>
+              {t("departmentsShowAll")}
+            </Button>
+          </Card>
+        ) : (
+          <EmptyState onAdd={openCreate} canAdd={canWrite} />
+        )
       ) : (
         <Box
           sx={{
@@ -206,8 +260,11 @@ export default function DepartmentsPage() {
               onAvatarUpload={(file) => requestDeptAvatarUpload(d.id, file)}
               onEdit={() => openEdit(d)}
               onDelete={() => {
-                if (confirm(`למחוק את "${d.name}"?`)) deleteMut.mutate(d.id);
+                if (window.confirm(t("departmentsDeleteConfirm", { name: d.name }))) deleteMut.mutate(d.id);
               }}
+              deletePending={deleteMut.isPending && deleteMut.variables === d.id}
+              onActivate={() => activateDeptMut.mutate(d.id)}
+              activatePending={activateDeptMut.isPending && activateDeptMut.variables === d.id}
               t={t}
             />
           ))}
@@ -292,6 +349,9 @@ function DepartmentCard({
   onAvatarUpload,
   onEdit,
   onDelete,
+  deletePending,
+  onActivate,
+  activatePending,
   t,
 }: {
   dept: Dept;
@@ -300,7 +360,10 @@ function DepartmentCard({
   onAvatarUpload: (file: File) => void;
   onEdit: () => void;
   onDelete: () => void;
-  t: (k: string) => string;
+  deletePending: boolean;
+  onActivate: () => void;
+  activatePending: boolean;
+  t: TFunction;
 }) {
   const theme = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -405,12 +468,27 @@ function DepartmentCard({
         >
           {dept.description?.trim() || t("noDescription")}
         </Typography>
-        <Chip
-          size="small"
-          label={dept.isActive ? t("active") : t("inactive")}
-          color={dept.isActive ? "success" : "default"}
-          sx={{ mt: 1.5 }}
-        />
+        <Stack direction="column" alignItems="center" spacing={1} sx={{ mt: 1.5 }}>
+          <Chip
+            size="small"
+            label={dept.isActive ? t("active") : t("inactive")}
+            color={dept.isActive ? "success" : "default"}
+          />
+          {canWrite && !dept.isActive ? (
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              onClick={onActivate}
+              disabled={activatePending}
+              startIcon={
+                activatePending ? <CircularProgress color="inherit" size={14} sx={{ mr: -0.5 }} /> : undefined
+              }
+            >
+              {t("activate")}
+            </Button>
+          ) : null}
+        </Stack>
       </CardContent>
       {canWrite && (
         <CardActions sx={{ justifyContent: "center", pb: 1.5 }}>
@@ -419,11 +497,13 @@ function DepartmentCard({
               <EditIcon />
             </IconButton>
           </Tooltip>
-          <Tooltip title={t("delete")} arrow>
-            <IconButton color="error" onClick={onDelete}>
-              <DeleteIcon />
-            </IconButton>
-          </Tooltip>
+          {dept.isActive ? (
+            <Tooltip title={t("delete")} arrow>
+              <IconButton color="error" onClick={onDelete} disabled={deletePending}>
+                {deletePending ? <CircularProgress size={22} color="inherit" /> : <DeleteIcon />}
+              </IconButton>
+            </Tooltip>
+          ) : null}
         </CardActions>
       )}
     </Card>

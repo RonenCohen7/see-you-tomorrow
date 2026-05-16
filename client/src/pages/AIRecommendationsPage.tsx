@@ -38,6 +38,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
+import { departmentsPickerUrl, locationsPickerUrl } from "../utils/referencePickerUrls";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth, useRole } from "../store/authContext";
@@ -111,11 +112,32 @@ export default function AIRecommendationsPage() {
 
   const departmentsQ = useQuery({
     queryKey: ["departments-for-ai"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/departments")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(departmentsPickerUrl())).data.items,
   });
+  /** Manager tied to inactive dept: active-only picker misses the row — fetch BY id so Select shows a label. */
+  const managerInactiveDeptQ = useQuery({
+    queryKey: ["department-by-id-ai-fallback", user?.departmentId],
+    queryFn: async () =>
+      (await api.get<{ id: string; name: string; isActive?: boolean }>(`/api/departments/${user!.departmentId}`)).data,
+    enabled:
+      Boolean(user?.departmentId) &&
+      role === "manager" &&
+      departmentsQ.isSuccess &&
+      !(departmentsQ.data ?? []).some((d) => d.id === user!.departmentId),
+  });
+  const departmentSelectItems = useMemo(() => {
+    const base = departmentsQ.data ?? [];
+    const extra = managerInactiveDeptQ.data;
+    if (extra && extra.id && !base.some((d) => d.id === extra.id))
+      return [...base, { id: extra.id, name: extra.name }];
+    return base;
+  }, [departmentsQ.data, managerInactiveDeptQ.data]);
+
   const locationsQ = useQuery({
     queryKey: ["locations-for-ai"],
-    queryFn: async () => (await api.get<{ items: { id: string; name: string }[] }>("/api/locations")).data.items,
+    queryFn: async () =>
+      (await api.get<{ items: { id: string; name: string }[] }>(locationsPickerUrl())).data.items,
   });
 
   const recommendMut = useMutation({
@@ -385,7 +407,7 @@ export default function AIRecommendationsPage() {
                 value={dept}
                 onChange={(e) => setDept(e.target.value)}
               >
-                {(departmentsQ.data ?? []).map((d) => (
+                {departmentSelectItems.map((d) => (
                   <MenuItem key={d.id} value={d.id}>
                     {d.name}
                   </MenuItem>
