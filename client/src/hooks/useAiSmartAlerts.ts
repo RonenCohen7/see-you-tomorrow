@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { addDaysIsoLocal, todayIsoLocal } from "../utils/date";
 import {
   alertsSignature,
@@ -26,6 +28,8 @@ import {
  */
 export function useAiSmartAlerts(enabled: boolean) {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const today = todayIsoLocal();
   const fromIso = useMemo(() => {
     const d = new Date(today);
@@ -102,7 +106,8 @@ export function useAiSmartAlerts(enabled: boolean) {
       employeesQ.data,
       schedulesForwardQ.data,
       nextWeek.days,
-      t
+      t,
+      intlTag
     );
     const spots = parkingSpotsQ.data ?? [];
     const res = parkingResQ.data ?? [];
@@ -114,6 +119,7 @@ export function useAiSmartAlerts(enabled: boolean) {
     return sortAlertsBySeverity([...holidayAlerts, ...weatherAlerts, trafficAlert, ...managerCoverage, ...merged]);
   }, [
     employeesQ.data,
+    intlTag,
     parkingResQ.data,
     parkingSpotsQ.data,
     schedulesForwardQ.data,

@@ -17,6 +17,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import api from "../services/api";
 import { currentMonthYm, todayIsoLocal } from "../utils/date";
 import type { Employee, Schedule } from "../types/models";
@@ -30,7 +32,6 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
 import { MonthDayCell } from "./MonthDayCell";
 import type { DayAgg } from "./calendarConstants";
-import { HEBREW_WEEKDAYS } from "./calendarConstants";
 
 function calendarStatusInlineMax(isXs: boolean) {
   return isXs ? 2 : 3;
@@ -40,6 +41,8 @@ export default function CalendarFullMonthPage() {
   const { ym } = useParams<{ ym: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const statusInlineMax = calendarStatusInlineMax(isXs);
@@ -50,6 +53,11 @@ export default function CalendarFullMonthPage() {
   const today = todayIsoLocal();
   const [openDay, setOpenDay] = useState<string | null>(null);
   const { socket } = useSocket(user?.id);
+
+  const weekdayLetters = useMemo(() => {
+    const raw = t("calendarWeekdayLetters", { returnObjects: true });
+    return Array.isArray(raw) ? raw.map(String) : [];
+  }, [t]);
 
   const month = useMemo(() => {
     if (ym && /^\d{4}-\d{2}$/.test(ym)) return ym;
@@ -119,7 +127,7 @@ export default function CalendarFullMonthPage() {
     const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
     const m = new Map<string, ParkingDayRow[]>();
     for (const r of parkingResQ.data ?? []) {
-      const spotLabel = spotsById.get(r.spotId) ?? "חניה";
+      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
       const guestName =
         r.guestFullName && r.guestFullName.length > 0 ? r.guestFullName : r.employeeId.slice(-6);
       const hoursLabel =
@@ -190,7 +198,7 @@ export default function CalendarFullMonthPage() {
       const has = dayHasLeaderOffice(emp, sched, iso);
       m.set(iso, {
         missing: !has,
-        names: leaderOfficeNamesForDay(emp, sched, iso),
+        names: leaderOfficeNamesForDay(emp, sched, iso, intlTag),
       });
     }
     return m;
@@ -201,6 +209,7 @@ export default function CalendarFullMonthPage() {
     managerMonthSchedulesQ.isLoading,
     managerMonthSchedulesQ.data,
     month,
+    intlTag,
   ]);
 
   useEffect(() => {
@@ -234,9 +243,9 @@ export default function CalendarFullMonthPage() {
     while (cells.length % 7 !== 0) cells.push(null);
     const rows: (typeof cells)[] = [];
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
-    const label = new Date(y, m - 1, 1).toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+    const label = new Date(y, m - 1, 1).toLocaleDateString(intlTag, { month: "long", year: "numeric" });
     return { weeks: rows, monthLabel: label };
-  }, [month, monthQ.data?.days]);
+  }, [month, monthQ.data?.days, intlTag]);
 
   const calendarCardSx = useMemo(
     () => ({
@@ -415,12 +424,12 @@ export default function CalendarFullMonthPage() {
                   gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
                   gap: { xs: 0.25, sm: 0.5 },
                   mb: 1,
-                  direction: "rtl",
+                  direction: theme.direction,
                 }}
               >
-                {HEBREW_WEEKDAYS.map((d) => (
+                {weekdayLetters.map((d, wi) => (
                   <Typography
-                    key={d}
+                    key={`wd-${wi}`}
                     variant="caption"
                     color="text.secondary"
                     textAlign="center"
@@ -439,7 +448,7 @@ export default function CalendarFullMonthPage() {
                     gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
                     gap: { xs: 0.25, sm: 0.5 },
                     mb: 0.5,
-                    direction: "rtl",
+                    direction: theme.direction,
                   }}
                 >
                   {row.map((cell, ci) => {

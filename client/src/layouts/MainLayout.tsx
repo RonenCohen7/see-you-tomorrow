@@ -47,6 +47,7 @@ import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import { AiInsightFab } from "../components/AiInsightFab";
 import { BirthdayFab } from "../components/BirthdayFab";
+import LanguageToggle from "../components/LanguageToggle";
 import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
 import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
 
@@ -171,7 +172,7 @@ export default function MainLayout() {
     .join("");
 
   const drawerContent = (paperWidth: number) => (
-    <Box dir="rtl" sx={{ width: paperWidth, pt: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+    <Box dir={theme.direction} sx={{ width: paperWidth, pt: 2, height: "100%", display: "flex", flexDirection: "column" }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 2, pb: 2 }}>
         <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36, fontWeight: 700 }}>
           {initials || "S"}
@@ -190,7 +191,7 @@ export default function MainLayout() {
         {nav.map(({ to, key, Icon }) => {
           const selected = loc.pathname === to;
           return (
-            <Tooltip key={to} title={t(key)} placement="left" arrow disableInteractive>
+            <Tooltip key={to} title={t(key)} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
               <ListItemButton
                 component={RouterLink}
                 to={to}
@@ -208,7 +209,7 @@ export default function MainLayout() {
             </Tooltip>
           );
         })}
-        <Tooltip title={t("helpFabTooltip")} placement="left" arrow disableInteractive>
+        <Tooltip title={t("helpFabTooltip")} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
           <ListItemButton
             onClick={() => {
               setScreenHelpOpen(true);
@@ -225,7 +226,7 @@ export default function MainLayout() {
       </List>
       <Divider />
       <Box sx={{ p: 1 }}>
-        <Tooltip title={t("logout")} placement="left" arrow disableInteractive>
+        <Tooltip title={t("logout")} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
           <ListItemButton onClick={() => void logout()}>
             <ListItemIcon sx={{ minWidth: 38, color: "text.secondary" }}>
               <LogoutIcon fontSize="small" />
@@ -350,6 +351,7 @@ export default function MainLayout() {
               <CircleIcon sx={{ fontSize: 12, color: connected ? "success.light" : "error.light" }} />
               <Typography variant="caption">{connected ? t("liveConnected") : t("liveDisconnected")}</Typography>
             </Box>
+            <LanguageToggle />
             <Tooltip title={t("notifications")} arrow>
               <IconButton color="inherit" component={RouterLink} to="/notifications" size="medium">
                 <Badge badgeContent={unread ?? 0} color="secondary">
@@ -406,7 +408,7 @@ export default function MainLayout() {
       <Box
         component="main"
         sx={{
-          direction: "rtl",
+          direction: theme.direction,
           flex: "1 1 0%",
           minWidth: 0,
           minHeight: 0,

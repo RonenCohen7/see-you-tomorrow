@@ -48,3 +48,10 @@ export const listQuerySchema = z.object({
   role: z.enum(["admin", "manager", "employee"]).optional(),
   isActive: z.coerce.boolean().optional(),
 });
+
+export const bulkImportRowSchema = createEmployeeSchema.omit({ password: true });
+
+export const bulkImportEmployeesSchema = z.object({
+  defaultPassword: z.string().min(8),
+  rows: z.array(bulkImportRowSchema).min(1).max(5000),
+});

@@ -6,6 +6,7 @@ const r = Router();
 
 r.get("/me", requireAuth, ctrl.getMe);
 r.get("/birthdays-range", requireAuth, ctrl.birthdaysRange);
+r.post("/import-bulk", requireAuth, ctrl.adminOnly, ctrl.importBulk);
 r.get("/", requireAuth, ctrl.list);
 r.get("/:id", requireAuth, ctrl.getOne);
 r.post("/", requireAuth, ctrl.adminOnly, ctrl.create);

@@ -37,7 +37,6 @@ import type { Employee, Schedule } from "../types/models";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
-import { HEBREW_WEEKDAYS_FULL } from "./calendarConstants";
 
 export function CalendarDayEditorDialog({
   open,
@@ -78,11 +77,16 @@ export function CalendarDayEditorDialog({
     note: string;
   } | null>(null);
 
+  const weekdayLabelsFull = useMemo(() => {
+    const raw = t("calendarWeekdayLettersFull", { returnObjects: true });
+    return Array.isArray(raw) ? raw.map(String) : [];
+  }, [t]);
+
   const weekdayLabel = useMemo(() => {
     if (!date) return "";
     const d = new Date(date);
-    return HEBREW_WEEKDAYS_FULL[d.getDay()];
-  }, [date]);
+    return weekdayLabelsFull[d.getDay()] ?? "";
+  }, [date, weekdayLabelsFull]);
 
   const grouped = useMemo(() => {
     const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
@@ -165,13 +169,13 @@ export function CalendarDayEditorDialog({
                 {date} · {weekdayLabel}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {items.length} שיבוצים
+                {t("calEditorAssignmentsCount", { count: items.length })}
               </Typography>
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center">
             {canWrite && (
-              <Tooltip title="הוספת שיבוץ" arrow>
+              <Tooltip title={t("newShift")} arrow>
                 <IconButton color="primary" onClick={startAdd}>
                   <AddIcon />
                 </IconButton>
@@ -332,7 +336,7 @@ export function CalendarDayEditorDialog({
                               />
                             )}
                             {s.hours != null && (
-                              <Chip size="small" label={`${s.hours} שעות`} variant="outlined" />
+                              <Chip size="small" label={t("calEditorHoursLabel", { hours: s.hours })} variant="outlined" />
                             )}
                             {s.note && (
                               <Typography
@@ -362,7 +366,7 @@ export function CalendarDayEditorDialog({
                                     size="small"
                                     color="error"
                                     onClick={() => {
-                                      if (confirm(`למחוק את השיבוץ של ${name}?`)) deleteMut.mutate(s.id);
+                                      if (confirm(t("calEditorConfirmDelete", { name }))) deleteMut.mutate(s.id);
                                     }}
                                   >
                                     <DeleteIcon fontSize="small" />
@@ -389,13 +393,13 @@ export function CalendarDayEditorDialog({
 
       <Dialog open={!!editor} onClose={() => setEditor(null)} fullWidth maxWidth="sm" fullScreen={isXs}>
         <DialogTitle>
-          {editor?.id ? "עריכת שיבוץ" : "שיבוץ חדש"} — {date}
+          {editor?.id ? t("schedulesEditShift") : t("newShift")} — {date}
         </DialogTitle>
         <DialogContent dividers sx={{ pt: 2 }}>
           <Stack spacing={2}>
             <TextField
               select
-              label="עובד"
+              label={t("deptBulkEmployeeColumn")}
               value={editor?.employeeId ?? ""}
               disabled={!!editor?.id}
               onChange={(e) => setEditor((cur) => (cur ? { ...cur, employeeId: e.target.value } : cur))}
@@ -408,7 +412,7 @@ export function CalendarDayEditorDialog({
             </TextField>
             <TextField
               select
-              label="סטטוס"
+              label={t("notificationsStatusLabel")}
               value={editor?.status ?? "office"}
               onChange={(e) =>
                 setEditor((cur) => (cur ? { ...cur, status: e.target.value as StatusKey } : cur))
@@ -427,15 +431,15 @@ export function CalendarDayEditorDialog({
               })}
             </TextField>
             <TextField
-              label="שעות (אופציונלי) — השאר ריק ליום מלא"
+              label={t("deptBulkHoursOptional")}
               type="number"
               inputProps={{ min: 0, max: 24, step: 0.5 }}
               value={editor?.hours ?? ""}
               onChange={(e) => setEditor((cur) => (cur ? { ...cur, hours: e.target.value } : cur))}
-              helperText="לעובד במשרד חלק מהיום וחלק מהבית — שמור שיבוץ נוסף לאותו תאריך"
+              helperText={t("calEditorPartialDayHelper")}
             />
             <TextField
-              label="הערה"
+              label={t("notificationsNoteLabel")}
               multiline
               minRows={2}
               value={editor?.note ?? ""}

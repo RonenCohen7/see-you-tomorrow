@@ -2,8 +2,10 @@ import { Alert, Button, Stack, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { Employee, Schedule } from "../types/models";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { findManagerOfficeCoverageGaps } from "../utils/aiSmartAlerts";
-import { hebrewWeekdayShort } from "../utils/israeliWeek";
+import { utcWeekdayShort } from "../utils/israeliWeek";
 
 type Props = {
   employees: Employee[];
@@ -15,10 +17,12 @@ type Props = {
 
 export function ManagerOfficeCoverageBanner({ employees, schedules, weekDays, ready }: Props) {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   if (!ready || employees.length === 0) return null;
   const gaps = findManagerOfficeCoverageGaps(employees, schedules, weekDays);
   if (gaps.length === 0) return null;
-  const labels = gaps.map((d) => `${d} (${hebrewWeekdayShort(d)})`).join(" · ");
+  const labels = gaps.map((d) => `${d} (${utcWeekdayShort(d, intlTag)})`).join(" · ");
   return (
     <Alert
       severity="error"

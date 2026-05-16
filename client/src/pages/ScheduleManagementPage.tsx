@@ -45,10 +45,12 @@ import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import { useTranslation } from "react-i18next";
 import { useAuth, useRole } from "../store/authContext";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverageBanner";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { todayIsoLocal } from "../utils/date";
-import { hebrewWeekdayShort, nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
+import { utcWeekdayShort, nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
 
@@ -115,6 +117,8 @@ const emptyDeptBulkForm: DeptBulkFormState = {
 
 export default function ScheduleManagementPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const { user } = useAuth();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -585,7 +589,7 @@ export default function ScheduleManagementPage() {
             size="small"
             color="error"
             onClick={() => {
-              if (confirm("למחוק שיבוץ זה?")) deleteMut.mutate(row.id);
+              if (confirm(t("schedulesConfirmDeleteAssignment"))) deleteMut.mutate(row.id);
             }}
           >
             <DeleteIcon fontSize="small" />
@@ -613,7 +617,7 @@ export default function ScheduleManagementPage() {
     },
     {
       field: "status",
-      headerName: "סטטוס",
+      headerName: t("notificationsStatusLabel"),
       width: 150,
       renderCell: ({ row }) => {
         const meta = statusMeta[row.status];
@@ -629,22 +633,22 @@ export default function ScheduleManagementPage() {
     },
     {
       field: "employeeName",
-      headerName: "עובד",
+      headerName: t("deptBulkEmployeeColumn"),
       flex: 1,
       minWidth: 200,
       cellClassName: "syt-cell-wrap",
       valueGetter: (_v, row) => employeeMap.get(row.employeeId)?.fullName ?? row.employeeId.slice(-6),
     },
-    { field: "workDate", headerName: "תאריך", width: 130 },
+    { field: "workDate", headerName: t("schedulesDateSingle"), width: 130 },
     {
       field: "hours",
-      headerName: "שעות",
+      headerName: t("parkingColHours"),
       width: 90,
       align: "center",
       headerAlign: "center",
       valueFormatter: (v) => (v == null || v === "" ? "—" : `${v}h`),
     },
-    { field: "note", headerName: "הערה", flex: 1, minWidth: 120, cellClassName: "syt-cell-wrap" },
+    { field: "note", headerName: t("notificationsNoteLabel"), flex: 1, minWidth: 120, cellClassName: "syt-cell-wrap" },
   ];
 
   const weeklyEmpsList = weeklyEmpsQ.data?.items ?? [];
@@ -1164,7 +1168,7 @@ export default function ScheduleManagementPage() {
                       {weeklyWeek.days.map((wd) => (
                         <TableCell key={wd} align="center" sx={{ minWidth: 112, px: 0.5 }}>
                           <Typography variant="caption" display="block" color="text.secondary">
-                            {hebrewWeekdayShort(wd)}
+                            {utcWeekdayShort(wd, intlTag)}
                           </Typography>
                           <Typography variant="caption" fontWeight={700} display="block">
                             {wd.slice(5)}
@@ -1290,7 +1294,7 @@ export default function ScheduleManagementPage() {
           ) : null}
           <TextField
             select
-            label="עובד"
+            label={t("deptBulkEmployeeColumn")}
             value={form.employeeId}
             disabled={!!editingId}
             onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
@@ -1320,7 +1324,7 @@ export default function ScheduleManagementPage() {
           </Typography>
           <TextField
             select
-            label="סטטוס"
+            label={t("notificationsStatusLabel")}
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value as StatusKey })}
           >
@@ -1337,15 +1341,15 @@ export default function ScheduleManagementPage() {
             })}
           </TextField>
           <TextField
-            label="שעות (אופציונלי) — השאר ריק ליום מלא"
+            label={t("deptBulkHoursOptional")}
             type="number"
             inputProps={{ min: 0, max: 24, step: 0.5 }}
             value={form.hours}
             onChange={(e) => setForm({ ...form, hours: e.target.value })}
-            helperText="ניתן לפצל יום: למשל 4 שעות משרד + 4 שעות בית (הוסף שני שיבוצים לאותו עובד באותו תאריך)"
+            helperText={t("schedulesHoursSplitHelper")}
           />
           <TextField
-            label="הערה"
+            label={t("notificationsNoteLabel")}
             multiline
             minRows={2}
             value={form.note}

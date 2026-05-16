@@ -1,7 +1,8 @@
-import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
+import { AppBar, Box, Button, Stack, Toolbar, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../store/authContext";
+import PublicLanguageToggle from "./PublicLanguageToggle";
 
 /** Minimal top bar for public pages (home, login, register) */
 export default function PublicHeader() {
@@ -39,20 +40,23 @@ export default function PublicHeader() {
         >
           {t("appTitle")}
         </Typography>
-        {user ? (
-          <Button component={RouterLink} to="/dashboard" variant="contained" color="primary">
-            {t("enterApp")}
-          </Button>
-        ) : (
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Button component={RouterLink} to="/login" color="inherit">
-              {t("login")}
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+          <PublicLanguageToggle />
+          {user ? (
+            <Button component={RouterLink} to="/dashboard" variant="contained" color="primary">
+              {t("enterApp")}
             </Button>
-            <Button component={RouterLink} to="/register" variant="contained">
-              {t("register")}
-            </Button>
-          </Box>
-        )}
+          ) : (
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Button component={RouterLink} to="/login" color="inherit">
+                {t("login")}
+              </Button>
+              <Button component={RouterLink} to="/register" variant="contained">
+                {t("register")}
+              </Button>
+            </Box>
+          )}
+        </Stack>
       </Toolbar>
     </AppBar>
   );

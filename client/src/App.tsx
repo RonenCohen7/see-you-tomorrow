@@ -2,6 +2,8 @@ import { CssBaseline, ThemeProvider } from "@mui/material";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./i18n";
+import { LocaleProvider, useLocale } from "./locale/LocaleContext";
+import { localeDirection } from "./locale/localeConstants";
 import { buildTheme } from "./theme/theme";
 import { ThemeModeProvider, useThemeMode } from "./theme/ThemeModeContext";
 import { AuthProvider } from "./store/authContext";
@@ -35,7 +37,8 @@ const qc = new QueryClient();
 
 function Themed({ children }: { children: React.ReactNode }) {
   const { mode } = useThemeMode();
-  const theme = buildTheme(mode);
+  const { locale } = useLocale();
+  const theme = buildTheme(mode, localeDirection(locale));
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -48,7 +51,8 @@ export default function App() {
   return (
     <QueryClientProvider client={qc}>
       <ThemeModeProvider>
-        <Themed>
+        <LocaleProvider>
+          <Themed>
           <AuthProvider>
             <BrowserRouter>
               <Routes>
@@ -154,7 +158,8 @@ export default function App() {
               </Routes>
             </BrowserRouter>
           </AuthProvider>
-        </Themed>
+          </Themed>
+        </LocaleProvider>
       </ThemeModeProvider>
     </QueryClientProvider>
   );

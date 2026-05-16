@@ -6,7 +6,7 @@ import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
 import SickIcon from "@mui/icons-material/Sick";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import type { Employee, Schedule } from "../types/models";
-import { hebrewWeekdayShort } from "./israeliWeek";
+import { utcWeekdayShort } from "./israeliWeek";
 
 /** Stable id for manager-in-office weekly coverage (next Israeli week UTC). */
 export const MANAGER_OFFICE_COVERAGE_ALERT_ID = "manager-office-coverage-next-week";
@@ -69,11 +69,12 @@ export function dayHasLeaderOffice(employees: Employee[], schedules: Schedule[],
   );
 }
 
-/** Distinct leader names with `office` on this day (sorted, Hebrew locale). */
+/** Distinct leader names with `office` on this day (sorted). */
 export function leaderOfficeNamesForDay(
   employees: Employee[],
   schedules: Schedule[],
-  workDateIso: string
+  workDateIso: string,
+  sortLocale: string
 ): string[] {
   const leaders = leaderEmployeeIds(employees);
   const map = new Map(employees.map((e) => [e.id, e]));
@@ -83,7 +84,7 @@ export function leaderOfficeNamesForDay(
     const n = map.get(s.employeeId)?.fullName?.trim();
     if (n) names.add(n);
   }
-  return [...names].sort((a, b) => a.localeCompare(b, "he"));
+  return [...names].sort((a, b) => a.localeCompare(b, sortLocale));
 }
 
 /** Days in `weekDays` (ISO) with no `office` schedule for any leader; sorted ascending. */
@@ -104,12 +105,13 @@ export function buildManagerOfficeCoverageAlerts(
   employees: Employee[],
   forwardSchedules: Schedule[],
   weekDays: string[],
-  t: TFunction
+  t: TFunction,
+  intlLocale: string
 ): SmartAlert[] {
   const gaps = findManagerOfficeCoverageGaps(employees, forwardSchedules, weekDays);
   if (gaps.length === 0) return [];
 
-  const labels = gaps.map((d) => `${d} (${hebrewWeekdayShort(d)})`).join(" · ");
+  const labels = gaps.map((d) => `${d} (${utcWeekdayShort(d, intlLocale)})`).join(" · ");
   return [
     {
       id: MANAGER_OFFICE_COVERAGE_ALERT_ID,

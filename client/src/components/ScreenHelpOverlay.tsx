@@ -19,9 +19,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { getHelpSegments, helpScreenTitleKey } from "../help/screenHelpScripts";
+import { useLocale } from "../locale/LocaleContext";
 import {
   normalizeTextForTts,
-  pickHebrewVoice,
+  pickVoiceForLocale,
   utteranceLangForVoice,
 } from "../utils/helpScreenTts";
 
@@ -40,13 +41,14 @@ export type ScreenHelpOverlayProps = {
 export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const { locale } = useLocale();
   const [muted, setMuted] = useState(false);
   const [caption, setCaption] = useState("");
   const [speaking, setSpeaking] = useState(false);
   const [restartToken, setRestartToken] = useState(0);
-  const [noHebrewVoice, setNoHebrewVoice] = useState(false);
+  const [noPreferredVoice, setNoPreferredVoice] = useState(false);
 
-  const segments = useMemo(() => getHelpSegments(pathname), [pathname]);
+  const segments = useMemo(() => getHelpSegments(pathname, locale), [pathname, locale]);
   const screenTitleKey = useMemo(() => helpScreenTitleKey(pathname), [pathname]);
 
   const prevOpen = useRef(false);
@@ -69,7 +71,7 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
   }, [open]);
 
   useEffect(() => {
-    if (!open) setNoHebrewVoice(false);
+    if (!open) setNoPreferredVoice(false);
   }, [open]);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
     if (muted) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
-      setNoHebrewVoice(false);
+      setNoPreferredVoice(false);
       setCaption(segments.map((s) => s.text).join("\n\n"));
       return undefined;
     }
@@ -117,15 +119,15 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
         }
         const text = segments[idx].text;
         setCaption(text);
-        const forSpeech = normalizeTextForTts(text);
+        const forSpeech = normalizeTextForTts(text, locale);
         const u = new SpeechSynthesisUtterance(forSpeech || text);
-        const voice = pickHebrewVoice();
+        const voice = pickVoiceForLocale(locale);
         if (idx === 0) {
           const voices = window.speechSynthesis.getVoices();
-          if (voices.length > 0 && !voice) setNoHebrewVoice(true);
-          else setNoHebrewVoice(false);
+          if (voices.length > 0 && !voice) setNoPreferredVoice(true);
+          else setNoPreferredVoice(false);
         }
-        u.lang = utteranceLangForVoice(voice);
+        u.lang = utteranceLangForVoice(voice, locale);
         u.rate = 0.84;
         u.pitch = 1;
         if (voice) u.voice = voice;
@@ -171,7 +173,7 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
     };
-  }, [open, muted, pathname, segments, restartToken]);
+  }, [open, muted, pathname, segments, restartToken, locale]);
 
   const closeDialog = useCallback(() => {
     window.speechSynthesis.cancel();
@@ -243,9 +245,9 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1.5, lineHeight: 1.5 }}>
                 {t("helpTtsHint")}
               </Typography>
-              {noHebrewVoice ? (
+              {noPreferredVoice ? (
                 <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 1, lineHeight: 1.5 }}>
-                  {t("helpTtsNoHebrewVoice")}
+                  {t("helpTtsMissingVoice")}
                 </Typography>
               ) : null}
             </Box>

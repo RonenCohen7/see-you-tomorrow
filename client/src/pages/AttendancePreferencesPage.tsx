@@ -20,7 +20,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 import { useTranslation } from "react-i18next";
-import { hebrewWeekdayShort } from "../utils/israeliWeek";
+import { utcWeekdayShort } from "../utils/israeliWeek";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { pipelineAlertPresentation } from "../utils/preferencePipelinePresentation";
 
 function addUtcDaysIso(iso: string, delta: number): string {
@@ -40,6 +42,8 @@ type PreferenceDoc = {
 
 export default function AttendancePreferencesPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const theme = useTheme();
   const qc = useQueryClient();
 
@@ -152,27 +156,29 @@ export default function AttendancePreferencesPage() {
   return (
     <Box sx={{ width: "100%", maxWidth: 720 }}>
       <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
-        העדפות נוכחות שבועית
+        {t("prefAttendanceScreenTitle")}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        מלא לכל יום בסטטוס מועדף. הנתונים נשקלות בהמלצות AI — האישור הסופי אצל המנהל.
+        {t("prefAttendanceScreenSubtitle")}
       </Typography>
 
       {ctx.isLoading ? (
-        <Typography>טוען…</Typography>
+        <Typography>{t("loading")}</Typography>
       ) : (
         <Alert severity="info" sx={{ mb: 2 }}>
-          שבוע מוקדם ביותר: {ctx.data?.earliestAllowedWeekStartSunday} (
-          {ctx.data?.preferenceMinDaysAhead} ימים קדימה מינימום)
-          {ctx.data?.preferenceRemindersEnabled ? " · תזכורות אוטומטיות פעילות" : ""}
+          {t("prefAttendanceEarliestWeekLine", {
+            week: ctx.data?.earliestAllowedWeekStartSunday ?? "—",
+            days: ctx.data?.preferenceMinDaysAhead ?? "—",
+            reminders: ctx.data?.preferenceRemindersEnabled ? t("prefAttendanceRemindersSuffix") : "",
+          })}
         </Alert>
       )}
 
       <FormControl sx={{ mb: 2, minWidth: 220 }} size="small">
-        <InputLabel id="week-pick">שבוע (ראשון UTC)</InputLabel>
+        <InputLabel id="week-pick">{t("teamAttendancePrefsWeek")}</InputLabel>
         <Select
           labelId="week-pick"
-          label="שבוע (ראשון UTC)"
+          label={t("teamAttendancePrefsWeek")}
           value={week || ""}
           onChange={(e) => {
             setWeek(e.target.value);
@@ -244,13 +250,13 @@ export default function AttendancePreferencesPage() {
           return (
             <Stack key={d.workDate} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
               <Typography sx={{ width: { sm: 200 } }}>
-                {d.workDate} · {hebrewWeekdayShort(d.workDate)}
+                {d.workDate} · {utcWeekdayShort(d.workDate, intlTag)}
               </Typography>
               <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id={`lbl-${d.workDate}`}>העדפה</InputLabel>
+                <InputLabel id={`lbl-${d.workDate}`}>{t("prefDayPreferenceLabel")}</InputLabel>
                 <Select
                   labelId={`lbl-${d.workDate}`}
-                  label="העדפה"
+                  label={t("prefDayPreferenceLabel")}
                   value={val}
                   onChange={(e) =>
                     setDraft((prev) => ({
@@ -259,11 +265,11 @@ export default function AttendancePreferencesPage() {
                     }))
                   }
                 >
-                  <MenuItem value="">ללא העדפה</MenuItem>
-                  <MenuItem value="office">משרד</MenuItem>
-                  <MenuItem value="home">בית</MenuItem>
-                  <MenuItem value="vacation">חופשה</MenuItem>
-                  <MenuItem value="off">לא עובד</MenuItem>
+                  <MenuItem value="">{t("prefClearPreference")}</MenuItem>
+                  <MenuItem value="office">{t("office")}</MenuItem>
+                  <MenuItem value="home">{t("home")}</MenuItem>
+                  <MenuItem value="vacation">{t("vacation")}</MenuItem>
+                  <MenuItem value="off">{t("off")}</MenuItem>
                 </Select>
               </FormControl>
             </Stack>
@@ -277,7 +283,7 @@ export default function AttendancePreferencesPage() {
           disabled={!week || saveMut.isPending}
           onClick={() => {
             saveMut.mutate(false, {
-              onSuccess: () => setToast({ ok: true, msg: "נשמר כטיוטה" }),
+              onSuccess: () => setToast({ ok: true, msg: t("prefToastDraftSaved") }),
               onError: (e) =>
                 setToast({
                   ok: false,
@@ -286,20 +292,23 @@ export default function AttendancePreferencesPage() {
             });
           }}
         >
-          שמור טיוטה
+          {t("prefSaveDraft")}
         </Button>
         <Button
           variant="contained"
           disabled={!week || saveMut.isPending}
           onClick={() => setSubmitConfirmOpen(true)}
         >
-          שלח הגשה
+          {t("prefSubmitPrefs")}
         </Button>
       </Stack>
 
       {prefQ.data?.status ? (
         <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-          סטטוס נוכחי: {prefQ.data.status === "submitted" ? "הוגש" : "טיוטה"}
+          {t("prefCurrentStatusLine", {
+            status:
+              prefQ.data.status === "submitted" ? t("prefDocStatusSubmitted") : t("prefDocStatusDraft"),
+          })}
         </Typography>
       ) : null}
 
@@ -334,7 +343,7 @@ export default function AttendancePreferencesPage() {
                   setSubmitConfirmOpen(false);
                   await qc.invalidateQueries({ queryKey: ["attendance-pref", week] });
                   await qc.invalidateQueries({ queryKey: ["pref-pipeline", week] });
-                  setToast({ ok: true, msg: "הוגש בהצלחה" });
+                  setToast({ ok: true, msg: t("prefToastSubmittedOk") });
                 },
                 onError: (e) =>
                   setToast({

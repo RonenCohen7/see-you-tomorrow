@@ -24,7 +24,7 @@ export function statusBg(status: StatusKey, mode: "light" | "dark") {
  * - Accents: emerald green, red-orange
  * - Surfaces: near-white with cool/warm tint; dark = slate.
  */
-export function buildTheme(mode: "light" | "dark") {
+export function buildTheme(mode: "light" | "dark", direction: "rtl" | "ltr") {
   const isDark = mode === "dark";
 
   const primaryMain = isDark ? "#fb923c" : "#f97316";
@@ -34,7 +34,7 @@ export function buildTheme(mode: "light" | "dark") {
   const surfaceAlt = isDark ? "#1e293b" : "#fafaf9";
 
   return createTheme({
-    direction: "rtl",
+    direction,
     palette: {
       mode,
       primary: { main: primaryMain, contrastText: "#ffffff" },
@@ -71,7 +71,7 @@ export function buildTheme(mode: "light" | "dark") {
             overflowX: "auto",
           },
           body: {
-            direction: "rtl",
+            direction,
             minWidth: 0,
             overflowX: "auto",
             overflowY: "auto",

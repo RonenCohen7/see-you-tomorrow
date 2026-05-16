@@ -20,6 +20,8 @@ import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import type { NotificationItem } from "../types/models";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { useAuth } from "../store/authContext";
 import { statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
@@ -31,6 +33,8 @@ function isReadForUser(n: NotificationItem, userId: string | undefined): boolean
 
 export default function NotificationsPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const theme = useTheme();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -138,7 +142,7 @@ export default function NotificationsPage() {
                     <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} flexWrap="wrap">
                       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                          {new Date(n.createdAt).toLocaleString("he-IL", {
+                          {new Date(n.createdAt).toLocaleString(intlTag, {
                             dateStyle: "medium",
                             timeStyle: "short",
                           })}

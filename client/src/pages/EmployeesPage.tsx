@@ -20,6 +20,11 @@ import {
   Snackbar,
   Stack,
   Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -45,17 +50,24 @@ import BadgeIcon from "@mui/icons-material/BadgeOutlined";
 import NotesIcon from "@mui/icons-material/StickyNote2Outlined";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import AddIcon from "@mui/icons-material/AddCircle";
+import UploadFileOutlined from "@mui/icons-material/UploadFileOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import EmergencyIcon from "@mui/icons-material/MedicalServices";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, type ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import type { Employee, MaritalStatus } from "../types/models";
 import { useRole } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import {
+  parseEmployeesCsv,
+  type BulkImportEmployeePayload,
+  type CsvParseIssue,
+} from "../utils/employeesCsvImport";
 import { fileToResizedJpegDataUrl } from "../utils/imageResize";
 
 const MARITAL_STATUSES: MaritalStatus[] = ["single", "married", "divorced", "widowed", "partner"];
@@ -150,6 +162,32 @@ function skypeHref(phone: string): string {
   return digits ? `skype:+${digits}?chat` : "";
 }
 
+type BulkImportApiResult = {
+  created: number;
+  skippedExisting: number;
+  skippedInvalid: number;
+  errors: { row: number; email?: string; code: string; message: string }[];
+};
+
+function csvIssueDetail(issue: CsvParseIssue, tr: TFunction): string {
+  switch (issue.code) {
+    case "INVALID_OBJECT_ID":
+      return tr("employeesCsvIssue_INVALID_OBJECT_ID", { field: issue.field });
+    case "MISSING_REQUIRED":
+      return tr("employeesCsvIssue_MISSING_REQUIRED");
+    case "INVALID_EMAIL":
+      return tr("employeesCsvIssue_INVALID_EMAIL");
+    case "INVALID_ROLE":
+      return tr("employeesCsvIssue_INVALID_ROLE");
+    case "INVALID_MARITAL":
+      return tr("employeesCsvIssue_INVALID_MARITAL");
+    case "INVALID_BIRTHDATE":
+      return tr("employeesCsvIssue_INVALID_BIRTHDATE");
+    case "INVALID_ISACTIVE":
+      return tr("employeesCsvIssue_INVALID_ISACTIVE");
+  }
+}
+
 export default function EmployeesPage() {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -166,6 +204,16 @@ export default function EmployeesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [csvDialogOpen, setCsvDialogOpen] = useState(false);
+  const [csvPassword, setCsvPassword] = useState("");
+  const [csvPreparedRows, setCsvPreparedRows] = useState<BulkImportEmployeePayload[] | null>(null);
+  const [csvFileLabel, setCsvFileLabel] = useState("");
+  const [csvIssues, setCsvIssues] = useState<CsvParseIssue[]>([]);
+  const [csvParserMessages, setCsvParserMessages] = useState<string[]>([]);
+  const [csvMissingCols, setCsvMissingCols] = useState(false);
+  const [csvSummaryOpen, setCsvSummaryOpen] = useState(false);
+  const [csvSummary, setCsvSummary] = useState<BulkImportApiResult | null>(null);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
 
   const q = useQuery({
     queryKey: ["employees", page, pageSize, search, activeOnly],
@@ -248,9 +296,52 @@ export default function EmployeesPage() {
     },
   });
 
+  const importBulkMut = useMutation({
+    mutationFn: async (payload: { defaultPassword: string; rows: BulkImportEmployeePayload[] }) =>
+      (await api.post<BulkImportApiResult>("/api/employees/import-bulk", payload)).data,
+    onSuccess: async (data) => {
+      setCsvSummary(data);
+      setCsvSummaryOpen(true);
+      setCsvDialogOpen(false);
+      setCsvPassword("");
+      setCsvPreparedRows(null);
+      setCsvFileLabel("");
+      setCsvIssues([]);
+      setCsvParserMessages([]);
+      setCsvMissingCols(false);
+      await qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
+
   function requestAvatarUpload(employeeId: string, file: File) {
     avatarMut.mutate({ id: employeeId, file });
   }
+
+  function openCsvImport() {
+    setCsvDialogOpen(true);
+    setCsvPassword("");
+    setCsvPreparedRows(null);
+    setCsvFileLabel("");
+    setCsvIssues([]);
+    setCsvParserMessages([]);
+    setCsvMissingCols(false);
+  }
+
+  function handleCsvFilePick(file: File) {
+    setCsvFileLabel(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseEmployeesCsv(text, MARITAL_STATUSES);
+      setCsvMissingCols(parsed.missingColumns);
+      setCsvParserMessages(parsed.parserMessages);
+      setCsvIssues(parsed.issues);
+      setCsvPreparedRows(parsed.rows);
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
@@ -305,16 +396,28 @@ export default function EmployeesPage() {
           )}
         </Stack>
         {canWrite && (
-          <Tooltip title={t("newEmployeeTooltip")} placement="left" arrow disableInteractive>
-            <Button
-              variant="contained"
-              onClick={openCreate}
-              sx={{ flexShrink: 0, minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
-              aria-label={t("newEmployeeTooltip")}
-            >
-              <AddIcon />
-            </Button>
-          </Tooltip>
+          <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+            <Tooltip title={t("employeesCsvImportTooltip")} placement="left" arrow disableInteractive>
+              <Button
+                variant="outlined"
+                onClick={openCsvImport}
+                sx={{ minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+                aria-label={t("employeesCsvImportTooltip")}
+              >
+                <UploadFileOutlined />
+              </Button>
+            </Tooltip>
+            <Tooltip title={t("newEmployeeTooltip")} placement="left" arrow disableInteractive>
+              <Button
+                variant="contained"
+                onClick={openCreate}
+                sx={{ minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+                aria-label={t("newEmployeeTooltip")}
+              >
+                <AddIcon />
+              </Button>
+            </Tooltip>
+          </Stack>
         )}
       </Stack>
 
@@ -468,6 +571,162 @@ export default function EmployeesPage() {
         }}
         onSubmit={() => saveMut.mutate()}
       />
+
+      <input
+        ref={csvFileInputRef}
+        type="file"
+        accept=".csv,text/csv"
+        hidden
+        aria-hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) handleCsvFilePick(f);
+        }}
+      />
+
+      <Dialog
+        open={csvDialogOpen}
+        onClose={() => {
+          if (!importBulkMut.isPending) setCsvDialogOpen(false);
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{t("employeesCsvImportTitle")}</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2}>
+            <Alert severity="warning">
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                {t("employeesCsvImportWarning")}
+              </Typography>
+            </Alert>
+            <TextField
+              type="password"
+              label={t("employeesCsvImportPasswordLabel")}
+              value={csvPassword}
+              onChange={(e) => setCsvPassword(e.target.value)}
+              fullWidth
+              autoComplete="new-password"
+              helperText={
+                csvPassword.trim().length > 0 && csvPassword.trim().length < 8 ? t("passwordHint") : undefined
+              }
+              error={csvPassword.trim().length > 0 && csvPassword.trim().length < 8}
+            />
+            <Button
+              variant="outlined"
+              onClick={() => csvFileInputRef.current?.click()}
+              disabled={importBulkMut.isPending}
+            >
+              {t("employeesCsvImportChooseFile")}
+            </Button>
+            {csvFileLabel ? (
+              <Typography variant="body2" color="text.secondary">
+                {csvPreparedRows != null
+                  ? t("employeesCsvImportFileReady", {
+                      name: csvFileLabel,
+                      count: csvPreparedRows.length,
+                    })
+                  : csvFileLabel}
+              </Typography>
+            ) : null}
+            {csvMissingCols ? (
+              <Alert severity="error">{t("employeesCsvIssue_MISSING_COLUMNS")}</Alert>
+            ) : null}
+            {csvParserMessages.length ? (
+              <Alert severity="error">
+                {csvParserMessages.map((m, i) => (
+                  <Typography key={i} variant="caption" display="block">
+                    {m}
+                  </Typography>
+                ))}
+              </Alert>
+            ) : null}
+            {csvIssues.length ? (
+              <Alert severity="error">
+                <Box sx={{ maxHeight: 180, overflow: "auto" }}>
+                  {csvIssues.map((issue, i) => (
+                    <Typography key={`${issue.row}-${issue.code}-${i}`} variant="caption" display="block">
+                      {t("employeesCsvIssueLine", {
+                        row: issue.row,
+                        detail: csvIssueDetail(issue, t),
+                      })}
+                    </Typography>
+                  ))}
+                </Box>
+              </Alert>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={importBulkMut.isPending} onClick={() => setCsvDialogOpen(false)}>
+            {t("cancel")}
+          </Button>
+          <Button
+            variant="contained"
+            disabled={
+              importBulkMut.isPending ||
+              csvPassword.trim().length < 8 ||
+              !csvPreparedRows?.length ||
+              csvIssues.length > 0 ||
+              csvMissingCols ||
+              csvParserMessages.length > 0
+            }
+            onClick={() => {
+              if (!csvPreparedRows?.length || csvPassword.trim().length < 8) return;
+              importBulkMut.mutate({
+                defaultPassword: csvPassword.trim(),
+                rows: csvPreparedRows,
+              });
+            }}
+          >
+            {importBulkMut.isPending ? <CircularProgress color="inherit" size={22} /> : t("employeesCsvImportSubmit")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={csvSummaryOpen} onClose={() => setCsvSummaryOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{t("employeesCsvSummaryTitle")}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            <Typography>{t("employeesCsvSummaryCreated", { count: csvSummary?.created ?? 0 })}</Typography>
+            <Typography>
+              {t("employeesCsvSummarySkippedExisting", { count: csvSummary?.skippedExisting ?? 0 })}
+            </Typography>
+            <Typography>
+              {t("employeesCsvSummarySkippedInvalid", { count: csvSummary?.skippedInvalid ?? 0 })}
+            </Typography>
+            {(csvSummary?.errors?.length ?? 0) > 0 ? (
+              <>
+                <Typography sx={{ mt: 1 }} variant="subtitle2">
+                  {t("employeesCsvSummaryErrorsIntro")}
+                </Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t("employeesCsvSummaryColRow")}</TableCell>
+                      <TableCell>{t("employeesCsvSummaryColEmail")}</TableCell>
+                      <TableCell>{t("employeesCsvSummaryColDetail")}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(csvSummary?.errors ?? []).map((er, i) => (
+                      <TableRow key={`${er.row}-${er.code}-${i}`}>
+                        <TableCell>{er.row}</TableCell>
+                        <TableCell>{er.email ?? "—"}</TableCell>
+                        <TableCell>{er.message}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            ) : null}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCsvSummaryOpen(false)}>{t("close")}</Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)}>
         <Alert severity={toast?.ok ? "success" : "error"} onClose={() => setToast(null)}>

@@ -9,6 +9,11 @@ const seedTenSchema = z.object({
   locationId: objectId,
 });
 
+const createSpotSchema = z.object({
+  locationId: objectId,
+  label: z.string().min(1).max(80).optional(),
+});
+
 const patchSpotSchema = z.object({
   label: z.string().min(1).max(80).optional(),
   sortOrder: z.number().int().min(0).max(999).optional(),
@@ -35,6 +40,20 @@ export async function seedTen(req: AuthRequest, res: Response) {
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
   const result = await svc.seedTenSpots(parsed.data.locationId);
   res.status(201).json(result);
+}
+
+export async function createSpot(req: AuthRequest, res: Response) {
+  const parsed = createSpotSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const item = await svc.createSpot(parsed.data.locationId, parsed.data.label);
+  res.status(201).json(item);
+}
+
+export async function deleteSpot(req: AuthRequest, res: Response) {
+  const idParsed = objectId.safeParse(req.params.id);
+  if (!idParsed.success) throw new AppError(400, "מזהה לא תקין", "VALIDATION", idParsed.error.flatten());
+  const result = await svc.deleteSpot(idParsed.data);
+  res.json(result);
 }
 
 export async function patchSpot(req: AuthRequest, res: Response) {

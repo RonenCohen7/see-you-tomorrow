@@ -25,7 +25,9 @@ import api from "../services/api";
 import type { Employee } from "../types/models";
 import { useTranslation } from "react-i18next";
 import { useAuth, useRole } from "../store/authContext";
-import { hebrewWeekdayShort } from "../utils/israeliWeek";
+import { utcWeekdayShort } from "../utils/israeliWeek";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import { Link as RouterLink } from "react-router-dom";
 import { pipelineAlertPresentation } from "../utils/preferencePipelinePresentation";
 
@@ -48,6 +50,8 @@ type DeptPreferenceRow = {
 
 export default function TeamAttendancePreferencesPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const theme = useTheme();
   const role = useRole();
   const { user } = useAuth();
@@ -298,7 +302,7 @@ export default function TeamAttendancePreferencesPage() {
                         <TableCell key={d.workDate} sx={{ whiteSpace: "nowrap" }}>
                           {d.workDate.slice(5)}
                           <Typography variant="caption" display="block" color="text.secondary">
-                            {hebrewWeekdayShort(d.workDate)}
+                            {utcWeekdayShort(d.workDate, intlTag)}
                           </Typography>
                         </TableCell>
                       ))}
@@ -311,7 +315,7 @@ export default function TeamAttendancePreferencesPage() {
                       return (
                         <TableRow key={row.id}>
                           <TableCell sx={{ fontWeight: 700 }}>{name}</TableCell>
-                          <TableCell>{row.submittedAt ? new Date(row.submittedAt).toLocaleString("he-IL") : "—"}</TableCell>
+                          <TableCell>{row.submittedAt ? new Date(row.submittedAt).toLocaleString(intlTag) : "—"}</TableCell>
                           {headerDays.map((col) => {
                             const p = byDate.get(col.workDate);
                             return (

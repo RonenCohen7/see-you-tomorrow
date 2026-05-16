@@ -75,6 +75,38 @@ export async function listSpots() {
   return docs.map((d) => toPublicSpot(d as unknown as ParkingSpotDoc, nameBy.get(d.locationId.toString()) ?? ""));
 }
 
+export async function createSpot(locationId: string, label?: string) {
+  const ParkingSpot = await spotModel();
+  const Location = await locModel();
+  const loc = await Location.findById(locationId);
+  if (!loc) throw new AppError(404, "מיקום לא נמצא", "NOT_FOUND");
+
+  const maxLean = await ParkingSpot.findOne({ locationId }).sort({ sortOrder: -1 }).select("sortOrder").lean();
+  const nextOrder = ((maxLean as { sortOrder?: number } | null)?.sortOrder ?? 0) + 1;
+  const resolvedLabel = label?.trim() || `חניה ${nextOrder}`;
+
+  const doc = await ParkingSpot.create({
+    locationId,
+    label: resolvedLabel,
+    sortOrder: nextOrder,
+    isActive: true,
+  });
+  const locName = (loc as unknown as LocationDoc).name ?? "";
+  return toPublicSpot(doc as unknown as ParkingSpotDoc, locName);
+}
+
+/** Deletes spot and any reservations referencing it (admin-only caller). */
+export async function deleteSpot(spotId: string) {
+  const ParkingSpot = await spotModel();
+  const Reservation = await resModel();
+  const doc = await ParkingSpot.findById(spotId);
+  if (!doc) throw new AppError(404, "חניה לא נמצאה", "NOT_FOUND");
+
+  await Reservation.deleteMany({ spotId: doc._id });
+  await ParkingSpot.deleteOne({ _id: doc._id });
+  return { ok: true };
+}
+
 export async function seedTenSpots(locationId: string) {
   const ParkingSpot = await spotModel();
   const Location = await locModel();

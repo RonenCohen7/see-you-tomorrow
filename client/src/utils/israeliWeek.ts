@@ -33,8 +33,8 @@ export function nextIsraeliWeekUtcFromReference(ref: Date = new Date()): { weekS
   return { weekStartSunday: days[0]!, days };
 }
 
-/** Short weekday label in Hebrew for a UTC calendar day (YYYY-MM-DD). */
-export function hebrewWeekdayShort(isoDate: string): string {
+/** Short weekday label for a UTC calendar day (YYYY-MM-DD). */
+export function utcWeekdayShort(isoDate: string, intlLocale: string): string {
   const d = new Date(`${isoDate}T12:00:00.000Z`);
-  return d.toLocaleDateString("he-IL", { weekday: "short", timeZone: "UTC" });
+  return d.toLocaleDateString(intlLocale, { weekday: "short", timeZone: "UTC" });
 }

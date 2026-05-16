@@ -14,6 +14,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import api from "../services/api";
 import type { Schedule } from "../types/models";
 import { todayIsoLocal } from "../utils/date";
@@ -35,8 +37,8 @@ const DASH_REFRESH = "dashboard:refresh";
 type NavTile = {
   to: string;
   i18nKey: string;
+  descriptionKey: string;
   Icon: React.ElementType;
-  description: string;
   color: string;
   adminOnly?: boolean;
   /** מנהל מחלקה / אדמין — מוסתר מעובד רגיל */
@@ -44,24 +46,26 @@ type NavTile = {
 };
 
 const tiles: NavTile[] = [
-  { to: "/calendar", i18nKey: "calendar", Icon: CalendarIcon, description: "תצוגת יומן חודשית", color: "#0ea5e9" },
+  { to: "/calendar", i18nKey: "calendar", Icon: CalendarIcon, descriptionKey: "dashTileCalendarDesc", color: "#0ea5e9" },
   {
     to: "/schedules",
     i18nKey: "schedules",
     Icon: SchedulesIcon,
-    description: "ניהול ועריכת משמרות",
+    descriptionKey: "dashTileSchedulesDesc",
     color: "#f97316",
     managerOrAdminOnly: true,
   },
-  { to: "/employees", i18nKey: "employees", Icon: EmployeesIcon, description: "רשימת עובדים", color: "#8b5cf6", adminOnly: true },
-  { to: "/departments", i18nKey: "departments", Icon: DepartmentsIcon, description: "ניהול מחלקות", color: "#22c55e", adminOnly: true },
-  { to: "/locations", i18nKey: "locations", Icon: LocationsIcon, description: "ניהול מיקומים", color: "#ef4444", adminOnly: true },
-  { to: "/ai", i18nKey: "ai", Icon: AIIcon, description: "המלצות חכמות", color: "#ec4899", managerOrAdminOnly: true },
-  { to: "/notifications", i18nKey: "notifications", Icon: NotificationsListIcon, description: "התראות והודעות", color: "#eab308" },
+  { to: "/employees", i18nKey: "employees", Icon: EmployeesIcon, descriptionKey: "dashTileEmployeesDesc", color: "#8b5cf6", adminOnly: true },
+  { to: "/departments", i18nKey: "departments", Icon: DepartmentsIcon, descriptionKey: "dashTileDepartmentsDesc", color: "#22c55e", adminOnly: true },
+  { to: "/locations", i18nKey: "locations", Icon: LocationsIcon, descriptionKey: "dashTileLocationsDesc", color: "#ef4444", adminOnly: true },
+  { to: "/ai", i18nKey: "ai", Icon: AIIcon, descriptionKey: "dashTileAiDesc", color: "#ec4899", managerOrAdminOnly: true },
+  { to: "/notifications", i18nKey: "notifications", Icon: NotificationsListIcon, descriptionKey: "dashTileNotificationsDesc", color: "#eab308" },
 ];
 
 export default function DashboardPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const { user } = useAuth();
   const { socket } = useSocket(user?.id);
   const [lastUpd, setLastUpd] = useState(() => new Date().toISOString());
@@ -151,7 +155,7 @@ export default function DashboardPage() {
         </Typography>
       </Stack>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
-        {t("lastUpdated")}: {new Date(lastUpd).toLocaleString("he-IL")}
+        {t("lastUpdated")}: {new Date(lastUpd).toLocaleString(intlTag)}
       </Typography>
       <Typography
         component="p"
@@ -227,8 +231,8 @@ export default function DashboardPage() {
           },
         }}
       >
-        {visibleTiles.map(({ to, i18nKey, Icon, description, color }) => (
-          <Tooltip key={to} title={`${t(i18nKey)} — ${description}`} arrow placement="top">
+        {visibleTiles.map(({ to, i18nKey, Icon, descriptionKey, color }) => (
+          <Tooltip key={to} title={`${t(i18nKey)} — ${t(descriptionKey)}`} arrow placement="top">
             <Card className="syt-lift" sx={(th) => ({ bgcolor: alpha(th.palette.background.paper, th.palette.mode === "dark" ? 0.36 : 0.56), backdropFilter: "saturate(150%) blur(10px)", WebkitBackdropFilter: "saturate(150%) blur(10px)" })}>
               <CardActionArea component={RouterLink} to={to} sx={{ p: { xs: 1.25, sm: 1.5 } }}>
                 <Stack alignItems="center" spacing={0.75}>
@@ -286,7 +290,7 @@ export default function DashboardPage() {
                   </Typography>
                   {stats.office === 0 ? (
                     <Typography variant="caption" color="text.disabled">
-                      אין עובדים במשרד היום
+                      {t("dashNoOfficeToday")}
                     </Typography>
                   ) : (
                     <Box

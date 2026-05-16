@@ -1,6 +1,7 @@
 import type { Response } from "express";
 import { AppError, requireAdmin, type AuthRequest } from "@syt/shared";
 import {
+  bulkImportEmployeesSchema,
   createEmployeeSchema,
   listQuerySchema,
   updateEmployeeSchema,
@@ -65,6 +66,13 @@ export async function create(req: AuthRequest, res: Response) {
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
   const result = await svc.createEmployee(parsed.data);
   res.status(201).json(result);
+}
+
+export async function importBulk(req: AuthRequest, res: Response) {
+  const parsed = bulkImportEmployeesSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const result = await svc.importEmployeesBulk(parsed.data);
+  res.json(result);
 }
 
 export async function update(req: AuthRequest, res: Response) {

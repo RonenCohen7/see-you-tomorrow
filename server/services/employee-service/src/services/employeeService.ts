@@ -5,6 +5,7 @@ import {
   DB_NAMES,
   getConnection,
   getEmployeeModel,
+  isAppError,
   type MaritalStatus,
   type Role,
 } from "@syt/shared";
@@ -80,6 +81,101 @@ export async function createEmployee(input: {
     notes: input.notes,
   });
   return toPublic(doc);
+}
+
+export type BulkImportEmployeeError = {
+  row: number;
+  email?: string;
+  code: string;
+  message: string;
+};
+
+export async function importEmployeesBulk(input: {
+  defaultPassword: string;
+  rows: Array<Omit<Parameters<typeof createEmployee>[0], "password">>;
+}): Promise<{
+  created: number;
+  skippedExisting: number;
+  skippedInvalid: number;
+  errors: BulkImportEmployeeError[];
+}> {
+  let created = 0;
+  let skippedExisting = 0;
+  let skippedInvalid = 0;
+  const errors: BulkImportEmployeeError[] = [];
+  const seenInFile = new Set<string>();
+
+  const Employee = await getModel();
+
+  for (let i = 0; i < input.rows.length; i++) {
+    const row = input.rows[i];
+    const rowNum = i + 1;
+    const emailNorm = row.email.trim().toLowerCase();
+    const fullNameTrimmed = row.fullName.trim();
+
+    if (!fullNameTrimmed || !emailNorm) {
+      skippedInvalid++;
+      errors.push({
+        row: rowNum,
+        email: row.email || undefined,
+        code: "MISSING_REQUIRED",
+        message: "חסרים שם מלא או אימייל",
+      });
+      continue;
+    }
+
+    if (seenInFile.has(emailNorm)) {
+      skippedInvalid++;
+      errors.push({
+        row: rowNum,
+        email: row.email,
+        code: "DUPLICATE_IN_FILE",
+        message: "אותו אימייל מופיע בשורות קודמות בקובץ",
+      });
+      continue;
+    }
+    seenInFile.add(emailNorm);
+
+    const exists = await Employee.findOne({ email: emailNorm }).select("_id").lean();
+    if (exists) {
+      skippedExisting++;
+      continue;
+    }
+
+    try {
+      await createEmployee({
+        ...row,
+        fullName: fullNameTrimmed,
+        email: emailNorm,
+        password: input.defaultPassword,
+      });
+      created++;
+    } catch (e: unknown) {
+      if (isAppError(e) && e.code === "EMAIL_EXISTS") {
+        skippedExisting++;
+        continue;
+      }
+      const dup =
+        typeof e === "object" &&
+        e !== null &&
+        "code" in e &&
+        Number((e as { code: unknown }).code) === 11000;
+      if (dup) {
+        skippedExisting++;
+        continue;
+      }
+      skippedInvalid++;
+      const msg = isAppError(e) ? e.message : "שגיאה ביצירת עובד";
+      errors.push({
+        row: rowNum,
+        email: row.email,
+        code: isAppError(e) && e.code ? String(e.code) : "CREATE_FAILED",
+        message: msg,
+      });
+    }
+  }
+
+  return { created, skippedExisting, skippedInvalid, errors };
 }
 
 export async function updateEmployee(

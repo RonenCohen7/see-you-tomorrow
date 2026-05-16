@@ -22,6 +22,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { appIntlLocale } from "../locale/localeConstants";
+import { useLocale } from "../locale/LocaleContext";
 import api from "../services/api";
 import { currentMonthYm, todayIsoLocal } from "../utils/date";
 import type { Employee, Schedule } from "../types/models";
@@ -38,7 +40,6 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
 import { MonthDayCell } from "./MonthDayCell";
 import type { DayAgg } from "./calendarConstants";
-import { HEBREW_WEEKDAYS } from "./calendarConstants";
 
 import "./CalendarPage.css";
 
@@ -52,7 +53,7 @@ function isoFromDate(d: Date): string {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
-function buildNext7(): { iso: string; weekday: number; dayNum: number; monthShort: string }[] {
+function buildNext7(intlTag: string): { iso: string; weekday: number; dayNum: number; monthShort: string }[] {
   const out = [];
   const base = new Date();
   base.setHours(0, 0, 0, 0);
@@ -63,7 +64,7 @@ function buildNext7(): { iso: string; weekday: number; dayNum: number; monthShor
       iso: isoFromDate(d),
       weekday: d.getDay(),
       dayNum: d.getDate(),
-      monthShort: d.toLocaleDateString("he-IL", { month: "short" }),
+      monthShort: d.toLocaleDateString(intlTag, { month: "short" }),
     });
   }
   return out;
@@ -71,6 +72,8 @@ function buildNext7(): { iso: string; weekday: number; dayNum: number; monthShor
 
 export default function CalendarPage() {
   const { t } = useTranslation();
+  const { locale } = useLocale();
+  const intlTag = appIntlLocale(locale);
   const navigate = useNavigate();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
@@ -85,7 +88,12 @@ export default function CalendarPage() {
   const [calTab, setCalTab] = useState(0);
   const { socket } = useSocket(user?.id);
 
-  const next7 = useMemo(buildNext7, []);
+  const weekdayLetters = useMemo(() => {
+    const raw = t("calendarWeekdayLetters", { returnObjects: true });
+    return Array.isArray(raw) ? raw.map(String) : [];
+  }, [t]);
+
+  const next7 = useMemo(() => buildNext7(intlTag), [intlTag]);
   const next7From = next7[0].iso;
   const next7To = next7[next7.length - 1].iso;
 
@@ -149,7 +157,7 @@ export default function CalendarPage() {
     const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
     const m = new Map<string, ParkingDayRow[]>();
     for (const r of parkingResQ.data ?? []) {
-      const spotLabel = spotsById.get(r.spotId) ?? "חניה";
+      const spotLabel = spotsById.get(r.spotId) ?? t("parkingColSpot");
       const guestName =
         r.guestFullName && r.guestFullName.length > 0 ? r.guestFullName : r.employeeId.slice(-6);
       const hoursLabel =
@@ -251,7 +259,7 @@ export default function CalendarPage() {
       const has = dayHasLeaderOffice(emp, sched, iso);
       m.set(iso, {
         missing: !has,
-        names: leaderOfficeNamesForDay(emp, sched, iso),
+        names: leaderOfficeNamesForDay(emp, sched, iso, intlTag),
       });
     }
     return m;
@@ -262,6 +270,7 @@ export default function CalendarPage() {
     managerMonthSchedulesQ.isLoading,
     managerMonthSchedulesQ.data,
     month,
+    intlTag,
   ]);
 
   // Realtime: any schedule change → refresh all calendar queries
@@ -294,9 +303,9 @@ export default function CalendarPage() {
       const iso = `${month}-${String(d).padStart(2, "0")}`;
       days.push({ iso, agg: monthQ.data?.days.find((x) => x._id === iso) });
     }
-    const label = new Date(y, m - 1, 1).toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+    const label = new Date(y, m - 1, 1).toLocaleDateString(intlTag, { month: "long", year: "numeric" });
     return { monthLabel: label, preview15Days: days };
-  }, [month, monthQ.data?.days]);
+  }, [month, monthQ.data?.days, intlTag]);
 
   const calendarCardSx = useMemo(
     () => ({
@@ -479,7 +488,7 @@ export default function CalendarPage() {
                   const coverageDataReady = canWrite && !employeesQ.isLoading && !next7Q.isLoading;
                   const stripLeaderOfficeMissing =
                     coverageDataReady && !dayHasLeaderOffice(empList, next7Q.data?.items ?? [], iso);
-                  const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso);
+                  const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso, intlTag);
                   const bdays = birthdaysByIso.get(iso) ?? [];
                   const pk = parkingByIso.get(iso) ?? [];
                   const aiRowCount = list.filter((s) => s.source === "ai").length;
@@ -551,7 +560,7 @@ export default function CalendarPage() {
                                 letterSpacing: "0.01em",
                               }}
                             >
-                              {HEBREW_WEEKDAYS[weekday]} · {monthShort}
+                              {weekdayLetters[weekday] ?? ""} · {monthShort}
                             </Typography>
                           <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
                             {isToday && (
