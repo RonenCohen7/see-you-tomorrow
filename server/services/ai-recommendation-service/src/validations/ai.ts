@@ -37,3 +37,16 @@ export const approveSchema = z.object({
     })
   ),
 });
+
+export const schedulingRuleDraftRequestSchema = z.object({
+  naturalText: z.string().trim().min(3).max(2000),
+  locations: z
+    .array(
+      z.object({
+        id: objectId,
+        name: z.string().trim().min(1).max(200),
+      })
+    )
+    .max(200),
+});
+

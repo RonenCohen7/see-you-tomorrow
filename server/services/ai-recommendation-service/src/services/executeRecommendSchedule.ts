@@ -44,6 +44,8 @@ export async function executeRecommend(
       ? options.allowFridaySaturdayOffice === true
       : input.allowFridaySaturdayOffice === true;
 
+  const RULE_TYPES_EXCLUDED_FROM_AI_PROMPT = new Set<string>(["manager_office_auto_parking"]);
+
   const employeesFull = await agg.loadDepartmentEmployees(input.departmentId);
   const capacity = await agg.loadLocationCapacity(input.locationId);
   const historical = await agg.loadSchedulesRangeForRecommend({
@@ -52,9 +54,16 @@ export async function executeRecommend(
     from: input.dateRange.from,
     to: input.dateRange.to,
   });
-  const activeSchedulingRules = await agg.loadSchedulingRulesForRange(
+  const activeSchedulingRulesRaw = await agg.loadSchedulingRulesForRange(
     input.dateRange.from,
     input.dateRange.to
+  );
+  const activeSchedulingRules = activeSchedulingRulesRaw.filter(
+    (r) =>
+      r &&
+      typeof r === "object" &&
+      "ruleType" in r &&
+      !RULE_TYPES_EXCLUDED_FROM_AI_PROMPT.has(String((r as { ruleType: string }).ruleType))
   );
   const employeePreferencesSubmitted = await agg.loadDepartmentPreferencesBetween(
     input.departmentId,
@@ -80,7 +89,7 @@ export async function executeRecommend(
   const validated = validation.validateScheduleRecommendations({
     recommendations: result.recommendations,
     employees: employeesFull.map((e) => ({ id: e.id, role: e.role ?? "employee" })),
-    rules: activeSchedulingRules as SchedulingRuleDoc[],
+    rules: activeSchedulingRulesRaw as SchedulingRuleDoc[],
     assignmentLocationId: input.locationId,
     enforceManagerDailyOfficeCoverage,
     allowFridaySaturdayOffice,

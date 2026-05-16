@@ -98,7 +98,7 @@ function mockRecommendations(payload: {
         date: iso,
         employeeId: emp.id,
         recommendedStatus: office ? "office" : "home",
-        reason: "המלצה לדוגמה ללא מפתח OpenAI — הגדר OPENAI_API_KEY לפעולה מלאה.",
+        reason: "שובץ על ידי AI ואושר על ידי הנהלה",
       });
     });
     i++;

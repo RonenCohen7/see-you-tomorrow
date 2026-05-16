@@ -1,7 +1,8 @@
 import type { Response } from "express";
 import { AppError, type AuthRequest } from "@syt/shared";
-import { approveSchema, recommendSchema } from "../validations/ai.js";
+import { approveSchema, recommendSchema, schedulingRuleDraftRequestSchema } from "../validations/ai.js";
 import { executeRecommend } from "../services/executeRecommendSchedule.js";
+import { interpretSchedulingRuleFromText } from "../services/schedulingRuleFromText.js";
 
 async function fetchMyDepartment(userId: string): Promise<string | undefined> {
   const res = await fetch(
@@ -124,4 +125,20 @@ export async function approveRecommendations(req: AuthRequest, res: Response) {
 
   const body = await resApply.json();
   res.json(body);
+}
+
+export async function draftSchedulingRuleFromText(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+
+  const parsed = schedulingRuleDraftRequestSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+
+  const out = await interpretSchedulingRuleFromText({
+    naturalText: parsed.data.naturalText,
+    locations: parsed.data.locations,
+  });
+  if (!out.ok) {
+    throw new AppError(422, out.error, "RULE_DRAFT_FAILED");
+  }
+  res.json({ draft: out.draft });
 }
