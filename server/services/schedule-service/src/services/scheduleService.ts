@@ -20,6 +20,7 @@ import {
   israeliWeekDatesFromSundayUtc,
 } from "../utils/dateRange.js";
 import * as notify from "./notificationClient.js";
+import * as parkingSyncHook from "./locationParkingSync.js";
 import { fetchEmployeesByDepartment } from "./remoteEmployee.js";
 
 export function toPublic(doc: ScheduleDoc) {
@@ -80,6 +81,12 @@ export async function createSchedule(
     ...(input.aiBatchId ? { aiBatchId: new mongoose.Types.ObjectId(input.aiBatchId) } : {}),
   });
   const pub = toPublic(doc);
+  parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+    employeeId: pub.employeeId,
+    workDate: pub.workDate,
+    status: pub.status,
+    locationId: pub.locationId,
+  });
   if (!options?.skipNotify) {
     await notify.notifyScheduleChange({
       scheduleId: pub.id,
@@ -131,6 +138,12 @@ export async function updateSchedule(
   await doc.save();
 
   const pub = toPublic(doc);
+  parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+    employeeId: pub.employeeId,
+    workDate: pub.workDate,
+    status: pub.status,
+    locationId: pub.locationId,
+  });
   if (!options?.skipNotify) {
     await notify.notifyScheduleChange({
       scheduleId: pub.id,
@@ -151,6 +164,12 @@ export async function deleteSchedule(id: string) {
   const doc = await Schedule.findByIdAndDelete(id);
   if (!doc) throw new AppError(404, "לוח לא נמצא", "NOT_FOUND");
   const pub = toPublic(doc);
+  parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+    employeeId: pub.employeeId,
+    workDate: pub.workDate,
+    status: pub.status,
+    locationId: pub.locationId,
+  });
   await notify.notifyScheduleChange({
     scheduleId: pub.id,
     employeeId: pub.employeeId,
@@ -339,7 +358,14 @@ export async function upsertBulkInternal(
         existing.aiBatchId = new mongoose.Types.ObjectId(item.aiBatchId) as unknown as Types.ObjectId & ScheduleDoc["aiBatchId"];
       }
       await existing.save();
-      results.push(toPublic(existing));
+      const pubExisting = toPublic(existing);
+      results.push(pubExisting);
+      parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+        employeeId: pubExisting.employeeId,
+        workDate: pubExisting.workDate,
+        status: pubExisting.status,
+        locationId: pubExisting.locationId,
+      });
     } else {
       const doc = await createSchedule(
         {

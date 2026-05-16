@@ -40,6 +40,12 @@ export async function listActiveForRange(fromIso: string, toIso: string) {
   return filterRulesForRange(docs as SchedulingRuleDoc[], fromIso, toIso);
 }
 
+export async function hasActiveRuleType(ruleType: SchedulingRuleType): Promise<boolean> {
+  const M = await model();
+  const n = await M.countDocuments({ ruleType, isActive: true });
+  return n > 0;
+}
+
 export async function createRule(input: {
   ruleType: SchedulingRuleType;
   payload: Record<string, unknown>;
@@ -106,6 +112,15 @@ function validatePayload(ruleType: SchedulingRuleType, payload: Record<string, u
     const n = payload.minManagers;
     if (typeof n !== "number" || n < 0 || n > 50) {
       throw new AppError(400, "minManagers לא תקין", "VALIDATION");
+    }
+  }
+  if (ruleType === "manager_office_auto_parking") {
+    if (payload == null || typeof payload !== "object") {
+      throw new AppError(400, "חובה לשלוח payload", "VALIDATION");
+    }
+    const keys = Object.keys(payload as object);
+    if (keys.length > 0) {
+      throw new AppError(400, "סוג חוק זה לא מקבל פרמטרים ב-payload", "VALIDATION");
     }
   }
 }

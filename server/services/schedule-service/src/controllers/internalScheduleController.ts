@@ -6,6 +6,7 @@ import * as aiBatch from "../services/scheduleAiBatchService.js";
 import * as cycleSvc from "../services/departmentPreferenceCycleService.js";
 import * as pref from "../services/attendancePreferenceService.js";
 import * as notify from "../services/notificationClient.js";
+import { enrichApplyRecommendationItems } from "../services/applyRecommendItemsEnrichment.js";
 
 export async function applyRecommendations(req: Request, res: Response) {
   const parsed = applyRecommendationsSchema.safeParse(req.body);
@@ -42,13 +43,30 @@ export async function applyRecommendations(req: Request, res: Response) {
     }
   }
 
-  const items = parsed.data.items.map((i) => ({
-    ...i,
-    updatedBy: adminUserId,
-    ...(scheduleSource === "ai" && batchId
-      ? { source: "ai" as const, aiBatchId: batchId }
-      : { source: "manual" as const }),
-  }));
+  const enrichedCore = await enrichApplyRecommendationItems(
+    parsed.data.items.map((i) => ({
+      employeeId: i.employeeId,
+      workDate: i.workDate,
+      status: i.status,
+      departmentId: i.departmentId,
+      locationId: i.locationId,
+      note: i.note,
+    })),
+    parsed.data.aiMeta
+  );
+
+  const items = enrichedCore.map((core, idx) => {
+    const i = parsed.data.items[idx]!;
+    return {
+      ...core,
+      note: core.note ?? i.note,
+      updatedBy: adminUserId,
+      ...(scheduleSource === "ai" && batchId
+        ? { source: "ai" as const, aiBatchId: batchId }
+        : { source: "manual" as const }),
+    };
+  });
+
   const results = await svc.upsertBulkInternal(items);
   if (batchId && scheduleSource === "ai") {
     const batch = await aiBatch.getLeanById(batchId);
