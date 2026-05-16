@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
 import {
   AppError,
+  AUTO_MANAGER_OFFICE_RESERVATION_NOTE,
   DB_NAMES,
   getConnection,
   getLocationModel,
   getParkingReservationModel,
   getParkingSpotModel,
+  isAppError,
+  logger,
   type LocationDoc,
   type ParkingReservationDoc,
   type ParkingSpotDoc,
@@ -276,4 +279,82 @@ export async function deleteReservation(
 
   await Reservation.deleteOne({ _id: doc._id });
   return { ok: true };
+}
+
+export async function releaseAutoManagerOfficeReservationsForDay(employeeId: string, workDateIso: string) {
+  const Reservation = await resModel();
+  await Reservation.deleteMany({
+    employeeId: new mongoose.Types.ObjectId(employeeId),
+    workDate: utcDay(workDateIso),
+    note: AUTO_MANAGER_OFFICE_RESERVATION_NOTE,
+  });
+}
+
+/**
+ * Drops system parking rows for this employee/day, then (if office+locationId) picks the first vacant spot —
+ * prefers unassigned guest spots before trying spots with permanent owners checked out via schedule.
+ */
+export async function syncAutoParkingFromScheduleAssignment(input: {
+  employeeId: string;
+  workDateIso: string;
+  status: string;
+  locationId?: string | null;
+}): Promise<{ released: boolean; reserved: boolean }> {
+  await releaseAutoManagerOfficeReservationsForDay(input.employeeId, input.workDateIso);
+
+  const locHex = typeof input.locationId === "string" ? input.locationId.trim() : "";
+  if (input.status !== "office" || locHex.length < 24) {
+    return { released: true, reserved: false };
+  }
+
+  const emp = await internalHttp.fetchEmployeeInternal(input.employeeId);
+  if (!emp || (emp.role !== "manager" && emp.role !== "admin")) {
+    return { released: true, reserved: false };
+  }
+
+  const ParkingSpot = await spotModel();
+  const oidLoc = new mongoose.Types.ObjectId(locHex);
+  const owned = await ParkingSpot.findOne({
+    locationId: oidLoc,
+    assignedEmployeeId: new mongoose.Types.ObjectId(input.employeeId),
+    isActive: true,
+  })
+    .select("_id")
+    .lean();
+
+  if (owned) return { released: true, reserved: false };
+
+  const docs = await ParkingSpot.find({ locationId: oidLoc, isActive: true })
+    .sort({ sortOrder: 1, label: 1 })
+    .lean();
+
+  const spotsRaw = docs as unknown as ParkingSpotDoc[];
+  const spotsOpen = spotsRaw.filter((s) => !s.assignedEmployeeId);
+  const spotsLinked = spotsRaw.filter((s) => !!s.assignedEmployeeId);
+  const ordered = [...spotsOpen, ...spotsLinked];
+
+  for (const spot of ordered) {
+    try {
+      await createReservation({
+        spotId: spot._id.toString(),
+        employeeId: input.employeeId,
+        workDate: input.workDateIso,
+        note: AUTO_MANAGER_OFFICE_RESERVATION_NOTE,
+        actorRole: "admin",
+        actorUserId: input.employeeId,
+      });
+      return { released: true, reserved: true };
+    } catch (e) {
+      if (isAppError(e) && (e.code === "OWNER_IN_OFFICE" || e.code === "CONFLICT")) continue;
+      logger.warn("auto manager parking reservation failed", {
+        employeeId: input.employeeId,
+        workDateIso: input.workDateIso,
+        spotId: String(spot._id),
+        err: String(e),
+      });
+      break;
+    }
+  }
+
+  return { released: true, reserved: false };
 }
