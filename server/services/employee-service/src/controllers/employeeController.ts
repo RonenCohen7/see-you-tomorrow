@@ -13,17 +13,14 @@ export async function list(req: AuthRequest, res: Response) {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new AppError(400, "שאילתה לא תקינה", "VALIDATION", parsed.error.flatten());
 
-  if (req.user.role === "employee") {
-    throw new AppError(403, "אין הרשאה", "FORBIDDEN");
-  }
-
   let scope: { role: typeof req.user.role; userId: string; departmentId?: string } | undefined;
-  if (req.user.role === "manager") {
+  if (req.user.role === "employee") {
+    const dept = await svc.getManagerDepartmentId(req.user.id);
+    scope = { role: "employee", userId: req.user.id, departmentId: dept };
+  } else if (req.user.role === "manager") {
     const dept = await svc.getManagerDepartmentId(req.user.id);
     scope = { role: "manager", userId: req.user.id, departmentId: dept };
-  }
-
-  if (req.user.role === "admin") {
+  } else if (req.user.role === "admin") {
     scope = undefined;
   }
 

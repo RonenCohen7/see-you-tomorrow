@@ -261,7 +261,7 @@ export async function listEmployees(
   const Employee = await getModel();
   const filter: Record<string, unknown> = {};
 
-  if (scope?.role === "manager") {
+  if (scope?.role === "manager" || scope?.role === "employee") {
     if (!scope.departmentId) {
       return {
         items: [],
