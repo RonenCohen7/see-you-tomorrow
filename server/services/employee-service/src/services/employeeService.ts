@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { Types } from "mongoose";
+import { Types, type HydratedDocument } from "mongoose";
 import {
   AppError,
   DB_NAMES,
@@ -43,17 +43,17 @@ export async function createEmployee(input: {
   fullName: string;
   email: string;
   password: string;
-  phone?: string;
+  phone: string;
   imageUrl?: string;
-  jobTitle?: string;
-  departmentId?: string;
+  jobTitle: string;
+  departmentId: string;
   locationId?: string;
   managerId?: string;
   role?: Role;
   isActive?: boolean;
-  birthDate?: string;
-  address?: string;
-  maritalStatus?: MaritalStatus | "";
+  birthDate: string;
+  address: string;
+  maritalStatus: MaritalStatus;
   emergencyContact?: string;
   notes?: string;
 }) {
@@ -74,13 +74,111 @@ export async function createEmployee(input: {
     managerId: input.managerId,
     role: input.role ?? "employee",
     isActive: input.isActive ?? true,
-    birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
+    birthDate: new Date(input.birthDate),
     address: input.address,
-    maritalStatus: input.maritalStatus || undefined,
+    maritalStatus: input.maritalStatus,
     emergencyContact: input.emergencyContact,
     notes: input.notes,
   });
   return toPublic(doc);
+}
+
+/** Row shape accepted by bulk import (no password — added when creating only). */
+type BulkEmployeeRow = Omit<Parameters<typeof createEmployee>[0], "password">;
+
+/**
+ * Merge validated CSV row into an existing employee.
+ * Rules: email/_id untouched; birthDate never overwritten once stored;
+ * optional empty/absent CSV fields do not wipe DB values (only explicit non-empty updates apply where implemented).
+ */
+function mergeBulkRowIntoExisting(doc: HydratedDocument<EmployeeDoc>, row: BulkEmployeeRow): boolean {
+  let changed = false;
+
+  const fullName = row.fullName.trim();
+  if (fullName && doc.fullName !== fullName) {
+    doc.fullName = fullName;
+    changed = true;
+  }
+
+  const phone = row.phone.trim();
+  if (phone && (doc.phone?.trim() ?? "") !== phone) {
+    doc.phone = phone;
+    changed = true;
+  }
+
+  const address = row.address.trim();
+  if (address && (doc.address?.trim() ?? "") !== address) {
+    doc.address = address;
+    changed = true;
+  }
+
+  const jobTitle = row.jobTitle.trim();
+  if (jobTitle && (doc.jobTitle?.trim() ?? "") !== jobTitle) {
+    doc.jobTitle = jobTitle;
+    changed = true;
+  }
+
+  if (doc.maritalStatus !== row.maritalStatus) {
+    doc.maritalStatus = row.maritalStatus;
+    changed = true;
+  }
+
+  const rowDept = row.departmentId.trim();
+  if (rowDept && doc.departmentId?.toString() !== rowDept) {
+    doc.departmentId = new Types.ObjectId(rowDept);
+    changed = true;
+  }
+
+  if (!doc.birthDate && row.birthDate) {
+    doc.birthDate = new Date(row.birthDate);
+    changed = true;
+  }
+
+  if (row.locationId) {
+    const v = row.locationId.trim();
+    if (v && doc.locationId?.toString() !== v) {
+      doc.locationId = new Types.ObjectId(v);
+      changed = true;
+    }
+  }
+
+  if (row.managerId) {
+    const v = row.managerId.trim();
+    if (v && doc.managerId?.toString() !== v) {
+      doc.managerId = new Types.ObjectId(v);
+      changed = true;
+    }
+  }
+
+  if (row.role !== undefined && row.role !== doc.role) {
+    doc.role = row.role;
+    changed = true;
+  }
+
+  if (row.isActive !== undefined && row.isActive !== doc.isActive) {
+    doc.isActive = row.isActive;
+    changed = true;
+  }
+
+  if (row.emergencyContact !== undefined) {
+    const next = row.emergencyContact.trim();
+    const cur = doc.emergencyContact?.trim() ?? "";
+    if (next !== cur) {
+      doc.emergencyContact = next || undefined;
+      changed = true;
+    }
+  }
+
+  if (row.notes !== undefined) {
+    const next = row.notes.trim();
+    const cur = doc.notes?.trim() ?? "";
+    if (next !== cur) {
+      doc.notes = next || undefined;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 export type BulkImportEmployeeError = {
@@ -95,12 +193,14 @@ export async function importEmployeesBulk(input: {
   rows: Array<Omit<Parameters<typeof createEmployee>[0], "password">>;
 }): Promise<{
   created: number;
-  skippedExisting: number;
+  updatedExisting: number;
+  unchangedExisting: number;
   skippedInvalid: number;
   errors: BulkImportEmployeeError[];
 }> {
   let created = 0;
-  let skippedExisting = 0;
+  let updatedExisting = 0;
+  let unchangedExisting = 0;
   let skippedInvalid = 0;
   const errors: BulkImportEmployeeError[] = [];
   const seenInFile = new Set<string>();
@@ -136,9 +236,25 @@ export async function importEmployeesBulk(input: {
     }
     seenInFile.add(emailNorm);
 
-    const exists = await Employee.findOne({ email: emailNorm }).select("_id").lean();
-    if (exists) {
-      skippedExisting++;
+    const existingDoc = await Employee.findOne({ email: emailNorm });
+    if (existingDoc) {
+      try {
+        const rowPayload: BulkEmployeeRow = { ...row, fullName: fullNameTrimmed, email: emailNorm };
+        if (mergeBulkRowIntoExisting(existingDoc, rowPayload)) {
+          await existingDoc.save();
+          updatedExisting++;
+        } else {
+          unchangedExisting++;
+        }
+      } catch (e: unknown) {
+        skippedInvalid++;
+        errors.push({
+          row: rowNum,
+          email: row.email,
+          code: "MERGE_FAILED",
+          message: isAppError(e) ? e.message : "שגיאה בעדכון עובד קיים",
+        });
+      }
       continue;
     }
 
@@ -151,17 +267,35 @@ export async function importEmployeesBulk(input: {
       });
       created++;
     } catch (e: unknown) {
-      if (isAppError(e) && e.code === "EMAIL_EXISTS") {
-        skippedExisting++;
-        continue;
-      }
-      const dup =
-        typeof e === "object" &&
-        e !== null &&
-        "code" in e &&
-        Number((e as { code: unknown }).code) === 11000;
-      if (dup) {
-        skippedExisting++;
+      if (
+        (isAppError(e) && e.code === "EMAIL_EXISTS") ||
+        (typeof e === "object" &&
+          e !== null &&
+          "code" in e &&
+          Number((e as { code: unknown }).code) === 11000)
+      ) {
+        const late = await Employee.findOne({ email: emailNorm });
+        if (!late) {
+          unchangedExisting++;
+          continue;
+        }
+        try {
+          const rowPayload: BulkEmployeeRow = { ...row, fullName: fullNameTrimmed, email: emailNorm };
+          if (mergeBulkRowIntoExisting(late, rowPayload)) {
+            await late.save();
+            updatedExisting++;
+          } else {
+            unchangedExisting++;
+          }
+        } catch (inner: unknown) {
+          skippedInvalid++;
+          errors.push({
+            row: rowNum,
+            email: row.email,
+            code: "MERGE_FAILED",
+            message: isAppError(inner) ? inner.message : "שגיאה בעדכון עובד קיים לאחר התנגשות",
+          });
+        }
         continue;
       }
       skippedInvalid++;
@@ -175,7 +309,7 @@ export async function importEmployeesBulk(input: {
     }
   }
 
-  return { created, skippedExisting, skippedInvalid, errors };
+  return { created, updatedExisting, unchangedExisting, skippedInvalid, errors };
 }
 
 export async function updateEmployee(

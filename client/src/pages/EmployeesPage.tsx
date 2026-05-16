@@ -1,6 +1,7 @@
 import {
   Alert,
   Avatar,
+  Backdrop,
   Box,
   Button,
   Card,
@@ -23,18 +24,24 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
   TextField,
   Tooltip,
   Typography,
   CircularProgress,
+  Checkbox,
+  FormControlLabel,
   Link,
+  Tab,
+  Tabs,
   alpha,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import EmployeesIcon from "@mui/icons-material/PeopleAlt";
+import AssessmentOutlined from "@mui/icons-material/AssessmentOutlined";
 import EmailIcon from "@mui/icons-material/EmailOutlined";
 import PhoneIcon from "@mui/icons-material/PhoneOutlined";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
@@ -55,8 +62,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import EmergencyIcon from "@mui/icons-material/MedicalServices";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import FileDownloadOutlined from "@mui/icons-material/FileDownloadOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
@@ -64,10 +72,18 @@ import type { Employee, MaritalStatus } from "../types/models";
 import { useRole } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 import {
+  applyUnmappedExtrasToNotes,
+  csvImportNeedsNotesConsent,
   parseEmployeesCsv,
   type BulkImportEmployeePayload,
+  type CsvAdaptation,
   type CsvParseIssue,
 } from "../utils/employeesCsvImport";
+import {
+  employeeMissingRequiredFields,
+  type EmployeeRequiredFieldKey,
+} from "../utils/employeeRequirements";
+import { downloadCsv } from "../utils/csvDownload";
 import { fileToResizedJpegDataUrl } from "../utils/imageResize";
 
 const MARITAL_STATUSES: MaritalStatus[] = ["single", "married", "divorced", "widowed", "partner"];
@@ -110,6 +126,22 @@ const emptyForm: FormState = {
   emergencyContact: "",
   notes: "",
 };
+
+function isEmployeeFormComplete(form: FormState, isEdit: boolean): boolean {
+  const oidDept = /^[a-f\d]{24}$/i.test(form.departmentId.trim());
+  const passOk = isEdit || form.password.trim().length >= 8;
+  return (
+    !!form.fullName.trim() &&
+    !!form.email.trim() &&
+    !!form.birthDate &&
+    !!form.phone.trim() &&
+    !!form.address.trim() &&
+    !!form.maritalStatus &&
+    !!form.jobTitle.trim() &&
+    oidDept &&
+    passOk
+  );
+}
 
 function initials(name: string): string {
   return name
@@ -164,15 +196,51 @@ function skypeHref(phone: string): string {
 
 type BulkImportApiResult = {
   created: number;
-  skippedExisting: number;
+  updatedExisting: number;
+  unchangedExisting: number;
   skippedInvalid: number;
   errors: { row: number; email?: string; code: string; message: string }[];
 };
 
+/** Canonical column order for re-editing / re-import spreadsheets. */
+const BULK_IMPORT_CSV_HEADERS: readonly string[] = [
+  "fullName",
+  "email",
+  "birthDate",
+  "phone",
+  "address",
+  "maritalStatus",
+  "jobTitle",
+  "departmentId",
+  "role",
+  "isActive",
+  "locationId",
+  "managerId",
+  "emergencyContact",
+  "notes",
+];
+
+function bulkImportRowsToCsvRows(rows: BulkImportEmployeePayload[]): Record<string, string>[] {
+  return rows.map((r) => ({
+    fullName: r.fullName,
+    email: r.email,
+    birthDate: r.birthDate,
+    phone: r.phone,
+    address: r.address,
+    maritalStatus: r.maritalStatus,
+    jobTitle: r.jobTitle,
+    departmentId: r.departmentId,
+    role: r.role ?? "",
+    isActive: r.isActive !== undefined ? String(r.isActive) : "",
+    locationId: r.locationId ?? "",
+    managerId: r.managerId ?? "",
+    emergencyContact: r.emergencyContact ?? "",
+    notes: r.notes ?? "",
+  }));
+}
+
 function csvIssueDetail(issue: CsvParseIssue, tr: TFunction): string {
   switch (issue.code) {
-    case "INVALID_OBJECT_ID":
-      return tr("employeesCsvIssue_INVALID_OBJECT_ID", { field: issue.field });
     case "MISSING_REQUIRED":
       return tr("employeesCsvIssue_MISSING_REQUIRED");
     case "INVALID_EMAIL":
@@ -185,6 +253,31 @@ function csvIssueDetail(issue: CsvParseIssue, tr: TFunction): string {
       return tr("employeesCsvIssue_INVALID_BIRTHDATE");
     case "INVALID_ISACTIVE":
       return tr("employeesCsvIssue_INVALID_ISACTIVE");
+    case "MISSING_REQUIRED_FIELD":
+      return tr("employeesCsvIssue_MISSING_REQUIRED_FIELD", {
+        field: tr(`employeeRequiredField.${issue.field}`),
+      });
+    case "INVALID_REFERENCE_ID":
+      return tr("employeesCsvIssue_INVALID_REFERENCE_ID", {
+        field: tr(`employeeRequiredField.${issue.field}`),
+      });
+  }
+}
+
+function csvAdaptationLine(a: CsvAdaptation, tr: TFunction): string {
+  switch (a.kind) {
+    case "header_alias":
+      return tr("employeesCsvAdaptation_header_alias", { from: a.from, to: a.to });
+    case "birthdate_reformatted":
+      return tr("employeesCsvAdaptation_birthdate", { row: a.row, from: a.from, to: a.to });
+    case "marital_mapped":
+      return tr("employeesCsvAdaptation_marital", { row: a.row, from: a.from, to: a.to });
+    case "role_mapped":
+      return tr("employeesCsvAdaptation_role", { row: a.row, from: a.from, to: a.to });
+    case "deferred_reference_column":
+      return tr("employeesCsvAdaptation_deferred_column", { column: a.column });
+    case "unmapped_column":
+      return tr("employeesCsvAdaptation_unmapped_column", { column: a.column });
   }
 }
 
@@ -210,10 +303,27 @@ export default function EmployeesPage() {
   const [csvFileLabel, setCsvFileLabel] = useState("");
   const [csvIssues, setCsvIssues] = useState<CsvParseIssue[]>([]);
   const [csvParserMessages, setCsvParserMessages] = useState<string[]>([]);
-  const [csvMissingCols, setCsvMissingCols] = useState(false);
+  const [csvMissingRequiredColumns, setCsvMissingRequiredColumns] = useState<EmployeeRequiredFieldKey[]>([]);
   const [csvSummaryOpen, setCsvSummaryOpen] = useState(false);
   const [csvSummary, setCsvSummary] = useState<BulkImportApiResult | null>(null);
+  const [csvLastImportRows, setCsvLastImportRows] = useState<BulkImportEmployeePayload[]>([]);
+  const [csvScanningFile, setCsvScanningFile] = useState(false);
+  const [csvExtrasPerRow, setCsvExtrasPerRow] = useState<Record<string, string>[]>([]);
+  const [csvAdaptations, setCsvAdaptations] = useState<CsvAdaptation[]>([]);
+  const [csvNotesConsentApproved, setCsvNotesConsentApproved] = useState(false);
+  const [reportsDialogOpen, setReportsDialogOpen] = useState(false);
+  const [reportsTab, setReportsTab] = useState(0);
   const csvFileInputRef = useRef<HTMLInputElement>(null);
+
+  const csvNeedsNotesConsent = useMemo(() => csvImportNeedsNotesConsent(csvExtrasPerRow), [csvExtrasPerRow]);
+
+  const reportEmployeesQ = useQuery({
+    queryKey: ["employees-compliance-list"],
+    queryFn: async () =>
+      (await api.get<{ items: Employee[]; total: number }>("/api/employees?page=1&limit=2500")).data.items,
+    enabled: reportsDialogOpen && canWrite,
+    staleTime: 30_000,
+  });
 
   const q = useQuery({
     queryKey: ["employees", page, pageSize, search, activeOnly],
@@ -244,20 +354,20 @@ export default function EmployeesPage() {
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = {
-        fullName: form.fullName,
-        email: form.email,
-        phone: form.phone || undefined,
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
         imageUrl: form.imageUrl || undefined,
-        jobTitle: form.jobTitle || undefined,
-        departmentId: form.departmentId || undefined,
-        locationId: form.locationId || undefined,
+        jobTitle: form.jobTitle.trim(),
+        departmentId: form.departmentId.trim(),
+        locationId: form.locationId.trim() || undefined,
         role: form.role,
         isActive: form.isActive,
-        birthDate: form.birthDate || undefined,
-        address: form.address || undefined,
-        maritalStatus: form.maritalStatus || undefined,
-        emergencyContact: form.emergencyContact || undefined,
-        notes: form.notes || undefined,
+        birthDate: form.birthDate,
+        address: form.address.trim(),
+        maritalStatus: form.maritalStatus,
+        emergencyContact: form.emergencyContact.trim() || undefined,
+        notes: form.notes.trim() || undefined,
       };
       if (editingId) {
         if (form.password) payload.password = form.password;
@@ -272,6 +382,7 @@ export default function EmployeesPage() {
       setEditingId(null);
       setForm(emptyForm);
       await qc.invalidateQueries({ queryKey: ["employees"] });
+      await qc.invalidateQueries({ queryKey: ["employees-compliance-list"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -299,17 +410,39 @@ export default function EmployeesPage() {
   const importBulkMut = useMutation({
     mutationFn: async (payload: { defaultPassword: string; rows: BulkImportEmployeePayload[] }) =>
       (await api.post<BulkImportApiResult>("/api/employees/import-bulk", payload)).data,
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       setCsvSummary(data);
+      setCsvLastImportRows([...variables.rows]);
       setCsvSummaryOpen(true);
       setCsvDialogOpen(false);
+      setToast({ msg: t("employeesCsvSuccessImportToast"), ok: true });
       setCsvPassword("");
       setCsvPreparedRows(null);
       setCsvFileLabel("");
       setCsvIssues([]);
       setCsvParserMessages([]);
-      setCsvMissingCols(false);
+      setCsvMissingRequiredColumns([]);
+      setCsvExtrasPerRow([]);
+      setCsvAdaptations([]);
+      setCsvNotesConsentApproved(false);
       await qc.invalidateQueries({ queryKey: ["employees"] });
+      await qc.invalidateQueries({ queryKey: ["employees-compliance-list"] });
+    },
+    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+  });
+
+  const bulkApplyActiveStatusesMut = useMutation({
+    mutationFn: async (changes: readonly { id: string; isActive: boolean }[]) => {
+      await Promise.all(
+        changes.map(({ id, isActive }) =>
+          api.put<Employee>(`/api/employees/${id}`, { isActive }),
+        ),
+      );
+    },
+    onSuccess: async (_, vars) => {
+      setToast({ msg: t("employeesReportActiveApplied", { count: vars.length }), ok: true });
+      await qc.invalidateQueries({ queryKey: ["employees"] });
+      await qc.invalidateQueries({ queryKey: ["employees-compliance-list"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -325,19 +458,44 @@ export default function EmployeesPage() {
     setCsvFileLabel("");
     setCsvIssues([]);
     setCsvParserMessages([]);
-    setCsvMissingCols(false);
+    setCsvMissingRequiredColumns([]);
+    setCsvExtrasPerRow([]);
+    setCsvAdaptations([]);
+    setCsvNotesConsentApproved(false);
+    setCsvScanningFile(false);
+    setCsvLastImportRows([]);
   }
 
   function handleCsvFilePick(file: File) {
     setCsvFileLabel(file.name);
+    setCsvScanningFile(true);
+    setCsvPreparedRows(null);
+    setCsvIssues([]);
+    setCsvParserMessages([]);
+    setCsvMissingRequiredColumns([]);
+    setCsvExtrasPerRow([]);
+    setCsvAdaptations([]);
+    setCsvNotesConsentApproved(false);
     const reader = new FileReader();
+    reader.onerror = () => {
+      setCsvScanningFile(false);
+      setToast({ msg: t("employeesCsvImportReadFailed"), ok: false });
+    };
     reader.onload = () => {
       const text = String(reader.result ?? "");
-      const parsed = parseEmployeesCsv(text, MARITAL_STATUSES);
-      setCsvMissingCols(parsed.missingColumns);
-      setCsvParserMessages(parsed.parserMessages);
-      setCsvIssues(parsed.issues);
-      setCsvPreparedRows(parsed.rows);
+      queueMicrotask(() => {
+        try {
+          const parsed = parseEmployeesCsv(text, MARITAL_STATUSES);
+          setCsvMissingRequiredColumns([...parsed.missingRequiredColumns]);
+          setCsvParserMessages(parsed.parserMessages);
+          setCsvIssues(parsed.issues);
+          setCsvPreparedRows(parsed.rows);
+          setCsvExtrasPerRow(parsed.extrasPerRow);
+          setCsvAdaptations(parsed.adaptations);
+        } finally {
+          setCsvScanningFile(false);
+        }
+      });
     };
     reader.readAsText(file, "UTF-8");
   }
@@ -396,7 +554,17 @@ export default function EmployeesPage() {
           )}
         </Stack>
         {canWrite && (
-          <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+          <Stack direction="row" sx={{ flexShrink: 0, gap: 2 }} alignItems="center">
+            <Tooltip title={t("employeesReportsTooltip")} placement="left" arrow disableInteractive>
+              <Button
+                variant="outlined"
+                onClick={() => setReportsDialogOpen(true)}
+                sx={{ minWidth: 44, px: 1.25, py: 1, borderRadius: 999 }}
+                aria-label={t("employeesReportsTooltip")}
+              >
+                <AssessmentOutlined />
+              </Button>
+            </Tooltip>
             <Tooltip title={t("employeesCsvImportTooltip")} placement="left" arrow disableInteractive>
               <Button
                 variant="outlined"
@@ -565,11 +733,28 @@ export default function EmployeesPage() {
         departments={deptsQ.data ?? []}
         locations={locsQ.data ?? []}
         isPending={saveMut.isPending}
+        isSaveDisabled={!isEmployeeFormComplete(form, !!editingId) || saveMut.isPending}
         onClose={() => {
           setFormOpen(false);
           setEditingId(null);
         }}
         onSubmit={() => saveMut.mutate()}
+      />
+
+      <EmployeesReportsDialog
+        open={reportsDialogOpen}
+        onClose={() => setReportsDialogOpen(false)}
+        tab={reportsTab}
+        onTabChange={setReportsTab}
+        items={reportEmployeesQ.data ?? []}
+        isLoading={reportEmployeesQ.isPending}
+        deptNames={deptMap}
+        onEdit={(emp) => {
+          setReportsDialogOpen(false);
+          openEdit(emp);
+        }}
+        onBulkApplyActiveStatuses={(changes) => bulkApplyActiveStatusesMut.mutateAsync(changes)}
+        isApplyingActiveStatuses={bulkApplyActiveStatusesMut.isPending}
       />
 
       <input
@@ -585,10 +770,26 @@ export default function EmployeesPage() {
         }}
       />
 
+      <Backdrop
+        open={csvScanningFile || importBulkMut.isPending}
+        sx={{
+          color: "#fff",
+          zIndex: (th) => th.zIndex.modal + 10,
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        <CircularProgress color="inherit" />
+        <Typography variant="body1">
+          {importBulkMut.isPending ? t("employeesCsvBackdropUploading") : t("employeesCsvBackdropScanning")}
+        </Typography>
+      </Backdrop>
+
       <Dialog
         open={csvDialogOpen}
         onClose={() => {
-          if (!importBulkMut.isPending) setCsvDialogOpen(false);
+          if (importBulkMut.isPending || csvScanningFile) return;
+          setCsvDialogOpen(false);
         }}
         fullWidth
         maxWidth="sm"
@@ -599,6 +800,11 @@ export default function EmployeesPage() {
             <Alert severity="warning">
               <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                 {t("employeesCsvImportWarning")}
+              </Typography>
+            </Alert>
+            <Alert severity="info" sx={{ alignItems: "flex-start" }}>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                {t("employeesCsvBulkMergeExplain")}
               </Typography>
             </Alert>
             <TextField
@@ -616,7 +822,7 @@ export default function EmployeesPage() {
             <Button
               variant="outlined"
               onClick={() => csvFileInputRef.current?.click()}
-              disabled={importBulkMut.isPending}
+              disabled={importBulkMut.isPending || csvScanningFile}
             >
               {t("employeesCsvImportChooseFile")}
             </Button>
@@ -630,8 +836,17 @@ export default function EmployeesPage() {
                   : csvFileLabel}
               </Typography>
             ) : null}
-            {csvMissingCols ? (
-              <Alert severity="error">{t("employeesCsvIssue_MISSING_COLUMNS")}</Alert>
+            {csvMissingRequiredColumns.length ? (
+              <Alert severity="error">
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  {t("employeesCsvMissingHeadersIntro")}
+                </Typography>
+                {csvMissingRequiredColumns.map((col) => (
+                  <Typography key={col} variant="caption" display="block">
+                    · {t(`employeeRequiredField.${col}`)}
+                  </Typography>
+                ))}
+              </Alert>
             ) : null}
             {csvParserMessages.length ? (
               <Alert severity="error">
@@ -656,27 +871,92 @@ export default function EmployeesPage() {
                 </Box>
               </Alert>
             ) : null}
+            {csvPreparedRows?.length &&
+            !csvIssues.length &&
+            !csvMissingRequiredColumns.length &&
+            csvAdaptations.filter((ad) => ad.kind !== "unmapped_column" && ad.kind !== "deferred_reference_column").length >
+              0 ? (
+              <Alert severity="info" sx={{ alignItems: "flex-start" }}>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  {t("employeesCsvAdaptationsTitle")}
+                </Typography>
+                <Box sx={{ maxHeight: 160, overflow: "auto", pr: 0.5 }}>
+                  {csvAdaptations
+                    .filter((ad) => ad.kind !== "unmapped_column" && ad.kind !== "deferred_reference_column")
+                    .slice(0, 48)
+                    .map((ad, i) => (
+                      <Typography key={`${ad.kind}-${i}`} variant="caption" display="block">
+                        {csvAdaptationLine(ad, t)}
+                      </Typography>
+                    ))}
+                </Box>
+              </Alert>
+            ) : null}
+            {csvAdaptations.some((ad) => ad.kind === "unmapped_column" || ad.kind === "deferred_reference_column") ? (
+              <Alert severity="warning" sx={{ alignItems: "flex-start" }}>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  {t("employeesCsvExtraColumnsIntro")}
+                </Typography>
+                <Box sx={{ maxHeight: 120, overflow: "auto" }}>
+                  {[...csvAdaptations]
+                    .filter((ad) => ad.kind === "unmapped_column" || ad.kind === "deferred_reference_column")
+                    .map((ad, i) => (
+                      <Typography key={`${ad.kind}-${i}`} variant="caption" display="block">
+                        {csvAdaptationLine(ad, t)}
+                      </Typography>
+                    ))}
+                </Box>
+              </Alert>
+            ) : null}
+            {csvNeedsNotesConsent ? (
+              <FormControlLabel
+                sx={{ alignItems: "flex-start", ml: 0 }}
+                control={
+                  <Checkbox
+                    checked={csvNotesConsentApproved}
+                    onChange={(e) => setCsvNotesConsentApproved(e.target.checked)}
+                    sx={{ pt: 0.25 }}
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2">{t("employeesCsvNotesConsentLabel")}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {t("employeesCsvNotesConsentHint")}
+                    </Typography>
+                  </Box>
+                }
+              />
+            ) : null}
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button disabled={importBulkMut.isPending} onClick={() => setCsvDialogOpen(false)}>
+          <Button
+            disabled={importBulkMut.isPending || csvScanningFile}
+            onClick={() => setCsvDialogOpen(false)}
+          >
             {t("cancel")}
           </Button>
           <Button
             variant="contained"
             disabled={
               importBulkMut.isPending ||
+              csvScanningFile ||
               csvPassword.trim().length < 8 ||
               !csvPreparedRows?.length ||
               csvIssues.length > 0 ||
-              csvMissingCols ||
-              csvParserMessages.length > 0
+              csvMissingRequiredColumns.length > 0 ||
+              csvParserMessages.length > 0 ||
+              (csvNeedsNotesConsent && !csvNotesConsentApproved)
             }
             onClick={() => {
               if (!csvPreparedRows?.length || csvPassword.trim().length < 8) return;
+              const rowsToImport = csvNeedsNotesConsent
+                ? applyUnmappedExtrasToNotes(csvPreparedRows, csvExtrasPerRow)
+                : csvPreparedRows;
               importBulkMut.mutate({
                 defaultPassword: csvPassword.trim(),
-                rows: csvPreparedRows,
+                rows: rowsToImport,
               });
             }}
           >
@@ -690,12 +970,52 @@ export default function EmployeesPage() {
         <DialogContent>
           <Stack spacing={1}>
             <Typography>{t("employeesCsvSummaryCreated", { count: csvSummary?.created ?? 0 })}</Typography>
+            <Typography>{t("employeesCsvSummaryUpdatedExisting", { count: csvSummary?.updatedExisting ?? 0 })}</Typography>
             <Typography>
-              {t("employeesCsvSummarySkippedExisting", { count: csvSummary?.skippedExisting ?? 0 })}
+              {t("employeesCsvSummaryUnchangedExisting", { count: csvSummary?.unchangedExisting ?? 0 })}
             </Typography>
             <Typography>
               {t("employeesCsvSummarySkippedInvalid", { count: csvSummary?.skippedInvalid ?? 0 })}
             </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<FileDownloadOutlined />}
+                disabled={csvLastImportRows.length === 0}
+                onClick={() =>
+                  downloadCsv(
+                    `employees-import-${Date.now()}.csv`,
+                    BULK_IMPORT_CSV_HEADERS,
+                    bulkImportRowsToCsvRows(csvLastImportRows)
+                  )
+                }
+              >
+                {t("employeesCsvSummaryDownloadSentRows")}
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<FileDownloadOutlined />}
+                disabled={!(csvSummary?.errors?.length ?? 0)}
+                onClick={() => {
+                  const errRows =
+                    csvSummary?.errors.map((er) => ({
+                      row: String(er.row),
+                      email: er.email ?? "",
+                      code: er.code,
+                      message: er.message,
+                    })) ?? [];
+                  downloadCsv(
+                    `employees-import-errors-${Date.now()}.csv`,
+                    ["row", "email", "code", "message"],
+                    errRows
+                  );
+                }}
+              >
+                {t("employeesCsvSummaryDownloadErrors")}
+              </Button>
+            </Stack>
             {(csvSummary?.errors?.length ?? 0) > 0 ? (
               <>
                 <Typography sx={{ mt: 1 }} variant="subtitle2">
@@ -1388,6 +1708,319 @@ function ContactRow({
   );
 }
 
+function EmployeesReportsDialog({
+  open,
+  onClose,
+  tab,
+  onTabChange,
+  items,
+  isLoading,
+  deptNames,
+  onEdit,
+  onBulkApplyActiveStatuses,
+  isApplyingActiveStatuses,
+}: {
+  open: boolean;
+  onClose: () => void;
+  tab: number;
+  onTabChange: (tab: number) => void;
+  items: Employee[];
+  isLoading: boolean;
+  deptNames: Map<string, string>;
+  onEdit: (employee: Employee) => void;
+  onBulkApplyActiveStatuses: (changes: readonly { id: string; isActive: boolean }[]) => Promise<void>;
+  isApplyingActiveStatuses: boolean;
+}) {
+  const { t } = useTranslation();
+  const seedDoneRef = useRef(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftActiveById, setDraftActiveById] = useState<Record<string, boolean>>({});
+  const [baselineActiveById, setBaselineActiveById] = useState<Record<string, boolean>>({});
+  const [keepActiveSwitchIds, setKeepActiveSwitchIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (!open) {
+      seedDoneRef.current = false;
+      setDraftReady(false);
+      setDraftActiveById({});
+      setBaselineActiveById({});
+      setKeepActiveSwitchIds(new Set());
+    }
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || isLoading || seedDoneRef.current) return;
+    seedDoneRef.current = true;
+    const next: Record<string, boolean> = {};
+    for (const e of items) next[e.id] = e.isActive;
+    setDraftActiveById(next);
+    setBaselineActiveById(next);
+    setKeepActiveSwitchIds(new Set());
+    setDraftReady(true);
+  }, [open, isLoading, items]);
+
+  const incomplete = useMemo(
+    () =>
+      items
+        .filter((e) => employeeMissingRequiredFields(e).length > 0)
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: "base" })),
+    [items],
+  );
+
+  const allSorted = useMemo(
+    () => [...items].sort((a, b) => a.fullName.localeCompare(b.fullName, undefined, { sensitivity: "base" })),
+    [items],
+  );
+
+  const hasUnsavedActiveChanges = useMemo(() => {
+    if (!draftReady) return false;
+    return items.some((emp) => {
+      const d = draftActiveById[emp.id] ?? emp.isActive;
+      const b = baselineActiveById[emp.id] ?? emp.isActive;
+      return d !== b;
+    });
+  }, [draftReady, items, draftActiveById, baselineActiveById]);
+
+  const activeStatusChanges = useMemo(() => {
+    if (!draftReady) return [];
+    return items
+      .map((emp) => {
+        const d = draftActiveById[emp.id] ?? emp.isActive;
+        const b = baselineActiveById[emp.id] ?? emp.isActive;
+        return { id: emp.id, isActiveDraft: d, baseline: b };
+      })
+      .filter((row) => row.isActiveDraft !== row.baseline)
+      .map((row) => ({ id: row.id, isActive: row.isActiveDraft }));
+  }, [draftReady, items, draftActiveById, baselineActiveById]);
+
+  const requestCloseDialog = () => {
+    if (hasUnsavedActiveChanges && !window.confirm(t("employeesReportActiveDiscardConfirm"))) return;
+    onClose();
+  };
+
+  async function commitActiveStatuses() {
+    const snapshot = activeStatusChanges;
+    if (snapshot.length === 0) return;
+    try {
+      await onBulkApplyActiveStatuses(snapshot);
+      setBaselineActiveById((b) => {
+        const merged = { ...b };
+        for (const row of snapshot) merged[row.id] = row.isActive;
+        return merged;
+      });
+    } catch {
+      /* toast handled in mutation */
+    }
+  }
+
+  function deactivateAllExceptPinnedActive() {
+    setDraftActiveById((prev) => {
+      const next = { ...prev };
+      for (const emp of allSorted) {
+        next[emp.id] = keepActiveSwitchIds.has(emp.id);
+      }
+      return next;
+    });
+  }
+
+  function isDraftActiveFor(emp: Employee): boolean {
+    if (!draftReady) return emp.isActive;
+    return draftActiveById[emp.id] ?? emp.isActive;
+  }
+
+  return (
+    <Dialog open={open} onClose={requestCloseDialog} fullWidth maxWidth="md">
+      <DialogTitle>{t("employeesReportsTitle")}</DialogTitle>
+      <DialogContent sx={{ pt: 0 }}>
+        <Tabs value={tab} onChange={(_, v) => onTabChange(v)} sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
+          <Tab label={t("employeesReportTabIncomplete")} />
+          <Tab label={t("employeesReportTabActiveStatus")} />
+        </Tabs>
+        {!isLoading ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<FileDownloadOutlined />}
+              disabled={incomplete.length === 0}
+              onClick={() => {
+                const headers = ["id", "fullName", "email", "departmentId", "departmentName", "missingFields"];
+                const rows = incomplete.map((emp) => ({
+                  id: emp.id,
+                  fullName: emp.fullName,
+                  email: emp.email,
+                  departmentId: emp.departmentId ?? "",
+                  departmentName: emp.departmentId ? (deptNames.get(emp.departmentId) ?? "") : "",
+                  missingFields: employeeMissingRequiredFields(emp).join(";"),
+                }));
+                downloadCsv(`employees-missing-required-${Date.now()}.csv`, headers, rows);
+              }}
+            >
+              {t("employeesReportsDownloadIncomplete")}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<FileDownloadOutlined />}
+              disabled={allSorted.length === 0 || !draftReady}
+              onClick={() => {
+                const headers = ["id", "fullName", "email", "departmentId", "departmentName", "isActive"];
+                const rows = allSorted.map((emp) => ({
+                  id: emp.id,
+                  fullName: emp.fullName,
+                  email: emp.email,
+                  departmentId: emp.departmentId ?? "",
+                  departmentName: emp.departmentId ? (deptNames.get(emp.departmentId) ?? "") : "",
+                  isActive: isDraftActiveFor(emp) ? "true" : "false",
+                }));
+                downloadCsv(`employees-active-status-${Date.now()}.csv`, headers, rows);
+              }}
+            >
+              {t("employeesReportsDownloadActive")}
+            </Button>
+          </Stack>
+        ) : null}
+        {tab === 1 && !isLoading && draftReady && allSorted.length > 0 ? (
+          <>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                {t("employeesReportActiveDraftHint")}
+              </Typography>
+            </Alert>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} sx={{ mb: 2 }}>
+              <Tooltip title={t("employeesReportDeactivateExceptKeptTooltip")} arrow>
+                <Box component="span" sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    size="small"
+                    disabled={allSorted.length === 0 || isApplyingActiveStatuses}
+                    onClick={deactivateAllExceptPinnedActive}
+                  >
+                    {t("employeesReportDeactivateExceptKeptButton")}
+                  </Button>
+                </Box>
+              </Tooltip>
+              <Typography variant="caption" color="text.secondary" sx={{ maxWidth: { sm: "70%" }, lineHeight: 1.5 }}>
+                {t("employeesReportKeepActiveCaption")}
+              </Typography>
+            </Stack>
+          </>
+        ) : null}
+        {isLoading ? (
+          <Stack alignItems="center" py={6}>
+            <CircularProgress />
+          </Stack>
+        ) : tab === 0 ? (
+          incomplete.length === 0 ? (
+            <Typography color="text.secondary">{t("employeesReportIncompleteEmpty")}</Typography>
+          ) : (
+            <TableContainer sx={{ maxHeight: 440 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{t("employeesReportIncompleteColName")}</TableCell>
+                    <TableCell>{t("employeesReportIncompleteColEmail")}</TableCell>
+                    <TableCell>{t("employeesReportIncompleteColDept")}</TableCell>
+                    <TableCell sx={{ minWidth: 200 }}>{t("employeesReportIncompleteColMissing")}</TableCell>
+                    <TableCell align="right">{t("employeesReportIncompleteEdit")}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {incomplete.map((emp) => {
+                    const miss = employeeMissingRequiredFields(emp);
+                    return (
+                      <TableRow key={emp.id} hover>
+                        <TableCell>{emp.fullName}</TableCell>
+                        <TableCell sx={{ direction: "ltr" }}>{emp.email}</TableCell>
+                        <TableCell>{emp.departmentId ? deptNames.get(emp.departmentId) ?? "—" : "—"}</TableCell>
+                        <TableCell>
+                          <Stack direction="row" gap={0.5} flexWrap="wrap">
+                            {miss.map((f) => (
+                              <Chip key={f} size="small" label={t(`employeeRequiredField.${f}`)} variant="outlined" />
+                            ))}
+                          </Stack>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Button size="small" onClick={() => onEdit(emp)} startIcon={<EditIcon />}>
+                            {t("edit")}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )
+        ) : !draftReady ? (
+          <Typography color="text.secondary">{t("employeesReportDraftLoadingHint")}</Typography>
+        ) : allSorted.length === 0 ? (
+          <Typography color="text.secondary">{t("employeesReportActiveEmpty")}</Typography>
+        ) : (
+          <TableContainer sx={{ maxHeight: 440 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t("employeesReportActiveColName")}</TableCell>
+                  <TableCell>{t("employeesReportActiveColEmail")}</TableCell>
+                  <TableCell>{t("employeesReportActiveColDept")}</TableCell>
+                  <TableCell align="center">{t("employeesReportActiveColActive")}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {allSorted.map((emp) => (
+                  <TableRow key={emp.id} hover>
+                    <TableCell>{emp.fullName}</TableCell>
+                    <TableCell sx={{ direction: "ltr" }}>{emp.email}</TableCell>
+                    <TableCell>{emp.departmentId ? deptNames.get(emp.departmentId) ?? "—" : "—"}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title={t("employeesReportActiveSwitchTooltip")}>
+                        <span>
+                          <Switch
+                            checked={isDraftActiveFor(emp)}
+                            disabled={isApplyingActiveStatuses}
+                            onChange={(_, checked) => {
+                              setDraftActiveById((p) => ({ ...p, [emp.id]: checked }));
+                              setKeepActiveSwitchIds((prev) => {
+                                const copy = new Set(prev);
+                                if (checked) copy.add(emp.id);
+                                else copy.delete(emp.id);
+                                return copy;
+                              });
+                            }}
+                            size="small"
+                          />
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ flexWrap: "wrap", gap: 1 }}>
+        {tab === 1 && draftReady && allSorted.length > 0 ? (
+          <Button
+            variant="contained"
+            disabled={activeStatusChanges.length === 0 || isApplyingActiveStatuses}
+            startIcon={
+              isApplyingActiveStatuses ? <CircularProgress color="inherit" size={18} sx={{ mr: -0.5 }} /> : undefined
+            }
+            onClick={() => void commitActiveStatuses()}
+          >
+            {t("employeesReportApplyStatuses")}
+          </Button>
+        ) : null}
+        <Box sx={{ flexGrow: { xs: 0, sm: 1 }, minWidth: 8 }} />
+        <Button onClick={requestCloseDialog}>{t("close")}</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function EmployeeFormDialog({
   open,
   fullScreen,
@@ -1397,6 +2030,7 @@ function EmployeeFormDialog({
   departments,
   locations,
   isPending,
+  isSaveDisabled,
   onClose,
   onSubmit,
 }: {
@@ -1408,6 +2042,7 @@ function EmployeeFormDialog({
   departments: Dept[];
   locations: Loc[];
   isPending: boolean;
+  isSaveDisabled: boolean;
   onClose: () => void;
   onSubmit: () => void;
 }) {
@@ -1429,11 +2064,13 @@ function EmployeeFormDialog({
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" }, gap: 2, mt: 1 }}>
           <TextField
+            required
             label={t("fullName")}
             value={form.fullName}
             onChange={(e) => setForm({ ...form, fullName: e.target.value })}
           />
           <TextField
+            required
             label={t("birthDate")}
             type="date"
             InputLabelProps={{ shrink: true }}
@@ -1441,18 +2078,22 @@ function EmployeeFormDialog({
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
           />
           <TextField
+            required
             label={t("address")}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
             sx={{ gridColumn: { sm: "1 / span 2" } }}
           />
           <TextField
+            required
             select
             label={t("maritalStatus")}
             value={form.maritalStatus}
             onChange={(e) => setForm({ ...form, maritalStatus: e.target.value as MaritalStatus | "" })}
           >
-            <MenuItem value="">—</MenuItem>
+            <MenuItem value="" disabled>
+              {t("selectMaritalPlaceholder")}
+            </MenuItem>
             {MARITAL_STATUSES.map((s) => (
               <MenuItem key={s} value={s}>
                 {t(`ms.${s}`)}
@@ -1473,12 +2114,14 @@ function EmployeeFormDialog({
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" }, gap: 2, mt: 1 }}>
           <TextField
+            required
             label={t("email")}
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
           <TextField
+            required
             label={t("phone")}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
@@ -1503,6 +2146,7 @@ function EmployeeFormDialog({
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" }, gap: 2, mt: 1 }}>
           <TextField
+            required
             label={t("jobTitle")}
             value={form.jobTitle}
             onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
@@ -1518,12 +2162,15 @@ function EmployeeFormDialog({
             <MenuItem value="employee">{t("role.employee")}</MenuItem>
           </TextField>
           <TextField
+            required
             select
             label={t("department")}
             value={form.departmentId}
             onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
           >
-            <MenuItem value="">{t("noDepartment")}</MenuItem>
+            <MenuItem value="" disabled>
+              {t("selectDepartmentPlaceholder")}
+            </MenuItem>
             {departments.map((d) => (
               <MenuItem key={d.id} value={d.id}>
                 {d.name}
@@ -1565,7 +2212,7 @@ function EmployeeFormDialog({
         <Button onClick={onClose}>{t("cancel")}</Button>
         <Button
           variant="contained"
-          disabled={!form.fullName || !form.email || (!editingId && !form.password) || isPending}
+          disabled={isSaveDisabled}
           onClick={onSubmit}
         >
           {isPending ? t("loading") : t("save")}
