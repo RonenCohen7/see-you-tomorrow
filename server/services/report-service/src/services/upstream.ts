@@ -8,7 +8,7 @@ export type ScheduleRow = {
   status: string;
 };
 
-export type EmployeeRow = { id: string; fullName: string; email: string };
+export type EmployeeRow = { id: string; fullName: string; email: string; isActive?: boolean };
 
 export async function fetchSchedules(
   authHeader: string,

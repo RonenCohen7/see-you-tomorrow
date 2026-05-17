@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { SCHEDULING_RULE_TYPES } from "@syt/shared";
 import { z } from "zod";
+import { interpretClearInactiveFutureSchedulesMaintenance } from "./intentFromSchedulingInstructions.js";
 
 const OutSchema = z.object({
   ruleType: z.enum(SCHEDULING_RULE_TYPES as unknown as [string, ...string[]]),
@@ -10,16 +11,39 @@ const OutSchema = z.object({
 
 export type SchedulingRuleDraftResult = z.infer<typeof OutSchema>;
 
+export type MaintenanceDraftAction = "CLEAR_INACTIVE_FUTURE_SCHEDULES";
+
+export type DraftSchedulingInterpretSuccess =
+  | { outcome: "scheduling_rule"; draft: SchedulingRuleDraftResult }
+  | {
+      outcome: "maintenance_action";
+      action: MaintenanceDraftAction;
+      explanationHebrew: string;
+    };
+
 export async function interpretSchedulingRuleFromText(input: {
   naturalText: string;
   locations: Array<{ id: string; name: string }>;
-}): Promise<{ ok: true; draft: SchedulingRuleDraftResult } | { ok: false; error: string }> {
+}): Promise<
+  | ({ ok: true } & DraftSchedulingInterpretSuccess)
+  | { ok: false; error: string }
+> {
+  const maintenance = interpretClearInactiveFutureSchedulesMaintenance(input.naturalText);
+  if (maintenance.matched) {
+    return {
+      ok: true,
+      outcome: "maintenance_action",
+      action: "CLEAR_INACTIVE_FUTURE_SCHEDULES",
+      explanationHebrew: maintenance.explanationHebrew,
+    };
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
       error:
-        "אין OPENAI_API_KEY בשרת — לא ניתן לנתח חוק מטקסט חופשי. השתמשו בטפסים למטה או הגדרו מפתח.",
+        "אין OPENAI_API_KEY בשרת — לא ניתן לנתח חוקים נוספים מתיאור בשפה חופשית. נסו ניסוח לניקוי שיבוצים לעובדים לא פעילים, או השתמשו בטפסים למטה או הגדירו מפתח.",
     };
   }
 
@@ -96,5 +120,5 @@ export async function interpretSchedulingRuleFromText(input: {
     }
   }
 
-  return { ok: true, draft: d };
+  return { ok: true, outcome: "scheduling_rule", draft: d };
 }

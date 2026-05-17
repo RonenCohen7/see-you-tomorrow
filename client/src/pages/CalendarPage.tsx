@@ -45,6 +45,18 @@ import type { DayAgg } from "./calendarConstants";
 
 import "./CalendarPage.css";
 
+/** Past days unchanged; from UTC «today» omit schedule rows tied to inactive employee profiles (same rule as day modal). */
+function schedulesOmitInactiveOnOrAfterUtcDate(
+  rows: Schedule[],
+  employeeMap: Map<string, Employee>,
+  utcTodayIso: string
+): Schedule[] {
+  return rows.filter((s) => {
+    if (s.workDate < utcTodayIso) return true;
+    return employeeMap.get(s.employeeId)?.isActive !== false;
+  });
+}
+
 /** Max status chips inline; fewer on phones so cells stay readable. */
 function calendarStatusInlineMax(isXs: boolean) {
   return isXs ? 2 : 3;
@@ -187,16 +199,6 @@ export default function CalendarPage() {
       (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${next7From}&to=${next7To}`)).data,
   });
 
-  const next7ByDay = useMemo(() => {
-    const m = new Map<string, Schedule[]>();
-    for (const s of next7Q.data?.items ?? []) {
-      const arr = m.get(s.workDate) ?? [];
-      arr.push(s);
-      m.set(s.workDate, arr);
-    }
-    return m;
-  }, [next7Q.data?.items]);
-
   const dayDetail = useQuery({
     queryKey: ["calendar-day", openDay],
     queryFn: async () =>
@@ -228,7 +230,26 @@ export default function CalendarPage() {
     return m;
   }, [employeesQ.data]);
 
-  type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
+  /** UTC calendar day — matches day-editor modal inactive filtering. */
+  const utcTodayIsoCalendar = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const next7SchedulesFiltered = useMemo(
+    () =>
+      schedulesOmitInactiveOnOrAfterUtcDate(next7Q.data?.items ?? [], employeeMap, utcTodayIsoCalendar),
+    [next7Q.data, employeeMap, utcTodayIsoCalendar]
+  );
+
+  const next7ByDay = useMemo(() => {
+    const m = new Map<string, Schedule[]>();
+    for (const s of next7SchedulesFiltered) {
+      const arr = m.get(s.workDate) ?? [];
+      arr.push(s);
+      m.set(s.workDate, arr);
+    }
+    return m;
+  }, [next7SchedulesFiltered]);
+
+  type ParkingDayRow = { employeeId: string; spotLabel: string; guestName: string; hoursLabel: string };
 
   const parkingByIso = useMemo(() => {
     const spotsById = new Map((parkingSpotsQ.data ?? []).map((s) => [s.id, s.label]));
@@ -245,7 +266,7 @@ export default function CalendarPage() {
           ? `${r.hourStart ?? "—"}–${r.hourEnd ?? "—"}`
           : t("parkingFullDay");
       const arr = m.get(r.workDate) ?? [];
-      arr.push({ spotLabel, guestName, hoursLabel });
+      arr.push({ employeeId: r.employeeId, spotLabel, guestName, hoursLabel });
       m.set(r.workDate, arr);
     }
     return m;
@@ -528,10 +549,14 @@ export default function CalendarPage() {
                   const empList = employeesQ.data ?? [];
                   const coverageDataReady = canWrite && !employeesQ.isLoading && !next7Q.isLoading;
                   const stripLeaderOfficeMissing =
-                    coverageDataReady && !dayHasLeaderOffice(empList, next7Q.data?.items ?? [], iso);
-                  const stripLeaderNames = leaderOfficeNamesForDay(empList, next7Q.data?.items ?? [], iso, intlTag);
+                    coverageDataReady && !dayHasLeaderOffice(empList, next7SchedulesFiltered, iso);
+                  const stripLeaderNames = leaderOfficeNamesForDay(empList, next7SchedulesFiltered, iso, intlTag);
                   const bdays = birthdaysByIso.get(iso) ?? [];
-                  const pk = parkingByIso.get(iso) ?? [];
+                  const pkRaw = parkingByIso.get(iso) ?? [];
+                  const pk =
+                    iso < utcTodayIsoCalendar
+                      ? pkRaw
+                      : pkRaw.filter((p) => employeeMap.get(p.employeeId)?.isActive !== false);
                   const mt = meetingsByIso.get(iso) ?? [];
                   const aiRowCount = list.filter((s) => s.source === "ai").length;
                   const byStatus = new Map<StatusKey, Set<string>>();

@@ -53,6 +53,11 @@ export function emitDashboardRefresh(userIds: string[]) {
   s.to("admins").emit(SOCKET_EVENTS.dashboardRefresh, { at: new Date().toISOString() });
 }
 
+/** All JWT-authenticated sockets — for bulk schedule changes (e.g. purge future rows). */
+export function emitAuthenticatedDashboardRefresh() {
+  getIo().to("authenticated").emit(SOCKET_EVENTS.dashboardRefresh, { at: new Date().toISOString() });
+}
+
 export type SystemBroadcastPayload = {
   id: string;
   title: string;

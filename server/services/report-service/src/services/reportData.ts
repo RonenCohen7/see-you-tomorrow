@@ -42,6 +42,8 @@ export async function buildDailyStatusRows(
     fetchSchedules(auth, { from, to, status, employeeId }),
     fetchAllEmployees(auth),
   ]);
+  const inactiveEmpIds = new Set(employees.filter((e) => e.isActive === false).map((e) => e.id));
+  const schedulesForReport = schedules.filter((s) => !inactiveEmpIds.has(s.employeeId));
   const empMap = new Map(employees.map((e) => [e.id, e.fullName || e.email]));
   let filterEmployeeId: string | undefined;
   let filterEmployeeName: string | undefined;
@@ -49,7 +51,7 @@ export async function buildDailyStatusRows(
     filterEmployeeId = employeeId;
     filterEmployeeName = empMap.get(employeeId) ?? employeeId;
   }
-  const rows = schedules.map((s: ScheduleRow) => ({
+  const rows = schedulesForReport.map((s: ScheduleRow) => ({
     fullName: empMap.get(s.employeeId) ?? s.employeeId,
     workDate: s.workDate,
   }));
@@ -85,6 +87,7 @@ export async function buildParkingRows(req: AuthRequest, from: string, to: strin
     fetchAllEmployees(auth),
   ]);
   const empMap = new Map(employees.map((e) => [e.id, e.fullName || e.email]));
+  const inactiveEmpIds = new Set(employees.filter((e) => e.isActive === false).map((e) => e.id));
   const allowedIds = new Set(employees.map((e) => e.id));
   const isManager = req.user?.role === "manager";
 
@@ -92,6 +95,7 @@ export async function buildParkingRows(req: AuthRequest, from: string, to: strin
 
   const out: ParkingReportRow[] = [];
   for (const r of reservations) {
+    if (inactiveEmpIds.has(r.employeeId)) continue;
     if (isManager && !allowedIds.has(r.employeeId)) continue;
     const spot = spotById.get(r.spotId);
     if (!spot) continue;

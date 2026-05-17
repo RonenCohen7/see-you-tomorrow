@@ -310,7 +310,7 @@ export const heTranslation = {
   notificationsGoMeetingRooms: "חדרי ישיבות",
   reports: "דוחות",
   reportsPageIntro:
-    "תצוגת דוחות — שיבוץ לפי סטטוס (משרד, בית, חופשה, מחלה) לטווח תאריכים (כולל), והקצאות חניה. ניתן להוריד PDF או לשלוח עותק למייל של המשתמש המחובר בלבד (ללא הדפסה מהדפדפן).",
+    "תצוגת דוחות — שיבוץ לפי סטטוס (משרד, בית, חופשה, מחלה) לטווח תאריכים (כולל), והקצאות חניה. ניתן להוריד PDF או לשלוח עותק למייל של המשתמש המחובר בלבד (ללא הדפסה מהדפדפן). רשומות של עומדים מסומנים כלא פעילים אינן נכללות בדוחות.",
   reportsDailySection: "דוח שיבוץ לפי סטטוס",
   reportsDailyFrom: "מתאריך",
   reportsDailyTo: "עד תאריך (כולל)",
@@ -372,6 +372,17 @@ export const heTranslation = {
   schedulingRulesWizardSave: "שמור חוק",
   schedulingRulesWizardNeedDraft:
     "יש להפעיל «להסיק חוק מתיאור זה» לפני שמירה, או לעבור לטפסים המפורטים למטה אם השרת ללא OPENAI_API_KEY.",
+  schedulingRulesMaintenanceDetectedToast:
+    "זוהתה פעולת תחזוקה — הסרת שיבוצים עתידיים לכל העומדים כלא פעילים (מלבד שיקול הלוגיקה בשעון UTC של המערכת).",
+  schedulingRulesMaintenanceTitle: "פעולת תחזוקה: ניקוי שיבוצים לעומדים לא פעילים",
+  schedulingRulesMaintenanceDescription:
+    "למחוק את כל שורות הלוח מ־היום (UTC) והלאה של עומדים שמוגדרים «לא פעילים». לא מתבצעת מחיקה של שיבוצים בימים שכבר חלפו.",
+  schedulingRulesMaintenanceRun: "לבצע ניקוי",
+  schedulingRulesMaintenanceConfirmTitle: "לאשר מחיקת שיבוצים עתידיים?",
+  schedulingRulesMaintenanceConfirmBody:
+    "פעולה זו תמחק שיבוצים מ־היום (UTC) והלאה לכל העומדים שסומנו לא פעילים. לא ניתן לבטל אוטומטית — במידת הצורך יש להזין את השיבוצים מחדש.",
+  schedulingRulesMaintenanceSuccessToast:
+    "בוצע: הוסרו {{deletedSchedules}} שיבוצים; {{inactiveEmployees}} עומדים לא פעילים נכללו בבסיס ההתאמה.",
   schedulingRulesConflictTitle: "החוק חופף חוק פעיל",
   schedulingRulesConflictBody:
     "החוק שנבנה מתנגש עם חוקים שכבר בתוקף — נדרש אישור של מנהל מערכת. באישור, החוקים המסומנים יימחקו ואז יישמר החוק החדש.",
@@ -534,7 +545,7 @@ export const heTranslation = {
   aboutPageTitle: "אודות See You Tomorrow",
   aboutVisionTitle: "החזון",
   aboutVisionBody:
-    "לבנות שקיפות ותיאום יומיומי אלגנטי לאורגונים היברידיים — כדי שכל אחד ידע מתי ובאיזה קונטקסט הוא נוכח במשרד, ולמנהלי מערכת יינתן כלי מהימן לקבוע מדיניות, לגלות חריגות מוקדם ולחבר בין צוותים, מיקומים ומתקן.",
+    "לבנות שקיפות ותיאום יומיומי אלגנטי לאירגונים היברידיים — כדי שכל אחד ידע מתי ובאיזה קונטקסט הוא נוכח במשרד, ולמנהלי מערכת יינתן כלי מהימן לקבוע מדיניות, לגלות חריגות מוקדם ולחבר בין צוותים, מיקומים ומתקן.",
   aboutBenefitsTitle: "למה במערכת הזאת",
   aboutBenefit1Title: "מערכות משרד־בית במקום אחד",
   aboutBenefit1Body:
@@ -570,7 +581,7 @@ export const heTranslation = {
   pricingTierStarterFeat4: "תמיכה במייל (שעות עסקים)",
   pricingTierProName: "מסלול מקצועי",
   pricingTierProPrice: "₪59 לכל משתמש / חודש",
-  pricingTierProFeat1: "עד 300 משתמשים פעילים",
+  pricingTierProFeat1: "עד 150 משתמשים פעילים",
   pricingTierProFeat2: "הכל מהבסיס + המלצות AI וסטטוס ארגון",
   pricingTierProFeat3: "חנייה וחדרי ישיבות מתקדמים יותר",
   pricingTierProFeat4: "חוקי שיבוץ, דוחות ותורים לעיבוד העדפות",
@@ -794,6 +805,9 @@ export const heTranslation = {
     "ניתן לפצל יום: למשל 4 שעות משרד + 4 שעות בית (הוסף שני שיבוצים לאותו עובד באותו תאריך)",
 
   calEditorAssignmentsCount: "{{count}} שיבוצים",
+  calEditorInactiveShiftBlocked:
+    "עובד/ת לא פעיל/ה — לא ניתן לעדכן את המשמרת. ניתן למחוק את השיבוץ או להפעיל את העובד מתפריט העובדים.",
+  calDayAssignmentInactiveBadge: "לא פעיל",
   calEditorHoursLabel: "{{hours}} שעות",
   calEditorConfirmDelete: "למחוק את השיבוץ של {{name}}?",
   calEditorPartialDayHelper:

@@ -24,6 +24,13 @@ r.post("/scheduling-rules", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.
 r.patch("/scheduling-rules/:id", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.update);
 r.delete("/scheduling-rules/:id", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.remove);
 
+r.post(
+  "/admin/maintenance/inactive-employees-clear-future",
+  requireAuth,
+  ctrl.adminOnly,
+  ctrl.purgeInactiveEmployeesFutureSchedulesMaintenance
+);
+
 r.get("/day/:date", requireAuth, ctrl.day);
 r.get("/month/:month", requireAuth, ctrl.month);
 r.get("/week/:date", requireAuth, ctrl.week);

@@ -77,7 +77,7 @@ see-you-tomorrow/
    npm run build --workspaces --if-present
    ```
 
-4. Start MongoDB and Redis (or `docker compose up -d mongo redis mailhog`).
+4. Start MongoDB and Redis (and MailHog for mail testing): `npm run docker:deps` (same as `docker compose up -d mongo redis mailhog`). Requires a running Docker daemon (e.g. Docker Desktop).
 
 5. Seed demo data (250 employees, departments, locations, sample schedules):
 
@@ -115,6 +115,47 @@ see-you-tomorrow/
    Default ports: gateway **4000**, auth **4001**, employee **4002**, department **4003**, location **4004**, schedule **4005**, notification **4006**, AI **4007**.
 
    Use separate commands only if you prefer multiple terminals; **do not** paste them without spaces (for example `npm run dev:gatewaynpm run dev:auth` is invalid).
+
+## Troubleshooting
+
+### Redis `ECONNREFUSED` on `127.0.0.1:6379` or `::1:6379` (`[notif]` logs)
+
+The **notification service** uses **BullMQ** with Redis. If Redis is not running, the service may still listen on HTTP, but logs will spam connection failures for the worker/queue — this is **not** the root cause of a browser `502` via ngrok, but dev is much simpler with Redis up.
+
+**Fix:**
+
+1. Start Docker (Daemon / Docker Desktop).
+2. From the repo root:
+
+   ```bash
+   npm run docker:deps
+   ```
+
+3. Confirm **6379** (Redis) and **27017** (MongoDB) are reachable on localhost.
+
+### ngrok `502`, `ERR_NGROK_8012`, or unreachable tunnel URL
+
+ngrok forwards HTTPS to **`http://localhost:5173`** (the Vite dev server). Nothing can answer correctly if only ngrok runs, or Vite listens on another port.
+
+**Always use two processes on the same machine:**
+
+1. **Terminal A** — wait until Vite reports it is listening:
+
+   ```bash
+   npm run dev
+   ```
+
+2. Verify **`http://localhost:5173`** loads locally in the browser.
+
+3. **Terminal B**:
+
+   ```bash
+   ngrok http 5173
+   ```
+
+   Or: `ngrok http 127.0.0.1:5173`.
+
+If you changed the Vite port in `client/vite.config.ts`, use that port with ngrok. If another process holds **5173**, fix or kill it (see `npm run kill:ports` if present in scripts) before retrying.
 
 ## Docker Compose (backend)
 

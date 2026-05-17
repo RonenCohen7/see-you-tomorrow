@@ -21,7 +21,8 @@ import {
 } from "../utils/dateRange.js";
 import * as notify from "./notificationClient.js";
 import * as parkingSyncHook from "./locationParkingSync.js";
-import { fetchEmployeesByDepartment } from "./remoteEmployee.js";
+import { fetchEmployeesByDepartment, fetchInactiveEmployeeIdsPage } from "./remoteEmployee.js";
+import { assertEmployeeAssignableForScheduleWrites } from "./scheduleEmployeeAssignable.js";
 
 export function toPublic(doc: ScheduleDoc) {
   return {
@@ -51,7 +52,7 @@ export async function findScheduleById(id: string) {
   return Schedule.findById(id);
 }
 
-export async function createSchedule(
+async function insertScheduleRecord(
   input: {
     employeeId: string;
     departmentId?: string;
@@ -102,6 +103,26 @@ export async function createSchedule(
   return pub;
 }
 
+export async function createSchedule(
+  input: {
+    employeeId: string;
+    departmentId?: string;
+    locationId?: string;
+    workDate: string;
+    status: ScheduleStatus;
+    hours?: number;
+    note?: string;
+    updatedBy?: string;
+    source?: ScheduleSource;
+    aiBatchId?: string;
+  },
+  options?: { skipNotify?: boolean }
+) {
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (input.workDate >= todayUtc) await assertEmployeeAssignableForScheduleWrites(input.employeeId);
+  return insertScheduleRecord(input, options);
+}
+
 export async function updateSchedule(
   id: string,
   input: Partial<{
@@ -120,6 +141,10 @@ export async function updateSchedule(
   const Schedule = await model();
   const doc = await Schedule.findById(id);
   if (!doc) throw new AppError(404, "לוח לא נמצא", "NOT_FOUND");
+
+  const rowDay = toIsoDate(doc.workDate instanceof Date ? doc.workDate : new Date(doc.workDate));
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (rowDay >= todayUtc) await assertEmployeeAssignableForScheduleWrites(doc.employeeId.toString());
 
   if (input.workDate) doc.workDate = utcDay(input.workDate);
   if (input.departmentId !== undefined) doc.departmentId = input.departmentId as unknown as Types.ObjectId;
@@ -184,16 +209,23 @@ export async function deleteSchedule(id: string) {
 }
 
 /** מוחק את כל רשומות השיבוץ של העובד באותו יום UTC ואז יוצר רשומה אחת. */
-export async function setEmployeeDayStatus(input: {
-  employeeId: string;
-  workDate: string;
-  status: ScheduleStatus;
-  departmentId?: string;
-  locationId?: string;
-  hours?: number;
-  note?: string;
-  updatedBy?: string;
-}) {
+export async function setEmployeeDayStatus(
+  input: {
+    employeeId: string;
+    workDate: string;
+    status: ScheduleStatus;
+    departmentId?: string;
+    locationId?: string;
+    hours?: number;
+    note?: string;
+    updatedBy?: string;
+  },
+  options?: { skipScheduleNotify?: boolean; skipAssignableCheck?: boolean }
+) {
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (!options?.skipAssignableCheck && input.workDate >= todayUtc) {
+    await assertEmployeeAssignableForScheduleWrites(input.employeeId);
+  }
   const Schedule = await model();
   const start = utcDay(input.workDate);
   const end = utcDayEnd(input.workDate);
@@ -201,16 +233,19 @@ export async function setEmployeeDayStatus(input: {
     employeeId: input.employeeId,
     workDate: { $gte: start, $lte: end },
   });
-  return createSchedule({
-    employeeId: input.employeeId,
-    departmentId: input.departmentId,
-    locationId: input.locationId,
-    workDate: input.workDate,
-    status: input.status,
-    hours: input.hours,
-    note: input.note,
-    updatedBy: input.updatedBy,
-  });
+  return insertScheduleRecord(
+    {
+      employeeId: input.employeeId,
+      departmentId: input.departmentId,
+      locationId: input.locationId,
+      workDate: input.workDate,
+      status: input.status,
+      hours: input.hours,
+      note: input.note,
+      updatedBy: input.updatedBy,
+    },
+    { skipNotify: options?.skipScheduleNotify }
+  );
 }
 
 export async function listSchedules(filter: {
@@ -337,6 +372,9 @@ export async function upsertBulkInternal(
   }>,
   options?: { skipNotifications?: boolean }
 ) {
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const uniqEmp = [...new Set(items.filter((i) => i.workDate >= todayUtc).map((i) => i.employeeId))];
+  await Promise.all(uniqEmp.map((id) => assertEmployeeAssignableForScheduleWrites(id)));
   const results = [];
   for (const item of items) {
     const Schedule = await model();
@@ -367,7 +405,7 @@ export async function upsertBulkInternal(
         locationId: pubExisting.locationId,
       });
     } else {
-      const doc = await createSchedule(
+      const doc = await insertScheduleRecord(
         {
           employeeId: item.employeeId,
           departmentId: item.departmentId,
@@ -475,6 +513,8 @@ export async function replaceEmployeeScheduleRangeFromAnchor(
 
   const from = input.workDateFrom <= input.workDateTo ? input.workDateFrom : input.workDateTo;
   const to = input.workDateFrom <= input.workDateTo ? input.workDateTo : input.workDateFrom;
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (to >= todayUtc) await assertEmployeeAssignableForScheduleWrites(anchor.employeeId.toString());
   const origIso = toIsoDate(anchor.workDate instanceof Date ? anchor.workDate : new Date(anchor.workDate));
 
   const rangeStart = utcDay(from);
@@ -522,6 +562,8 @@ export async function replaceEmployeeSchedulesInRangeByEmployeeId(
 ) {
   const from = input.workDateFrom <= input.workDateTo ? input.workDateFrom : input.workDateTo;
   const to = input.workDateFrom <= input.workDateTo ? input.workDateTo : input.workDateFrom;
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (to >= todayUtc) await assertEmployeeAssignableForScheduleWrites(employeeId);
 
   const Schedule = await model();
   await Schedule.deleteMany({
@@ -738,6 +780,17 @@ export async function applyWeekGrid(params: {
     protectedCells.add(`${eid}|${wd}`);
   }
 
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const empIdsAssignableCheck = new Set<string>();
+  for (const cell of deduped) {
+    const key = `${cell.employeeId}|${cell.workDate}`;
+    if (protectedCells.has(key)) continue;
+    if (cell.workDate >= todayUtc) empIdsAssignableCheck.add(cell.employeeId);
+  }
+  await Promise.all(
+    [...empIdsAssignableCheck].map((id) => assertEmployeeAssignableForScheduleWrites(id))
+  );
+
   let updated = 0;
   let skippedProtected = 0;
   for (const cell of deduped) {
@@ -748,15 +801,22 @@ export async function applyWeekGrid(params: {
     }
     const emp = empById.get(cell.employeeId);
     if (!emp) continue;
-    await setEmployeeDayStatus({
-      employeeId: cell.employeeId,
-      workDate: cell.workDate,
-      status: cell.status,
-      departmentId: params.departmentId,
-      locationId: emp.locationId,
-      updatedBy: params.updatedBy,
-    });
+    await setEmployeeDayStatus(
+      {
+        employeeId: cell.employeeId,
+        workDate: cell.workDate,
+        status: cell.status,
+        departmentId: params.departmentId,
+        locationId: emp.locationId,
+        updatedBy: params.updatedBy,
+      },
+      { skipAssignableCheck: true, skipScheduleNotify: true }
+    );
     updated += 1;
+  }
+
+  if (updated > 0) {
+    await notify.notifyAuthenticatedDashboardRefresh();
   }
 
   return { updated, skippedProtected };
@@ -792,6 +852,83 @@ export async function officePresenceBatch(
     workDate,
     hasOffice: officeSet.has(`${employeeId}|${workDate}`),
   }));
+}
+
+/** Remove all schedule rows for `employeeId` on and after `fromInclusive` (defaults to UTC calendar today). */
+export async function deleteFutureSchedulesForEmployee(params: {
+  employeeId: string;
+  /** Inclusive YYYY-MM-DD aligned with schedule `utcDay`; default: UTC “today”. */
+  fromInclusive?: string;
+}): Promise<number> {
+  const Schedule = await model();
+  const fromIso = params.fromInclusive ?? new Date().toISOString().slice(0, 10);
+  const start = utcDay(fromIso);
+  const toRemove = await Schedule.find({ employeeId: params.employeeId, workDate: { $gte: start } }).lean();
+  if (toRemove.length === 0) {
+    return 0;
+  }
+  await Schedule.deleteMany({ employeeId: params.employeeId, workDate: { $gte: start } });
+  for (const d of toRemove) {
+    const pub = toPublic(d as unknown as ScheduleDoc);
+    parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+      employeeId: pub.employeeId,
+      workDate: pub.workDate,
+      status: pub.status,
+      locationId: pub.locationId,
+    });
+  }
+  await notify.notifyAuthenticatedDashboardRefresh();
+  return toRemove.length;
+}
+
+const INACTIVE_IDS_FETCH_LIMIT = 200;
+const PURGE_BY_EMPLOYEE_CHUNK = 500;
+
+/** Delete future schedule rows (UTC calendar today onward) for all globally inactive employees. */
+export async function purgeFutureSchedulesForAllInactiveEmployees(): Promise<{
+  deletedSchedulesCount: number;
+  inactiveEmployeeIdsCount: number;
+}> {
+  const Schedule = await model();
+  const fromIso = new Date().toISOString().slice(0, 10);
+  const start = utcDay(fromIso);
+
+  const inactiveIds: string[] = [];
+  let page = 1;
+  while (true) {
+    const slice = await fetchInactiveEmployeeIdsPage(page, INACTIVE_IDS_FETCH_LIMIT);
+    if (!slice) {
+      throw new AppError(502, "לא ניתן לטעון רשימת עובדים לא פעילים", "EMPLOYEE_INACTIVE_IDS_FAILED");
+    }
+    inactiveIds.push(...slice.ids);
+    if (page >= slice.pages || slice.ids.length === 0) break;
+    page += 1;
+  }
+
+  let deletedSchedulesCount = 0;
+  for (let i = 0; i < inactiveIds.length; i += PURGE_BY_EMPLOYEE_CHUNK) {
+    const empChunk = inactiveIds.slice(i, i + PURGE_BY_EMPLOYEE_CHUNK);
+    const toRemove = await Schedule.find({ employeeId: { $in: empChunk }, workDate: { $gte: start } }).lean();
+    if (toRemove.length === 0) continue;
+
+    await Schedule.deleteMany({ employeeId: { $in: empChunk }, workDate: { $gte: start } });
+    deletedSchedulesCount += toRemove.length;
+    for (const d of toRemove) {
+      const pub = toPublic(d as unknown as ScheduleDoc);
+      parkingSyncHook.enqueueParkingSyncAfterScheduleWrite({
+        employeeId: pub.employeeId,
+        workDate: pub.workDate,
+        status: pub.status,
+        locationId: pub.locationId,
+      });
+    }
+  }
+
+  if (deletedSchedulesCount > 0) {
+    await notify.notifyAuthenticatedDashboardRefresh();
+  }
+
+  return { deletedSchedulesCount, inactiveEmployeeIdsCount: inactiveIds.length };
 }
 
 export { SCHEDULE_STATUSES };

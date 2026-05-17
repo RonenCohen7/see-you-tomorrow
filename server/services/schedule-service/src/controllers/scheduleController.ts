@@ -349,4 +349,11 @@ export async function remove(req: AuthRequest, res: Response) {
   res.json(result);
 }
 
+/** Admin maintenance: purge future shifts for employees marked inactive in employee-service (UTC today+). */
+export async function purgeInactiveEmployeesFutureSchedulesMaintenance(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const result = await svc.purgeFutureSchedulesForAllInactiveEmployees();
+  res.json(result);
+}
+
 export const adminOnly = requireAdmin;

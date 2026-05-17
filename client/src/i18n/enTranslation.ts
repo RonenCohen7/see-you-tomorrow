@@ -313,7 +313,7 @@ export const enTranslation = {
   notificationsGoMeetingRooms: "Meeting rooms",
   reports: "Reports",
   reportsPageIntro:
-    "Reports — assignments by status (office, home, vacation, sick) for an inclusive date range, plus parking allocations. Download PDF or email to the signed-in user only (no browser print).",
+    "Reports — assignments by status (office, home, vacation, sick) for an inclusive date range, plus parking allocations. Download PDF or email to the signed-in user only (no browser print). Inactive employee rows are omitted from reports.",
   reportsDailySection: "Assignments by status",
   reportsDailyFrom: "From date",
   reportsDailyTo: "To date (inclusive)",
@@ -375,6 +375,17 @@ export const enTranslation = {
   schedulingRulesWizardSave: "Save rule",
   schedulingRulesWizardNeedDraft:
     'Use «Build rule from description» first, or scroll to advanced manual forms below if OPENAI_API_KEY is not configured.',
+  schedulingRulesMaintenanceDetectedToast:
+    "Detected a maintenance action — clearing future shifts for inactive employees (from UTC “today”, system policy).",
+  schedulingRulesMaintenanceTitle: "Maintenance: clear future shifts for inactive employees",
+  schedulingRulesMaintenanceDescription:
+    "Delete schedule rows from today (UTC calendar) onward for everyone marked inactive. Past dates are untouched.",
+  schedulingRulesMaintenanceRun: "Run cleanup",
+  schedulingRulesMaintenanceConfirmTitle: "Delete future inactive-employee shifts?",
+  schedulingRulesMaintenanceConfirmBody:
+    "This deletes future schedule rows from today (UTC) onward for all inactive employees. It cannot be auto-undone — re-enter rostering if needed.",
+  schedulingRulesMaintenanceSuccessToast:
+    "Done: removed {{deletedSchedules}} shifts; {{inactiveEmployees}} inactive employees matched.",
   schedulingRulesConflictTitle: "Conflicts with an active rule",
   schedulingRulesConflictBody:
     "Saving will replace conflicting organization rules listed below — admin confirmation required. Matching rules will be deleted first.",
@@ -572,7 +583,7 @@ export const enTranslation = {
   pricingTierStarterFeat4: "Email support (business hours)",
   pricingTierProName: "Professional",
   pricingTierProPrice: "$17 per user / month — illus.",
-  pricingTierProFeat1: "Up to ~300 active users",
+  pricingTierProFeat1: "Up to ~150 active users",
   pricingTierProFeat2: "Everything in Starter + AI suggestions & governance",
   pricingTierProFeat3: "Deeper parking & meeting-room flows",
   pricingTierProFeat4: "Scheduling rules, queues and richer reports",
@@ -796,6 +807,9 @@ export const enTranslation = {
     "To split a day, add two assignments — for example 4h office + 4h home for the same person and date.",
 
   calEditorAssignmentsCount: "{{count}} assignments",
+  calEditorInactiveShiftBlocked:
+    "This employee is inactive — you cannot change this assignment. Delete it or reactivate the employee in Employees.",
+  calDayAssignmentInactiveBadge: "Inactive",
   calEditorHoursLabel: "{{hours}} hours",
   calEditorConfirmDelete: "Delete assignment for {{name}}?",
   calEditorPartialDayHelper:

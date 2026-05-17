@@ -140,5 +140,13 @@ export async function draftSchedulingRuleFromText(req: AuthRequest, res: Respons
   if (!out.ok) {
     throw new AppError(422, out.error, "RULE_DRAFT_FAILED");
   }
-  res.json({ draft: out.draft });
+  if (out.outcome === "maintenance_action") {
+    res.json({
+      outcome: "maintenance_action",
+      action: out.action,
+      explanationHebrew: out.explanationHebrew,
+    });
+    return;
+  }
+  res.json({ outcome: "scheduling_rule", draft: out.draft });
 }

@@ -55,6 +55,14 @@ export type SchedulingRuleAiDraft = {
   explanationHebrew: string;
 };
 
+type DraftSchedulingAnalyzeResponse =
+  | { outcome: "scheduling_rule"; draft: SchedulingRuleAiDraft }
+  | {
+      outcome: "maintenance_action";
+      action: "CLEAR_INACTIVE_FUTURE_SCHEDULES";
+      explanationHebrew: string;
+    };
+
 type Loc = { id: string; name: string };
 
 const objectIdRegex = /^[a-f\d]{24}$/i;
@@ -157,6 +165,8 @@ export default function SchedulingRulesPage() {
   const [mmValue, setMmValue] = React.useState<number>(1);
   const [wizText, setWizText] = React.useState("");
   const [wizDraft, setWizDraft] = React.useState<SchedulingRuleAiDraft | null>(null);
+  const [wizMaintenance, setWizMaintenance] = React.useState<{ explanationHebrew: string } | null>(null);
+  const [maintenanceConfirmOpen, setMaintenanceConfirmOpen] = React.useState(false);
   const [wizActive, setWizActive] = React.useState(true);
   const [overwriteList, setOverwriteList] = React.useState<SchedulingRuleDto[] | null>(null);
   const [savingWizard, setSavingWizard] = React.useState(false);
@@ -211,12 +221,20 @@ export default function SchedulingRulesPage() {
 
   const analyzeMut = useMutation({
     mutationFn: async () =>
-      api.post<{ draft: SchedulingRuleAiDraft }>("/api/ai/draft-scheduling-rule", {
+      api.post<DraftSchedulingAnalyzeResponse>("/api/ai/draft-scheduling-rule", {
         naturalText: wizText.trim(),
         locations: locationRows.map((l) => ({ id: l.id, name: l.name })),
       }),
     onSuccess: (resp) => {
-      setWizDraft(resp.data.draft);
+      const data = resp.data;
+      if (data.outcome === "maintenance_action") {
+        setWizDraft(null);
+        setWizMaintenance({ explanationHebrew: data.explanationHebrew });
+        setToast({ ok: true, msg: t("schedulingRulesMaintenanceDetectedToast") });
+        return;
+      }
+      setWizMaintenance(null);
+      setWizDraft(data.draft);
       setToast({ ok: true, msg: t("success") });
     },
     onError: (e) =>
@@ -224,6 +242,32 @@ export default function SchedulingRulesPage() {
         ok: false,
         msg: apiErrorMessage(e, t("error")),
       }),
+  });
+
+  const purgeInactiveMut = useMutation({
+    mutationFn: async () =>
+      api.post<{ deletedSchedulesCount: number; inactiveEmployeeIdsCount: number }>(
+        "/api/schedules/admin/maintenance/inactive-employees-clear-future"
+      ),
+    onSuccess: async (resp) => {
+      setMaintenanceConfirmOpen(false);
+      setWizMaintenance(null);
+      setWizText("");
+      setToast({
+        ok: true,
+        msg: t("schedulingRulesMaintenanceSuccessToast", {
+          deletedSchedules: resp.data.deletedSchedulesCount,
+          inactiveEmployees: resp.data.inactiveEmployeeIdsCount,
+        }),
+      });
+      await qc.invalidateQueries({ queryKey: ["scheduling-rules"] });
+      await qc.invalidateQueries({ queryKey: ["schedules-all"] });
+      await qc.invalidateQueries({ queryKey: ["schedules-recent"] });
+      await qc.invalidateQueries({ queryKey: ["schedules-forward-parking"] });
+      await qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
+    },
+    onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
   });
 
   const createLocRuleMut = useMutation({
@@ -350,6 +394,8 @@ export default function SchedulingRulesPage() {
           value={wizText}
           onChange={(e) => {
             setWizText(e.target.value);
+            setWizDraft(null);
+            setWizMaintenance(null);
           }}
           fullWidth
           multiline
@@ -372,6 +418,29 @@ export default function SchedulingRulesPage() {
             {locationsQ.isLoading ? t("loading") : null}
           </Typography>
         </Stack>
+
+        {wizMaintenance ? (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle1" gutterBottom fontWeight={700}>
+              {t("schedulingRulesMaintenanceTitle")}
+            </Typography>
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              {t("schedulingRulesMaintenanceDescription")}
+            </Alert>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {t("schedulingRulesWizardExplanation")}: {wizMaintenance.explanationHebrew}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+              <Button variant="contained" color="warning" onClick={() => setMaintenanceConfirmOpen(true)}>
+                {t("schedulingRulesMaintenanceRun")}
+              </Button>
+              <Button variant="text" onClick={() => setWizMaintenance(null)}>
+                {t("cancel")}
+              </Button>
+            </Stack>
+          </>
+        ) : null}
 
         {wizDraft ? (
           <>
@@ -669,6 +738,35 @@ export default function SchedulingRulesPage() {
             startIcon={savingWizard ? <CircularProgress color="inherit" size={18} /> : undefined}
           >
             {t("schedulingRulesConflictConfirm")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={maintenanceConfirmOpen}
+        onClose={() => !purgeInactiveMut.isPending && setMaintenanceConfirmOpen(false)}
+      >
+        <DialogTitle>{t("schedulingRulesMaintenanceConfirmTitle")}</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 1 }}>{t("schedulingRulesMaintenanceConfirmBody")}</Typography>
+          {wizMaintenance ? (
+            <Typography variant="body2" color="text.secondary">
+              {t("schedulingRulesWizardExplanation")}: {wizMaintenance.explanationHebrew}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMaintenanceConfirmOpen(false)} disabled={purgeInactiveMut.isPending}>
+            {t("cancel")}
+          </Button>
+          <Button
+            color="warning"
+            variant="contained"
+            disabled={purgeInactiveMut.isPending}
+            onClick={() => purgeInactiveMut.mutate()}
+            startIcon={purgeInactiveMut.isPending ? <CircularProgress color="inherit" size={18} /> : undefined}
+          >
+            {t("schedulingRulesMaintenanceRun")}
           </Button>
         </DialogActions>
       </Dialog>

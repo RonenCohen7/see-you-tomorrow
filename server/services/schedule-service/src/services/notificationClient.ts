@@ -22,6 +22,11 @@ async function post(path: string, body: Record<string, unknown>) {
   }
 }
 
+/** After bulk calendar changes (e.g. clearing future shifts for an inactive employee). */
+export async function notifyAuthenticatedDashboardRefresh(): Promise<void> {
+  await post("/internal/notifications/dashboard-refresh", {});
+}
+
 export async function notifyScheduleChange(payload: {
   scheduleId: string;
   employeeId: string;

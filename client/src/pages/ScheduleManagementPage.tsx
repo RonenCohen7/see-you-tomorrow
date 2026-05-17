@@ -520,7 +520,7 @@ export default function ScheduleManagementPage() {
       );
       return data;
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       let msg = t("weeklyGridApplySuccess", { count: data.updated });
       if (data.skippedProtected > 0) {
         msg += " " + t("weeklyGridApplySkipped", { count: data.skippedProtected });
@@ -528,12 +528,12 @@ export default function ScheduleManagementPage() {
       setToast({ msg, ok: true });
       setWeeklyOpen(false);
       setWeeklyWeek(null);
-      await qc.invalidateQueries({ queryKey: ["schedules-all"] });
-      await qc.invalidateQueries({ queryKey: ["calendar-month"] });
-      await qc.invalidateQueries({ queryKey: ["calendar-next7"] });
-      await qc.invalidateQueries({ queryKey: ["calendar-day"] });
-      await qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
-      await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-all"] });
+      void qc.invalidateQueries({ queryKey: ["calendar-month"] });
+      void qc.invalidateQueries({ queryKey: ["calendar-next7"] });
+      void qc.invalidateQueries({ queryKey: ["calendar-day"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
     },
     onError: (err) => {
       const code = (err as Error & { code?: string }).code;

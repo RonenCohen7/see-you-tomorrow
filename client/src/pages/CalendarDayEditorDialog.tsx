@@ -45,6 +45,21 @@ import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { compareSchedulesForCalendarRoster } from "../utils/calendarRosterSort";
 import { useAuth } from "../store/authContext";
 
+function buildGroupedCalendarRoster(
+  roster: Schedule[],
+  employeeMap: Map<string, Employee>,
+  rosterSortLocale: string
+): Record<StatusKey, Schedule[]> {
+  const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
+  for (const s of roster) out[s.status].push(s);
+  const cmp = (a: Schedule, b: Schedule) =>
+    compareSchedulesForCalendarRoster(a, b, employeeMap, rosterSortLocale);
+  for (const k of STATUS_ORDER) {
+    out[k].sort(cmp);
+  }
+  return out;
+}
+
 export function CalendarDayEditorDialog({
   open,
   date,
@@ -104,16 +119,30 @@ export function CalendarDayEditorDialog({
     return weekdayLabelsFull[d.getDay()] ?? "";
   }, [date, weekdayLabelsFull]);
 
-  const grouped = useMemo(() => {
-    const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
-    for (const s of items) out[s.status].push(s);
-    const cmp = (a: Schedule, b: Schedule) =>
-      compareSchedulesForCalendarRoster(a, b, employeeMap, rosterSortLocale);
-    for (const k of STATUS_ORDER) {
-      out[k].sort(cmp);
-    }
-    return out;
-  }, [items, employeeMap, rosterSortLocale]);
+  const selectableEmployees = useMemo(
+    () => (editor?.id ? employees : employees.filter((e) => e.isActive !== false)),
+    [employees, editor?.id]
+  );
+
+  const utcTodayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const editorEmployeeInactive = Boolean(
+    editor?.id &&
+      editor?.employeeId &&
+      employeeMap.get(editor.employeeId)?.isActive === false &&
+      Boolean(date && date >= utcTodayIso)
+  );
+
+  /** Future/today UTC: hide inactive employees entirely (counts + roster + parking lines in this modal). */
+  const calendarVisibleScheduleItems = useMemo(() => {
+    if (!date || date < utcTodayIso) return items;
+    return items.filter((s) => employeeMap.get(s.employeeId)?.isActive !== false);
+  }, [items, employeeMap, date, utcTodayIso]);
+
+  const grouped = useMemo(
+    () => buildGroupedCalendarRoster(calendarVisibleScheduleItems, employeeMap, rosterSortLocale),
+    [calendarVisibleScheduleItems, employeeMap, rosterSortLocale]
+  );
 
   /** Short allocation label per employee (spot id/label); only when reservation or matched fixed spot. */
   const parkingSpotSummaryByEmployeeId = useMemo(() => {
@@ -133,6 +162,7 @@ export function CalendarDayEditorDialog({
     };
 
     for (const r of resList) {
+      if (date && date >= utcTodayIso && employeeMap.get(r.employeeId)?.isActive === false) continue;
       const spot = spotById.get(r.spotId);
       const spotLabel = spot?.label?.trim() || t("parkingColSpot");
       const partial = r.hourStart != null || r.hourEnd != null;
@@ -140,7 +170,7 @@ export function CalendarDayEditorDialog({
       addLine(r.employeeId, line);
     }
 
-    for (const sched of items) {
+    for (const sched of calendarVisibleScheduleItems) {
       if (sched.status !== "office") continue;
       for (const spot of spots) {
         if (!spot.isActive) continue;
@@ -156,7 +186,15 @@ export function CalendarDayEditorDialog({
       m.set(employeeId, [...set]);
     }
     return m;
-  }, [items, parkingSpots, parkingDayReservations, t]);
+  }, [
+    calendarVisibleScheduleItems,
+    parkingSpots,
+    parkingDayReservations,
+    t,
+    date,
+    utcTodayIso,
+    employeeMap,
+  ]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -233,7 +271,7 @@ export function CalendarDayEditorDialog({
                 {date} · {weekdayLabel}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                {t("calEditorAssignmentsCount", { count: items.length })}
+                {t("calEditorAssignmentsCount", { count: calendarVisibleScheduleItems.length })}
               </Typography>
             </Box>
           </Stack>
@@ -455,11 +493,14 @@ export function CalendarDayEditorDialog({
                   </Stack>
                   <Stack spacing={1}>
                     {list.map((s) => {
-                      const name = employeeMap.get(s.employeeId)?.fullName ?? `…${s.employeeId.slice(-6)}`;
+                      const empRecord = employeeMap.get(s.employeeId);
+                      const name = empRecord?.fullName ?? `…${s.employeeId.slice(-6)}`;
                       const parkingAllocated =
                         k === "office"
                           ? (parkingSpotSummaryByEmployeeId.get(s.employeeId) ?? []).join(" · ")
                           : "";
+                      const inactiveFutureBadge =
+                        Boolean(empRecord?.isActive === false && date && date >= utcTodayIso);
 
                       return (
                         <Stack
@@ -479,6 +520,15 @@ export function CalendarDayEditorDialog({
                             <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: "break-word" }}>
                               {name}
                             </Typography>
+                            {inactiveFutureBadge ? (
+                              <Chip
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                                label={t("calDayAssignmentInactiveBadge")}
+                                sx={{ mt: 0.35 }}
+                              />
+                            ) : null}
                             {k === "office" && parkingAllocated ? (
                               <Stack
                                 direction="row"
@@ -528,10 +578,20 @@ export function CalendarDayEditorDialog({
                             )}
                             {canWrite && (
                               <Stack direction="row" spacing={0.5} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
-                                <Tooltip title={t("edit")} arrow>
-                                  <IconButton size="small" color="primary" onClick={() => startEdit(s)}>
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
+                                <Tooltip
+                                  title={inactiveFutureBadge ? t("calEditorInactiveShiftBlocked") : t("edit")}
+                                  arrow
+                                >
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      disabled={inactiveFutureBadge}
+                                      onClick={() => startEdit(s)}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
                                 </Tooltip>
                                 <Tooltip title={t("delete")} arrow>
                                   <IconButton
@@ -554,7 +614,7 @@ export function CalendarDayEditorDialog({
                 </Box>
               );
             })}
-            {items.length === 0 && (
+            {calendarVisibleScheduleItems.length === 0 && (
               <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
                 {t("noData")}
               </Typography>
@@ -569,6 +629,9 @@ export function CalendarDayEditorDialog({
         </DialogTitle>
         <DialogContent dividers sx={{ pt: 2 }}>
           <Stack spacing={2}>
+            {editorEmployeeInactive ? (
+              <Alert severity="warning">{t("calEditorInactiveShiftBlocked")}</Alert>
+            ) : null}
             <TextField
               select
               label={t("deptBulkEmployeeColumn")}
@@ -576,7 +639,7 @@ export function CalendarDayEditorDialog({
               disabled={!!editor?.id}
               onChange={(e) => setEditor((cur) => (cur ? { ...cur, employeeId: e.target.value } : cur))}
             >
-              {employees.map((emp) => (
+              {selectableEmployees.map((emp) => (
                 <MenuItem key={emp.id} value={emp.id}>
                   {emp.fullName} {emp.jobTitle ? `· ${emp.jobTitle}` : ""}
                 </MenuItem>
@@ -623,7 +686,7 @@ export function CalendarDayEditorDialog({
           <Button onClick={() => setEditor(null)}>{t("cancel")}</Button>
           <Button
             variant="contained"
-            disabled={!editor?.employeeId || saveMut.isPending}
+            disabled={!editor?.employeeId || saveMut.isPending || editorEmployeeInactive}
             onClick={() => saveMut.mutate()}
           >
             {saveMut.isPending ? t("loading") : t("save")}

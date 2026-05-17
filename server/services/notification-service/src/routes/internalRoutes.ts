@@ -5,6 +5,7 @@ import * as ctrl from "../controllers/internalNotificationController.js";
 const r = Router();
 r.use(requireInternalSecret);
 
+r.post("/notifications/dashboard-refresh", ctrl.dashboardRefresh);
 r.post("/notifications/schedule-change", ctrl.scheduleChange);
 r.post("/notifications/schedule-range-change", ctrl.scheduleRangeChange);
 r.post("/notifications/meeting-invite", ctrl.meetingInvite);

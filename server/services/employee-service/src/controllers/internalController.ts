@@ -27,3 +27,13 @@ export async function listIdsByRole(req: Request, res: Response) {
   const ids = await svc.internalIdsByRole(role);
   res.json({ ids });
 }
+
+export async function inactiveIdsPaged(req: Request, res: Response) {
+  const qp = req.query as Record<string, string | undefined>;
+  const pageRaw = qp.page ? Number(qp.page) : 1;
+  const limitRaw = qp.limit ? Number(qp.limit) : 200;
+  const page = Number.isFinite(pageRaw) ? pageRaw : 1;
+  const limit = Number.isFinite(limitRaw) ? limitRaw : 200;
+  const out = await svc.internalInactiveEmployeeIdsPaged({ page, limit });
+  res.json(out);
+}

@@ -4,6 +4,13 @@ import { AppError } from "@syt/shared";
 import * as svc from "../services/notificationPersistence.js";
 import * as mailer from "../services/mailer.js";
 
+import * as socket from "../socket.js";
+
+export async function dashboardRefresh(_req: Request, res: Response) {
+  socket.emitAuthenticatedDashboardRefresh();
+  res.json({ ok: true });
+}
+
 const schedulePayload = z.object({
   scheduleId: z.string(),
   employeeId: z.string(),

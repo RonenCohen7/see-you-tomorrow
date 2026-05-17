@@ -10,6 +10,7 @@ import {
   type Role,
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
+import { clearEmployeeFutureSchedulesInternal } from "./remoteSchedule.js";
 
 export function toPublic(doc: EmployeeDoc) {
   return {
@@ -188,6 +189,7 @@ export type BulkImportEmployeeError = {
   message: string;
 };
 
+
 export async function importEmployeesBulk(input: {
   defaultPassword: string;
   rows: Array<Omit<Parameters<typeof createEmployee>[0], "password">>;
@@ -239,8 +241,12 @@ export async function importEmployeesBulk(input: {
     const existingDoc = await Employee.findOne({ email: emailNorm });
     if (existingDoc) {
       try {
+        const wasActiveBefore = existingDoc.isActive === true;
         const rowPayload: BulkEmployeeRow = { ...row, fullName: fullNameTrimmed, email: emailNorm };
         if (mergeBulkRowIntoExisting(existingDoc, rowPayload)) {
+          if (wasActiveBefore && existingDoc.isActive === false) {
+            await clearEmployeeFutureSchedulesInternal(existingDoc._id.toString());
+          }
           await existingDoc.save();
           updatedExisting++;
         } else {
@@ -280,8 +286,12 @@ export async function importEmployeesBulk(input: {
           continue;
         }
         try {
+          const wasActiveBefore = late.isActive === true;
           const rowPayload: BulkEmployeeRow = { ...row, fullName: fullNameTrimmed, email: emailNorm };
           if (mergeBulkRowIntoExisting(late, rowPayload)) {
+            if (wasActiveBefore && late.isActive === false) {
+              await clearEmployeeFutureSchedulesInternal(late._id.toString());
+            }
             await late.save();
             updatedExisting++;
           } else {
@@ -337,6 +347,13 @@ export async function updateEmployee(
   const doc = await Employee.findById(id);
   if (!doc) throw new AppError(404, "עובד לא נמצא", "NOT_FOUND");
 
+  const wasActive = doc.isActive === true;
+  const deactivatedByInput = input.isActive === false && wasActive;
+
+  if (deactivatedByInput) {
+    await clearEmployeeFutureSchedulesInternal(id);
+  }
+
   if (input.email && input.email !== doc.email) {
     const clash = await Employee.findOne({ email: input.email.toLowerCase() });
     if (clash) throw new AppError(409, "כתובת האימייל כבר בשימוש", "EMAIL_EXISTS");
@@ -364,6 +381,10 @@ export async function updateEmployee(
 
 export async function deleteEmployee(id: string) {
   const Employee = await getModel();
+  const prev = await Employee.findById(id).lean();
+  if (!prev) throw new AppError(404, "עובד לא נמצא", "NOT_FOUND");
+  const wasActive = prev.isActive === true;
+  if (wasActive) await clearEmployeeFutureSchedulesInternal(id);
   const doc = await Employee.findByIdAndUpdate(id, { isActive: false }, { new: true });
   if (!doc) throw new AppError(404, "עובד לא נמצא", "NOT_FOUND");
   return toPublic(doc);
@@ -449,6 +470,29 @@ export async function internalListByDepartment(departmentId: string) {
   const Employee = await getModel();
   const docs = await Employee.find({ departmentId, isActive: true }).lean();
   return docs.map((d) => toPublic(d as unknown as EmployeeDoc));
+}
+
+const INACTIVE_IDS_PAGE_LIMIT_MAX = 500;
+
+/** Paginated `_id`s of globally inactive employees (internal tooling). */
+export async function internalInactiveEmployeeIdsPaged(params: { page?: number; limit?: number }) {
+  const Employee = await getModel();
+  const rawPage = params.page ?? 1;
+  const rawLimit = params.limit ?? 200;
+  const page = Math.max(1, Math.floor(Number.isFinite(rawPage) ? rawPage : 1));
+  const limit = Math.min(
+    INACTIVE_IDS_PAGE_LIMIT_MAX,
+    Math.max(1, Math.floor(Number.isFinite(rawLimit) ? rawLimit : 200))
+  );
+  const skip = (page - 1) * limit;
+  const filter = { isActive: false };
+  const [docs, total] = await Promise.all([
+    Employee.find(filter).select("_id").sort({ _id: 1 }).skip(skip).limit(limit).lean(),
+    Employee.countDocuments(filter),
+  ]);
+  const ids = docs.map((d) => String((d._id as { toString: () => string }).toString()));
+  const pages = Math.max(1, Math.ceil(total / limit));
+  return { ids, page, limit, total, pages };
 }
 
 export async function internalAdminIds(): Promise<string[]> {
