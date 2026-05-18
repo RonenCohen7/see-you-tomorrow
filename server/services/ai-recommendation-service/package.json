@@ -8,9 +8,11 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@syt/shared": "*",
     "express": "^4.21.2",
     "express-async-errors": "^3.1.1",
+    "express-rate-limit": "^7.5.0",
     "openai": "^4.77.3",
     "zod": "^3.24.1"
   },

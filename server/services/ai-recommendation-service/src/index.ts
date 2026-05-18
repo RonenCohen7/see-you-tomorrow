@@ -8,7 +8,12 @@ import { aiRoutes } from "./routes/aiRoutes.js";
 import { internalAiRoutes } from "./routes/internalAiRoutes.js";
 
 const PORT = Number(process.env.PORT ?? 4007);
-logger.info("ai-recommendation-service starting", { PORT, JWT_SECRET_set: !!process.env.JWT_SECRET });
+logger.info("ai-recommendation-service starting", {
+  PORT,
+  JWT_SECRET_set: !!process.env.JWT_SECRET,
+  ANTHROPIC_API_KEY_set: !!process.env.ANTHROPIC_API_KEY?.trim(),
+  CLAUDE_MODEL: process.env.CLAUDE_MODEL ?? "(default)",
+});
 
 const app = express();
 app.use(express.json());

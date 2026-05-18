@@ -9,6 +9,8 @@ export type OrgCustomScheduleStatusDef = {
   id: string;
   labelHe: string;
   labelEn?: string;
+  /** When true — hidden from pickers/reports tabs; preserved on existing shifts */
+  disabled?: boolean;
 };
 
 export function customScheduleStoredValue(id: string): string {

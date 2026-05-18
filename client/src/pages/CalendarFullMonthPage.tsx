@@ -432,6 +432,7 @@ export default function CalendarFullMonthPage() {
             </Typography>
           </Box>
           <TextField
+            data-help-target="calendar-full-month-picker"
             type="month"
             size="small"
             value={month}
@@ -444,7 +445,7 @@ export default function CalendarFullMonthPage() {
         {monthQ.isLoading ? (
           <Skeleton variant="rectangular" height={400} sx={{ borderRadius: 1 }} />
         ) : (
-          <Box sx={{ width: "100%", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <Box sx={{ width: "100%", minWidth: 0, overflowX: "auto", WebkitOverflowScrolling: "touch" }} data-help-target="calendar-full-month-grid">
             <Box sx={{ minWidth: 0, width: "100%" }}>
               <Box
                 sx={{

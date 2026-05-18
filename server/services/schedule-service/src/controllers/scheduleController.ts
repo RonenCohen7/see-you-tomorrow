@@ -57,6 +57,10 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
     await orgSettings.setOrgCustomScheduleStatuses(req.body.customScheduleStatuses);
   }
 
+  if (req.body.disabledBuiltinScheduleStatuses !== undefined) {
+    await orgSettings.setDisabledBuiltinScheduleStatuses(req.body.disabledBuiltinScheduleStatuses);
+  }
+
   const s = await orgSettings.getOrgSchedulesFull();
   res.json(s);
 }

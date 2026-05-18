@@ -3,7 +3,9 @@ import {
   getConnection,
   getOrganizationSettingsModel,
   AppError,
+  SCHEDULE_STATUSES,
   type CustomScheduleStatusDef,
+  type ScheduleStatus,
 } from "@syt/shared";
 import { randomBytes } from "node:crypto";
 
@@ -35,11 +37,20 @@ function normalizeCustomStatusesInput(body: unknown): CustomScheduleStatusDef[] 
     } else if (!/^[a-f0-9]{8,48}$/i.test(id)) {
       throw new AppError(400, "מזהה סטטוס מותאם לא תקין", "VALIDATION");
     }
+    const disabled = raw.disabled === true;
     if (seen.has(id)) {
       throw new AppError(400, "כפילות במזהי סטטוס מותאם", "VALIDATION");
     }
     seen.add(id);
-    out.push(labelEn !== undefined ? { id, labelHe, labelEn } : { id, labelHe });
+    const def: CustomScheduleStatusDef =
+      disabled && labelEn !== undefined
+        ? { id, labelHe, labelEn, disabled: true }
+        : disabled
+          ? { id, labelHe, disabled: true }
+          : labelEn !== undefined
+            ? { id, labelHe, labelEn }
+            : { id, labelHe };
+    out.push(def);
   }
   return out;
 }
@@ -129,6 +140,31 @@ export async function setOrgCustomScheduleStatuses(list: unknown) {
   );
 }
 
+export async function setDisabledBuiltinScheduleStatuses(body: unknown) {
+  if (!Array.isArray(body)) {
+    throw new AppError(400, "disabledBuiltinScheduleStatuses חייבת להיות מערך", "VALIDATION");
+  }
+  const allowed = new Set(SCHEDULE_STATUSES as readonly ScheduleStatus[]);
+  const ids: ScheduleStatus[] = [];
+  const seenIn = new Set<string>();
+  for (const raw of body) {
+    const s = typeof raw === "string" ? raw.trim() : "";
+    if (!allowed.has(s as ScheduleStatus)) {
+      throw new AppError(400, `סטטוס מובנה לא תקין: ${s || "(ריק)"}`, "VALIDATION");
+    }
+    if (seenIn.has(s)) continue;
+    seenIn.add(s);
+    ids.push(s as ScheduleStatus);
+  }
+  const conn = await getConnection(DB_NAMES.settings);
+  const Model = getOrganizationSettingsModel(conn);
+  await Model.findOneAndUpdate(
+    {},
+    { $set: { disabledBuiltinScheduleStatuses: ids, updatedAt: new Date() } },
+    { upsert: true, new: true }
+  );
+}
+
 export async function getOrgSchedulesFull() {
   const conn = await getConnection(DB_NAMES.settings);
   const Model = getOrganizationSettingsModel(conn);
@@ -142,14 +178,24 @@ export async function getOrgSchedulesFull() {
     });
   }
   const customs = Array.isArray(doc.customScheduleStatuses) ? doc.customScheduleStatuses : [];
+  const disabledBuiltinsRaw = Array.isArray(doc.disabledBuiltinScheduleStatuses)
+    ? doc.disabledBuiltinScheduleStatuses
+    : [];
+  const disabledBuiltinScheduleStatuses = disabledBuiltinsRaw.filter((s): s is ScheduleStatus =>
+    (SCHEDULE_STATUSES as readonly string[]).includes(String(s)),
+  );
+
   return {
     managerCanEditSchedules: doc.managerCanEditSchedules,
     preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 7,
     preferenceRemindersEnabled: doc.preferenceRemindersEnabled !== false,
-    customScheduleStatuses: customs.map((c) =>
-      c.labelEn?.trim()
+    disabledBuiltinScheduleStatuses,
+    customScheduleStatuses: customs.map((c): CustomScheduleStatusDef => {
+      const base: CustomScheduleStatusDef = c.labelEn?.trim()
         ? { id: String(c.id), labelHe: String(c.labelHe), labelEn: String(c.labelEn) }
-        : { id: String(c.id), labelHe: String(c.labelHe) }
-    ),
+        : { id: String(c.id), labelHe: String(c.labelHe) };
+      if (c.disabled === true) base.disabled = true;
+      return base;
+    }),
   };
 }

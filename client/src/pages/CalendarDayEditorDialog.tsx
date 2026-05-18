@@ -46,6 +46,7 @@ import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { compareSchedulesForCalendarRoster } from "../utils/calendarRosterSort";
 import { useAuth } from "../store/authContext";
 import { customScheduleStoredValue, isBuiltinScheduleStatus } from "../utils/scheduleStatusKinds";
+import { selectableBuiltinStatusKeys, selectableCustomStatuses } from "../utils/effectiveScheduleStatuses";
 import { CUSTOM_SCHEDULE_STATUS_UI_COLOR, scheduleStatusPresentation } from "../utils/scheduleStatusUi";
 
 type RosterGrouped = {
@@ -163,13 +164,19 @@ export function CalendarDayEditorDialog({
     queryFn: async () =>
       (
         await api.get<{
-          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+          disabledBuiltinScheduleStatuses?: string[];
+          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
         }>("/api/schedules/org-settings")
       ).data,
     enabled: Boolean(open && user?.id),
     staleTime: 60_000,
   });
   const orgCustoms = orgScheduleMetaQ.data?.customScheduleStatuses ?? [];
+  const activeBuiltins = useMemo(
+    () => selectableBuiltinStatusKeys(orgScheduleMetaQ.data?.disabledBuiltinScheduleStatuses),
+    [orgScheduleMetaQ.data?.disabledBuiltinScheduleStatuses],
+  );
+  const activeOrgCustoms = useMemo(() => selectableCustomStatuses(orgCustoms), [orgCustoms]);
 
   /** Future/today UTC: hide inactive employees entirely (counts + roster + parking lines in this modal). */
   const calendarVisibleScheduleItems = useMemo(() => {
@@ -827,7 +834,7 @@ export function CalendarDayEditorDialog({
               value={editor?.status ?? "office"}
               onChange={(e) => setEditor((cur) => (cur ? { ...cur, status: e.target.value } : cur))}
             >
-              {STATUS_ORDER.map((s) => {
+              {activeBuiltins.map((s) => {
                 const meta = scheduleStatusPresentation(s, t, orgCustoms);
                 return (
                   <MenuItem key={s} value={s}>
@@ -838,7 +845,7 @@ export function CalendarDayEditorDialog({
                   </MenuItem>
                 );
               })}
-              {orgCustoms.map((c) => {
+              {activeOrgCustoms.map((c) => {
                 const stored = customScheduleStoredValue(c.id);
                 const meta = scheduleStatusPresentation(stored, t, orgCustoms);
                 return (

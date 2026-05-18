@@ -25,10 +25,15 @@ import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { downloadCsv } from "../utils/csvDownload";
 import { todayIsoLocal } from "../utils/date";
-import type { StatusKey } from "../theme/theme";
+import { customScheduleStoredValue } from "../utils/scheduleStatusKinds";
+import { STATUS_ORDER } from "../utils/statusMeta";
 
-const REPORT_STATUSES: StatusKey[] = ["office", "home", "vacation", "sick"];
+type OrgSettingsWire = {
+  disabledBuiltinScheduleStatuses?: string[];
+  customScheduleStatuses: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
+};
 
 type DailyPreview = {
   from: string;
@@ -54,15 +59,6 @@ type ParkingPreview = {
   }[];
 };
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function dailyStatusQueryString(from: string, to: string, status: string, employeeId?: string): string {
   const p = new URLSearchParams({ from, to, status });
   if (employeeId) p.set("employeeId", employeeId);
@@ -78,37 +74,61 @@ export default function ReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFrom, setStatusFrom] = useState(todayIsoLocal());
   const [statusTo, setStatusTo] = useState(todayIsoLocal());
-  const [statusTab, setStatusTab] = useState(0);
-  const status = REPORT_STATUSES[statusTab] ?? "office";
   const [parkingFrom, setParkingFrom] = useState(todayIsoLocal());
   const [parkingTo, setParkingTo] = useState(todayIsoLocal());
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const orgQ = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: async () => (await api.get<OrgSettingsWire>("/api/schedules/org-settings")).data,
+    enabled: Boolean(user?.id),
+    staleTime: 60_000,
+  });
+
+  const reportTabs = useMemo(() => {
+    const disB = new Set(orgQ.data?.disabledBuiltinScheduleStatuses ?? []);
+    const builtins = STATUS_ORDER.filter((k) => !disB.has(k)).map((k) => ({ stored: k, label: t(k) }));
+    const customs = (orgQ.data?.customScheduleStatuses ?? [])
+      .filter((c) => !c.disabled)
+      .map((c) => ({
+        stored: customScheduleStoredValue(c.id),
+        label: (c.labelHe || "").trim() || customScheduleStoredValue(c.id),
+      }));
+    const merged = [...builtins, ...customs];
+    return merged.length > 0 ? merged : [{ stored: "office", label: t("office") }];
+  }, [orgQ.data, t]);
+
+  const [statusValue, setStatusValue] = useState("office");
+
+  const urlStatusRaw = searchParams.get("status")?.trim();
+
+  useEffect(() => {
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    if (from && ISO_DATE.test(from)) setStatusFrom(from);
+    if (to && ISO_DATE.test(to)) setStatusTo(to);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!orgQ.isSuccess || !urlStatusRaw) return;
+    if (reportTabs.some((tab) => tab.stored === urlStatusRaw)) setStatusValue(urlStatusRaw);
+    else if (reportTabs[0]) setStatusValue(reportTabs[0].stored);
+  }, [orgQ.isSuccess, urlStatusRaw, reportTabs]);
 
   const filterEmployeeId = useMemo(() => {
     const raw = searchParams.get("employeeId")?.trim() ?? "";
     return OBJECT_ID.test(raw) ? raw : undefined;
   }, [searchParams]);
 
-  useEffect(() => {
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-    const st = searchParams.get("status");
-    if (from && ISO_DATE.test(from)) setStatusFrom(from);
-    if (to && ISO_DATE.test(to)) setStatusTo(to);
-    if (st && (REPORT_STATUSES as readonly string[]).includes(st)) {
-      setStatusTab(REPORT_STATUSES.indexOf(st as (typeof REPORT_STATUSES)[number]));
-    }
-  }, [searchParams]);
-
   const dailyQ = useQuery({
-    queryKey: ["reports-daily-preview", statusFrom, statusTo, status, filterEmployeeId],
+    queryKey: ["reports-daily-preview", statusFrom, statusTo, statusValue, filterEmployeeId],
     queryFn: async () =>
       (
         await api.get<DailyPreview>(
-          `/api/reports/daily-status/preview?${dailyStatusQueryString(statusFrom, statusTo, status, filterEmployeeId)}`
+          `/api/reports/daily-status/preview?${dailyStatusQueryString(statusFrom, statusTo, statusValue, filterEmployeeId)}`
         )
       ).data,
-    enabled: statusFrom <= statusTo,
+    enabled: statusFrom <= statusTo && reportTabs.some((x) => x.stored === statusValue),
   });
 
   const parkingQ = useQuery({
@@ -121,23 +141,16 @@ export default function ReportsPage() {
   const dailyRows = dailyQ.data?.rows ?? [];
   const parkingRows = parkingQ.data?.rows ?? [];
 
-  const pdfDailyMut = useMutation({
-    mutationFn: async () => {
-      if (statusFrom > statusTo) {
-        setToast({ msg: t("reportsInvalidDateRange"), ok: false });
-        return;
-      }
-      const res = await api.get<Blob>(
-        `/api/reports/daily-status/pdf?${dailyStatusQueryString(statusFrom, statusTo, status, filterEmployeeId)}`,
-        { responseType: "blob" }
-      );
-      const title = dailyQ.data?.title ?? t(status);
-      const fn =
-        statusFrom === statusTo ? `${title}-${statusFrom}.pdf` : `${title}-${statusFrom}-${statusTo}.pdf`;
-      downloadBlob(res.data, fn);
-    },
-    onError: (e) => setToast({ msg: apiErrorMessage(e, t("error")), ok: false }),
-  });
+  function downloadDailyCsv() {
+    if (statusFrom > statusTo) {
+      setToast({ msg: t("reportsInvalidDateRange"), ok: false });
+      return;
+    }
+    const safeTitle = (dailyQ.data?.title ?? t(statusValue)).replace(/[\\/]+/g, "-");
+    const fn =
+      statusFrom === statusTo ? `report-${safeTitle}-${statusFrom}.csv` : `report-${safeTitle}-${statusFrom}-${statusTo}.csv`;
+    downloadCsv(fn, ["full_name", "work_date"], dailyRows.map((r) => ({ full_name: r.fullName, work_date: r.workDate })));
+  }
 
   const emailDailyMut = useMutation({
     mutationFn: async () => {
@@ -149,12 +162,12 @@ export default function ReportsPage() {
       return api.post("/api/reports/daily-status/email", {
         from: statusFrom,
         to: statusTo,
-        status,
+        status: statusValue,
         recipientEmail: user?.email,
         ...(filterEmployeeId ? { employeeId: filterEmployeeId } : {}),
       });
     },
-    onSuccess: () => setToast({ msg: t("reportsEmailSent"), ok: true }),
+    onSuccess: () => setToast({ msg: t("reportsEmailSentCsv"), ok: true }),
     onError: (e) => {
       if ((e as Error & { code?: string }).code === "RANGE") {
         setToast({ msg: t("reportsInvalidDateRange"), ok: false });
@@ -164,15 +177,20 @@ export default function ReportsPage() {
     },
   });
 
-  const pdfParkingMut = useMutation({
-    mutationFn: async () => {
-      const res = await api.get<Blob>(`/api/reports/parking-assignments/pdf?from=${parkingFrom}&to=${parkingTo}`, {
-        responseType: "blob",
-      });
-      downloadBlob(res.data, `parking-${parkingFrom}-${parkingTo}.pdf`);
-    },
-    onError: (e) => setToast({ msg: apiErrorMessage(e, t("error")), ok: false }),
-  });
+  function downloadParkingCsv() {
+    downloadCsv(
+      `parking-${parkingFrom}-${parkingTo}.csv`,
+      ["spot", "location", "owner", "assignee", "work_date", "hours"],
+      parkingRows.map((r) => ({
+        spot: r.spotLabel,
+        location: r.locationName || "",
+        owner: r.ownerName,
+        assignee: r.assigneeName,
+        work_date: r.workDate,
+        hours: r.hoursText,
+      }))
+    );
+  }
 
   const emailParkingMut = useMutation({
     mutationFn: async () =>
@@ -181,11 +199,11 @@ export default function ReportsPage() {
         to: parkingTo,
         recipientEmail: user?.email,
       }),
-    onSuccess: () => setToast({ msg: t("reportsEmailSent"), ok: true }),
+    onSuccess: () => setToast({ msg: t("reportsEmailSentCsv"), ok: true }),
     onError: (e) => setToast({ msg: apiErrorMessage(e, t("error")), ok: false }),
   });
 
-  const dailyTitle = useMemo(() => dailyQ.data?.title ?? t(status), [dailyQ.data?.title, status, t]);
+  const dailyTitle = useMemo(() => dailyQ.data?.title ?? t(statusValue), [dailyQ.data?.title, statusValue, t]);
 
   return (
     <Box sx={{ width: "100%", maxWidth: 960, mx: "auto", px: { xs: 1, sm: 2 }, py: 2 }}>
@@ -234,9 +252,14 @@ export default function ReportsPage() {
             {t("reportsDateFieldsHint")}
           </Typography>
           <Stack spacing={2} sx={{ mb: 2 }}>
-            <Tabs value={statusTab} onChange={(_, v) => setStatusTab(v)} variant="scrollable" scrollButtons="auto">
-              {REPORT_STATUSES.map((s, i) => (
-                <Tab key={s} label={t(s)} value={i} />
+            <Tabs
+              value={statusValue}
+              onChange={(_, v) => setStatusValue(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
+              {reportTabs.map((tab) => (
+                <Tab key={tab.stored} value={tab.stored} label={tab.label} />
               ))}
             </Tabs>
           </Stack>
@@ -245,7 +268,7 @@ export default function ReportsPage() {
           </Typography>
           {statusFrom <= statusTo ? (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, lineHeight: 1.5 }}>
-              {t("reportsActiveQuery", { status: t(status), from: statusFrom, to: statusTo })}
+              {t("reportsActiveQuery", { status: dailyTitle, from: statusFrom, to: statusTo })}
             </Typography>
           ) : null}
           {filterEmployeeId ? (
@@ -307,19 +330,15 @@ export default function ReportsPage() {
             </TableBody>
           </Table>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
-            <Button
-              variant="outlined"
-              onClick={() => pdfDailyMut.mutate()}
-              disabled={pdfDailyMut.isPending || statusFrom > statusTo}
-            >
-              {t("reportsDownloadPdf")}
+            <Button variant="outlined" onClick={downloadDailyCsv} disabled={statusFrom > statusTo || dailyRows.length === 0}>
+              {t("reportsDownloadCsv")}
             </Button>
             <Button
               variant="contained"
               onClick={() => emailDailyMut.mutate()}
               disabled={emailDailyMut.isPending || statusFrom > statusTo}
             >
-              {t("reportsSendEmail")}
+              {t("reportsSendEmailCsv")}
             </Button>
           </Stack>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
@@ -382,11 +401,11 @@ export default function ReportsPage() {
             </TableBody>
           </Table>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={() => pdfParkingMut.mutate()} disabled={pdfParkingMut.isPending}>
-              {t("reportsDownloadPdf")}
+            <Button variant="outlined" onClick={downloadParkingCsv} disabled={parkingRows.length === 0}>
+              {t("reportsDownloadCsv")}
             </Button>
             <Button variant="contained" onClick={() => emailParkingMut.mutate()} disabled={emailParkingMut.isPending}>
-              {t("reportsSendEmail")}
+              {t("reportsSendEmailCsv")}
             </Button>
           </Stack>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>

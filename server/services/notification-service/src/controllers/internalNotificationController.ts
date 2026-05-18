@@ -176,31 +176,44 @@ export async function preferencePipelineBatchPendingManagers(req: Request, res: 
   res.status(201).json(doc ?? { ok: true });
 }
 
-const emailAttachmentPayload = z.object({
-  to: z.string().email(),
-  subject: z.string().min(1).max(200),
-  text: z.string().max(8000).optional().default(""),
-  filename: z.string().min(1).max(200),
-  pdfBase64: z.string().min(1).max(12_000_000),
-});
+const emailAttachmentPayload = z
+  .object({
+    to: z.string().email(),
+    subject: z.string().min(1).max(200),
+    text: z.string().max(8000).optional().default(""),
+    filename: z.string().min(1).max(200),
+    contentType: z.string().min(3).max(200).optional().default("application/pdf"),
+    attachmentBase64: z.string().min(1).max(12_000_000).optional(),
+    pdfBase64: z.string().min(1).max(12_000_000).optional(),
+  })
+  .refine((d) => Boolean(d.attachmentBase64 || d.pdfBase64), {
+    message: "דרוש attachment או pdf",
+    path: ["attachmentBase64"],
+  });
 
 export async function emailAttachment(req: Request, res: Response) {
   const parsed = emailAttachmentPayload.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const b64 = parsed.data.attachmentBase64 ?? parsed.data.pdfBase64 ?? "";
   let buf: Buffer;
   try {
-    buf = Buffer.from(parsed.data.pdfBase64, "base64");
+    buf = Buffer.from(b64, "base64");
   } catch {
-    throw new AppError(400, "קובץ PDF לא תקין", "VALIDATION");
+    throw new AppError(400, "קובץ מצורף לא תקין", "VALIDATION");
   }
-  if (buf.length < 10 || buf.length > 8_000_000) {
+  if (buf.length < 2 || buf.length > 8_000_000) {
     throw new AppError(400, "גודל קובץ לא חוקי", "VALIDATION");
   }
+  const contentType = parsed.data.contentType?.trim() || "application/octet-stream";
   await mailer.sendMailWithAttachment({
     to: parsed.data.to,
     subject: parsed.data.subject,
     text: parsed.data.text || "",
-    attachment: { filename: parsed.data.filename, content: buf, contentType: "application/pdf" },
+    attachment: {
+      filename: parsed.data.filename,
+      content: buf,
+      contentType,
+    },
   });
   res.status(204).end();
 }

@@ -69,7 +69,7 @@ export default function LocationsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ name: "", city: "", country: "", address: "", capacity: 50 });
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(true);
 
   const q = useQuery({
     queryKey: ["locations", activeOnly],

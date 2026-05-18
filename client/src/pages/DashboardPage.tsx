@@ -146,6 +146,7 @@ export default function DashboardPage() {
 
   return (
     <Box
+      data-help-target="dashboard-root"
       sx={{
         width: "100%",
         minWidth: 0,
@@ -185,6 +186,7 @@ export default function DashboardPage() {
       </Typography>
 
       <Box
+        data-help-target="dashboard-stats"
         sx={{
           display: "grid",
           gap: { xs: 1, sm: 1.25 },
@@ -226,6 +228,7 @@ export default function DashboardPage() {
         {t("goTo")}
       </Typography>
       <Box
+        data-help-target="dashboard-go-tiles"
         sx={{
           display: "grid",
           gap: { xs: 1, sm: 1.25 },
@@ -269,7 +272,7 @@ export default function DashboardPage() {
         ))}
       </Box>
 
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, mt: 2 }}>
+      <Box data-help-target="dashboard-today-panel" sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, mt: 2 }}>
         <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: "1rem", sm: "1.15rem" } }}>
           {t("today")} · {today}
         </Typography>

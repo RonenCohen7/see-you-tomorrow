@@ -63,6 +63,11 @@ import { scheduleNoteShortDisplay } from "../utils/scheduleNoteDisplay";
 import { todayIsoLocal } from "../utils/date";
 import { utcWeekdayShort, nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
 import { STATUS_ORDER } from "../utils/statusMeta";
+import {
+  isStoredStatusSelectableInOrg,
+  selectableBuiltinStatusKeys,
+  selectableCustomStatuses,
+} from "../utils/effectiveScheduleStatuses";
 
 type FormState = {
   employeeId: string;
@@ -74,9 +79,6 @@ type FormState = {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
-
-/** סטטוסים שמופיעים בדוח «שיבוץ לפי סטטוס» — לא כולל «לא עובד». */
-const SCHEDULE_STATUSES_IN_DAILY_REPORT = new Set<Schedule["status"]>(["office", "home", "vacation", "sick"]);
 
 /** טורקיז לתצוגת «חופשה/נופש» בדיאלוג השבועי בלבד */
 const WEEKLY_VACATION_DISPLAY = "#00897B";
@@ -202,7 +204,8 @@ export default function ScheduleManagementPage() {
     queryFn: async () =>
       (
         await api.get<{
-          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+          disabledBuiltinScheduleStatuses?: string[];
+          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
         }>("/api/schedules/org-settings")
       ).data,
     enabled: Boolean(user?.id),
@@ -210,6 +213,11 @@ export default function ScheduleManagementPage() {
   });
 
   const orgCustoms = orgScheduleMetaQ.data?.customScheduleStatuses ?? [];
+  const activeBuiltins = useMemo(
+    () => selectableBuiltinStatusKeys(orgScheduleMetaQ.data?.disabledBuiltinScheduleStatuses),
+    [orgScheduleMetaQ.data?.disabledBuiltinScheduleStatuses],
+  );
+  const activeOrgCustoms = useMemo(() => selectableCustomStatuses(orgCustoms), [orgCustoms]);
 
   const weeklyRangeFrom = weeklyWeek?.days[0];
   const weeklyRangeTo = weeklyWeek?.days[6];
@@ -786,6 +794,7 @@ export default function ScheduleManagementPage() {
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <Stack
+        data-help-target="schedules-toolbar-row"
         direction="row"
         alignItems={{ xs: "flex-start", sm: "center" }}
         justifyContent="space-between"
@@ -863,6 +872,7 @@ export default function ScheduleManagementPage() {
       </Stack>
 
       <Box
+        data-help-target="schedules-info-banner"
         sx={(th) => ({
           mb: 1.25,
           p: { xs: 1.25, sm: 1.5 },
@@ -898,7 +908,7 @@ export default function ScheduleManagementPage() {
       ) : null}
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-        {STATUS_ORDER.map((k) => {
+        {activeBuiltins.map((k) => {
           const meta = scheduleStatusPresentation(k, t, orgCustoms);
           return (
             <Chip
@@ -915,7 +925,7 @@ export default function ScheduleManagementPage() {
             />
           );
         })}
-        {orgCustoms.map((c) => {
+        {activeOrgCustoms.map((c) => {
           const stored = customScheduleStoredValue(c.id);
           const meta = scheduleStatusPresentation(stored, t, orgCustoms);
           return (
@@ -977,6 +987,7 @@ export default function ScheduleManagementPage() {
       ) : null}
 
       <Box
+        data-help-target="schedules-grid-host"
         sx={{
           width: "100%",
           minWidth: 0,
@@ -999,7 +1010,7 @@ export default function ScheduleManagementPage() {
           }
           onRowDoubleClick={(params) => {
             const row = params.row;
-            if (!SCHEDULE_STATUSES_IN_DAILY_REPORT.has(row.status)) {
+            if (!isStoredStatusSelectableInOrg(row.status, orgScheduleMetaQ.data)) {
               setToast({ msg: t("schedulesReportSkipOffStatus"), ok: false });
               return;
             }
@@ -1202,7 +1213,7 @@ export default function ScheduleManagementPage() {
                 value={deptBulkForm.status}
                 onChange={(e) => setDeptBulkForm({ ...deptBulkForm, status: e.target.value })}
               >
-                {STATUS_ORDER.map((s) => {
+                {activeBuiltins.map((s) => {
                   const meta = scheduleStatusPresentation(s, t, orgCustoms);
                   return (
                     <MenuItem key={s} value={s}>
@@ -1213,7 +1224,7 @@ export default function ScheduleManagementPage() {
                     </MenuItem>
                   );
                 })}
-                {orgCustoms.map((c) => {
+                {activeOrgCustoms.map((c) => {
                   const stored = customScheduleStoredValue(c.id);
                   const meta = scheduleStatusPresentation(stored, t, orgCustoms);
                   return (
@@ -1462,7 +1473,7 @@ export default function ScheduleManagementPage() {
                                   );
                                 }}
                               >
-                                {STATUS_ORDER.map((s) => {
+                                {activeBuiltins.map((s) => {
                                   const m = scheduleStatusPresentation(s, t, orgCustoms);
                                   return (
                                     <MenuItem key={s} value={s}>
@@ -1473,7 +1484,7 @@ export default function ScheduleManagementPage() {
                                     </MenuItem>
                                   );
                                 })}
-                                {orgCustoms.map((c) => {
+                                {activeOrgCustoms.map((c) => {
                                   const stored = customScheduleStoredValue(c.id);
                                   const m = scheduleStatusPresentation(stored, t, orgCustoms);
                                   return (
@@ -1632,7 +1643,7 @@ export default function ScheduleManagementPage() {
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
           >
-            {STATUS_ORDER.map((s) => {
+            {activeBuiltins.map((s) => {
               const meta = scheduleStatusPresentation(s, t, orgCustoms);
               return (
                 <MenuItem key={s} value={s}>
@@ -1643,7 +1654,7 @@ export default function ScheduleManagementPage() {
                 </MenuItem>
               );
             })}
-            {orgCustoms.map((c) => {
+            {activeOrgCustoms.map((c) => {
               const stored = customScheduleStoredValue(c.id);
               const meta = scheduleStatusPresentation(stored, t, orgCustoms);
               return (

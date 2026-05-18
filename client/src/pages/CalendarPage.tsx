@@ -538,6 +538,7 @@ export default function CalendarPage() {
         sx={{ mb: 1, gap: 1 }}
       >
         <Tabs
+          data-help-target="calendar-tabs"
           value={calTab}
           onChange={(_, v) => setCalTab(v)}
           variant="scrollable"
@@ -555,6 +556,7 @@ export default function CalendarPage() {
           <Tab label={t("calendarTabFifteen")} />
         </Tabs>
         <TextField
+          data-help-target="calendar-month-picker"
           type="month"
           size="small"
           value={month}
@@ -579,7 +581,7 @@ export default function CalendarPage() {
             {next7Q.isLoading ? (
               <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1 }} />
             ) : (
-              <Box className="calendar-page__seven-grid">
+              <Box className="calendar-page__seven-grid" data-help-target="calendar-seven-grid">
                 {next7.map(({ iso, weekday, dayNum, monthShort }) => {
                   const isToday = iso === today;
                   const list = next7ByDay.get(iso) ?? [];
@@ -983,6 +985,7 @@ export default function CalendarPage() {
                 </Typography>
               </Box>
               <Button
+                data-help-target="calendar-full-month-btn"
                 fullWidth
                 variant="outlined"
                 size="large"

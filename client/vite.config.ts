@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    /** Required for ngrok / LAN — `npm run dev -- --host` does not reach Vite (goes to concurrently). */
+    host: true,
     // Dev tunnels (ngrok, etc.): otherwise Vite returns "Blocked request" for Host header.
     allowedHosts: [
       ".localhost",

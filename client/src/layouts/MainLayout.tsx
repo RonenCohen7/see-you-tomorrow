@@ -49,6 +49,8 @@ import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import { AiInsightFab } from "../components/AiInsightFab";
 import { BirthdayFab } from "../components/BirthdayFab";
+import { NotificationsAttentionFab } from "../components/NotificationsAttentionFab";
+import { VirtualAssistantWidget } from "../components/VirtualAssistantWidget";
 import LanguageToggle from "../components/LanguageToggle";
 import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
 import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
@@ -191,7 +193,7 @@ export default function MainLayout() {
         </Box>
       </Stack>
       <Divider sx={{ mb: 1 }} />
-      <List sx={{ flexGrow: 1 }}>
+      <List sx={{ flexGrow: 1 }} data-help-target="app-nav">
         {nav.map(({ to, key, Icon }) => {
           const selected = loc.pathname === to;
           return (
@@ -267,6 +269,7 @@ export default function MainLayout() {
         }}
       >
         <Toolbar
+          data-help-target="app-toolbar"
           sx={{
             display: "flex",
             alignItems: "center",
@@ -411,6 +414,7 @@ export default function MainLayout() {
       </Drawer>
       <Box
         component="main"
+        data-help-target="app-main"
         sx={{
           direction: theme.direction,
           flex: "1 1 0%",
@@ -455,20 +459,26 @@ export default function MainLayout() {
               position: "fixed",
               zIndex: (th) => th.zIndex.tooltip + 1,
               bottom: { xs: 88, sm: 24 },
-              right: 16,
-              left: "auto",
+              ...(theme.direction === "rtl" ? { left: 16, right: "auto" } : { right: 16, left: "auto" }),
               display: "flex",
               flexDirection: "column-reverse",
               alignItems: "flex-end",
               gap: 1.25,
               pb: "env(safe-area-inset-bottom, 0px)",
-              pr: "env(safe-area-inset-right, 0px)",
+              ...(theme.direction === "rtl"
+                ? { pl: "env(safe-area-inset-left, 0px)" }
+                : { pr: "env(safe-area-inset-right, 0px)" }),
               pointerEvents: "none",
               "& > *": { pointerEvents: "auto" },
             }}
           >
+            <VirtualAssistantWidget
+              role={role ?? "employee"}
+              onOpenScreenHelp={() => setScreenHelpOpen(true)}
+            />
             <AiInsightFab socket={socket} />
             <BirthdayFab socket={socket} />
+            <NotificationsAttentionFab socket={socket} />
           </Box>
         </>
       ) : null}

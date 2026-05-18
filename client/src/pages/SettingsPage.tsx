@@ -22,26 +22,41 @@ import { Link as RouterLink } from "react-router-dom";
 import { useThemeMode } from "../theme/ThemeModeContext";
 import { useRole } from "../store/authContext";
 import React from "react";
+import { STATUS_ORDER } from "../utils/statusMeta";
 
 type OrgSettingsResponse = {
   managerCanEditSchedules: boolean;
   preferenceMinDaysAhead: number;
   preferenceRemindersEnabled: boolean;
-  customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+  disabledBuiltinScheduleStatuses?: string[];
+  customScheduleStatuses: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
 };
 
 type OrgSettingsPatch = Partial<{
   managerCanEditSchedules: boolean;
   preferenceMinDaysAhead: number;
   preferenceRemindersEnabled: boolean;
-  customScheduleStatuses: { id?: string; labelHe: string; labelEn?: string }[];
+  disabledBuiltinScheduleStatuses: string[];
+  customScheduleStatuses: CustomScheduleStatusWire[];
 }>;
 
+type CustomScheduleStatusWire = {
+  id?: string;
+  labelHe: string;
+  labelEn?: string;
+  disabled?: boolean;
+};
+
 /** Local row: `labelEn` always string for controlled TextField even when omitted on wire. */
-type CustomDraftRow = { id: string; labelHe: string; labelEn: string };
+type CustomDraftRow = { id: string; labelHe: string; labelEn: string; disabled: boolean };
 
 function toCustomDraft(rows: OrgSettingsResponse["customScheduleStatuses"] | undefined): CustomDraftRow[] {
-  return (rows ?? []).map((r) => ({ id: r.id, labelHe: r.labelHe, labelEn: r.labelEn ?? "" }));
+  return (rows ?? []).map((r) => ({
+    id: r.id,
+    labelHe: r.labelHe,
+    labelEn: r.labelEn ?? "",
+    disabled: r.disabled === true,
+  }));
 }
 
 export default function SettingsPage() {
@@ -60,24 +75,29 @@ export default function SettingsPage() {
   });
 
   const [draftCustomStatuses, setDraftCustomStatuses] = React.useState<CustomDraftRow[]>([]);
-  const hasHydratedCustomDraftRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!orgQ.isSuccess || !orgQ.data || hasHydratedCustomDraftRef.current) return;
-    hasHydratedCustomDraftRef.current = true;
-    setDraftCustomStatuses(toCustomDraft(orgQ.data.customScheduleStatuses));
-  }, [orgQ.isSuccess, orgQ.data]);
+  const [draftDisabledBuiltins, setDraftDisabledBuiltins] = React.useState<string[]>([]);
+  const orgWireSigRef = React.useRef("");
 
   const patchOrg = useMutation({
     mutationFn: async (patch: OrgSettingsPatch) =>
       (await api.patch<OrgSettingsResponse>("/api/schedules/org-settings", patch)).data,
     onSuccess: async (updated) => {
-      if (Array.isArray(updated.customScheduleStatuses)) {
-        setDraftCustomStatuses(toCustomDraft(updated.customScheduleStatuses));
-      }
+      const sig = `${JSON.stringify(updated.customScheduleStatuses)}|${JSON.stringify(updated.disabledBuiltinScheduleStatuses)}`;
+      orgWireSigRef.current = sig;
+      setDraftCustomStatuses(toCustomDraft(updated.customScheduleStatuses));
+      setDraftDisabledBuiltins([...(updated.disabledBuiltinScheduleStatuses ?? [])]);
       await qc.invalidateQueries({ queryKey: ["org-settings"] });
     },
   });
+
+  React.useEffect(() => {
+    if (!orgQ.isSuccess || !orgQ.data) return;
+    const sig = `${JSON.stringify(orgQ.data.customScheduleStatuses)}|${JSON.stringify(orgQ.data.disabledBuiltinScheduleStatuses)}`;
+    if (sig === orgWireSigRef.current) return;
+    orgWireSigRef.current = sig;
+    setDraftCustomStatuses(toCustomDraft(orgQ.data.customScheduleStatuses));
+    setDraftDisabledBuiltins([...(orgQ.data.disabledBuiltinScheduleStatuses ?? [])]);
+  }, [orgQ.isSuccess, orgQ.data]);
 
   const [prefMinDraft, setPrefMinDraft] = React.useState(7);
   React.useEffect(() => {
@@ -112,7 +132,7 @@ export default function SettingsPage() {
       {role === "admin" && (
         <Box sx={{ mt: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
-            ארגון
+            {t("settingsOrgHeading")}
           </Typography>
           <FormControlLabel
             sx={{ alignItems: "flex-start", mr: 0, "& .MuiFormControlLabel-label": { whiteSpace: "normal" } }}
@@ -123,15 +143,15 @@ export default function SettingsPage() {
                 disabled={orgQ.isLoading || patchOrg.isPending}
               />
             }
-            label="מנהלים רשאים לערוך משמרות"
+            label={t("settingsManagersEditShifts")}
           />
 
           <Typography variant="subtitle2" sx={{ mt: 2 }}>
-            העדפות עובדים לפני AI
+            {t("settingsPrefBeforeAi")}
           </Typography>
           <Stack spacing={2} sx={{ mt: 1, maxWidth: 400 }}>
             <TextField
-              label="מינימום ימים קדימה להגשת העדפות"
+              label={t("settingsPrefMinDaysLabel")}
               type="number"
               size="small"
               value={prefMinDraft}
@@ -145,7 +165,7 @@ export default function SettingsPage() {
               disabled={orgQ.isLoading || patchOrg.isPending}
               onClick={() => patchOrg.mutate({ preferenceMinDaysAhead: prefMinDraft })}
             >
-              שמור מרווח
+              {t("settingsPrefMinDaysSave")}
             </Button>
             <FormControlLabel
               control={
@@ -155,22 +175,53 @@ export default function SettingsPage() {
                   disabled={orgQ.isLoading || patchOrg.isPending}
                 />
               }
-              label="תזכורות אוטומטיות למלא העדפות"
+              label={t("settingsPrefReminders")}
             />
           </Stack>
 
           <Typography variant="subtitle2" sx={{ mt: 3 }}>
-            סטטוסי משמרת נוספים (מותאמים לארגון)
+            {t("settingsBuiltinStatusesHeading")}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            מתווספים ליד הסטטוסים המוגדרים במערכת (משרד, בית, חופשה, מחלה, לא עובדים). בשמירה, משמרות שכבר משתמשות
-            בסטטוס שנמחק לא ייעלמו — צריך לעדכן אותן ידנית.
+            {t("settingsBuiltinStatusesHint")}
           </Typography>
-          <Stack spacing={1.25} sx={{ maxWidth: 640, mb: 2 }}>
+          <Stack spacing={1} sx={{ maxWidth: 480, mb: 2 }}>
+            {STATUS_ORDER.map((k) => (
+              <FormControlLabel
+                key={k}
+                sx={{ mr: 0, alignItems: "center" }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={!draftDisabledBuiltins.includes(k)}
+                    disabled={patchOrg.isPending || orgQ.isLoading}
+                    onChange={(_, checked) => {
+                      setDraftDisabledBuiltins((prev) =>
+                        checked ? prev.filter((x) => x !== k) : [...new Set([...prev, k])]
+                      );
+                    }}
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    {t(k)} — {t("settingsBuiltinStatusShown")}
+                  </Typography>
+                }
+              />
+            ))}
+          </Stack>
+
+          <Typography variant="subtitle2" sx={{ mt: 2 }}>
+            {t("settingsCustomStatusesHeading")}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {t("settingsCustomStatusesHint")}
+          </Typography>
+          <Stack spacing={1.25} sx={{ maxWidth: 720, mb: 2 }}>
             {draftCustomStatuses.map((row, idx) => (
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} key={row.id || `new-${idx}`}>
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={1} alignItems={{ lg: "center" }} key={row.id || `new-${idx}`}>
                 <TextField
-                  label="כותרת בעברית"
+                  label={t("settingsCustomLabelHe")}
                   value={row.labelHe}
                   required
                   size="small"
@@ -185,7 +236,7 @@ export default function SettingsPage() {
                   }}
                 />
                 <TextField
-                  label="English (לא חובה)"
+                  label={t("settingsCustomLabelEn")}
                   value={row.labelEn}
                   size="small"
                   fullWidth
@@ -199,8 +250,24 @@ export default function SettingsPage() {
                     );
                   }}
                 />
+                <FormControlLabel
+                  sx={{ mr: 0, flexShrink: 0 }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={!row.disabled}
+                      disabled={patchOrg.isPending}
+                      onChange={(_, c) =>
+                        setDraftCustomStatuses((cur) =>
+                          cur.map((r, i) => (i === idx ? { ...r, disabled: !c } : r))
+                        )
+                      }
+                    />
+                  }
+                  label={<Typography variant="caption">{t("settingsCustomActive")}</Typography>}
+                />
                 <IconButton
-                  aria-label="הסרת סטטוס"
+                  aria-label={t("settingsRemoveStatusAria")}
                   size="small"
                   disabled={patchOrg.isPending}
                   onClick={() => setDraftCustomStatuses((cur) => cur.filter((_, i) => i !== idx))}
@@ -218,36 +285,40 @@ export default function SettingsPage() {
               startIcon={<AddIcon />}
               disabled={draftCustomStatuses.length >= 40 || patchOrg.isPending}
               onClick={() =>
-                setDraftCustomStatuses((cur) => [...cur, { id: "", labelHe: "", labelEn: "" }])
+                setDraftCustomStatuses((cur) => [...cur, { id: "", labelHe: "", labelEn: "", disabled: false }])
               }
             >
-              הוספת סטטוס
+              {t("settingsAddStatus")}
             </Button>
             <Button
               size="small"
               variant="contained"
               disabled={patchOrg.isPending || draftCustomStatuses.some((r) => !r.labelHe.trim())}
               onClick={() => {
-                const payload = draftCustomStatuses.map((row) => {
+                const payload: CustomScheduleStatusWire[] = draftCustomStatuses.map((row) => {
                   const trimmedId = row.id.trim();
                   const labelHe = row.labelHe.trim();
                   const en = row.labelEn.trim();
-                  const base =
+                  const base: CustomScheduleStatusWire =
                     trimmedId === ""
                       ? { labelHe }
                       : { id: trimmedId, labelHe };
-                  return en !== "" ? { ...base, labelEn: en } : base;
+                  const withEn = en !== "" ? { ...base, labelEn: en } : base;
+                  return row.disabled ? { ...withEn, disabled: true } : withEn;
                 });
-                patchOrg.mutate({ customScheduleStatuses: payload });
+                patchOrg.mutate({
+                  customScheduleStatuses: payload,
+                  disabledBuiltinScheduleStatuses: draftDisabledBuiltins,
+                });
               }}
             >
-              שמור סטטוסים מותאמים
+              {t("settingsSaveStatuses")}
             </Button>
           </Stack>
           {patchOrg.isError ? (
             <Alert severity="error" sx={{ maxWidth: 640, mb: 2 }}>
               {(patchOrg.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-                "שמירת סטטוסים נכשלה"}
+                t("settingsSaveStatusesFailed")}
             </Alert>
           ) : null}
 
@@ -262,21 +333,21 @@ export default function SettingsPage() {
           </Button>
 
           <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-            הודעת מערכת (לכל המחוברים)
+            {t("settingsBroadcastHeading")}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            שידור בזמן אמת למשתמשים מחוברים עם מגבלת תדירות.
+            {t("settingsBroadcastBlurb")}
           </Typography>
           <Stack spacing={2} sx={{ maxWidth: 560 }}>
             {systemBroadcast.isError ? (
               <Alert severity="error">
                 {(systemBroadcast.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-                  "לא ניתן לשדר"}
+                  t("settingsBroadcastFailed")}
               </Alert>
             ) : null}
-            {systemBroadcast.isSuccess ? <Alert severity="success">נשלח</Alert> : null}
+            {systemBroadcast.isSuccess ? <Alert severity="success">{t("settingsBroadcastSent")}</Alert> : null}
             <TextField
-              label="כותרת"
+              label={t("settingsBroadcastTitle")}
               value={bcTitle}
               onChange={(e) => {
                 setBcTitle(e.target.value);
@@ -288,7 +359,7 @@ export default function SettingsPage() {
               size="small"
             />
             <TextField
-              label="הודעה"
+              label={t("settingsBroadcastMessage")}
               value={bcMessage}
               onChange={(e) => {
                 setBcMessage(e.target.value);
@@ -302,19 +373,19 @@ export default function SettingsPage() {
               size="small"
             />
             <FormControl size="small" sx={{ maxWidth: 220 }}>
-              <InputLabel id="sys-bc-severity">חומרה</InputLabel>
+              <InputLabel id="sys-bc-severity">{t("settingsBroadcastSeverity")}</InputLabel>
               <Select
                 labelId="sys-bc-severity"
-                label="חומרה"
+                label={t("settingsBroadcastSeverity")}
                 value={bcSeverity}
                 onChange={(e) => {
                   setBcSeverity(e.target.value as "info" | "warning" | "error");
                   systemBroadcast.reset();
                 }}
               >
-                <MenuItem value="info">מידע</MenuItem>
-                <MenuItem value="warning">אזהרה</MenuItem>
-                <MenuItem value="error">שגיאה</MenuItem>
+                <MenuItem value="info">{t("settingsBroadcastSeverityInfo")}</MenuItem>
+                <MenuItem value="warning">{t("settingsBroadcastSeverityWarning")}</MenuItem>
+                <MenuItem value="error">{t("settingsBroadcastSeverityError")}</MenuItem>
               </Select>
             </FormControl>
             <Button
@@ -324,7 +395,7 @@ export default function SettingsPage() {
               }
               onClick={() => systemBroadcast.mutate()}
             >
-              שלח לכל המחוברים
+              {t("settingsBroadcastSend")}
             </Button>
           </Stack>
         </Box>

@@ -1,28 +1,31 @@
 import type { AuthRequest } from "@syt/shared";
-import { AppError, extractBearer } from "@syt/shared";
+import {
+  AppError,
+  CUSTOM_SCHEDULE_STATUS_PREFIX,
+  extractBearer,
+  isBuiltinScheduleStatus,
+  isValidStoredScheduleStatus,
+} from "@syt/shared";
+
+import type { ScheduleRow } from "./upstream.js";
 import {
   fetchAllEmployees,
   fetchParkingReservations,
   fetchParkingSpots,
   fetchSchedules,
+  fetchScheduleOrgSettings,
+  type OrgScheduleSettingsLite,
   type ParkingReservation,
   type ParkingSpot,
-  type ScheduleRow,
 } from "./upstream.js";
 
-export const REPORT_STATUSES = ["office", "home", "vacation", "sick"] as const;
-export type ReportStatus = (typeof REPORT_STATUSES)[number];
-
-const STATUS_TITLE_HE: Record<ReportStatus, string> = {
+const BUILTIN_TITLE_HE = {
   office: "משרד",
   home: "בית",
   vacation: "חופשה",
   sick: "מחלה",
-};
-
-export function statusTitleHe(status: ReportStatus): string {
-  return STATUS_TITLE_HE[status];
-}
+  off: "לא עובדים",
+} as const;
 
 function authHeader(req: AuthRequest): string {
   const t = extractBearer(req);
@@ -30,14 +33,42 @@ function authHeader(req: AuthRequest): string {
   return `Bearer ${t}`;
 }
 
+export function titleForDailyReport(status: string, org: OrgScheduleSettingsLite): string {
+  if (isBuiltinScheduleStatus(status)) {
+    return BUILTIN_TITLE_HE[status];
+  }
+  if (!status.startsWith(CUSTOM_SCHEDULE_STATUS_PREFIX)) return status;
+  const idHex = status.slice(CUSTOM_SCHEDULE_STATUS_PREFIX.length);
+  const c = org.customScheduleStatuses.find((x) => x.id.toLowerCase() === idHex.toLowerCase());
+  return (c?.labelHe && c.labelHe.trim()) || status;
+}
+
+export function assertValidDailyReportStatus(status: string, org: OrgScheduleSettingsLite): void {
+  if (!isValidStoredScheduleStatus(status)) {
+    throw new AppError(400, "סטטוס לא תקין", "VALIDATION");
+  }
+  const disB = new Set(org.disabledBuiltinScheduleStatuses ?? []);
+  if (isBuiltinScheduleStatus(status)) {
+    if (disB.has(status)) throw new AppError(400, "סטטוס לא בתוקף", "VALIDATION");
+    return;
+  }
+  const idHex = status.slice(CUSTOM_SCHEDULE_STATUS_PREFIX.length);
+  const c = org.customScheduleStatuses.find((x) => x.id.toLowerCase() === idHex.toLowerCase());
+  if (!c || c.disabled) throw new AppError(400, "סטטוס לא בתוקף או לא קיים", "VALIDATION");
+}
+
 export async function buildDailyStatusRows(
   req: AuthRequest,
   from: string,
   to: string,
-  status: ReportStatus,
+  status: string,
   employeeId?: string
 ) {
   const auth = authHeader(req);
+  const org = await fetchScheduleOrgSettings(auth);
+  assertValidDailyReportStatus(status, org);
+  const title = titleForDailyReport(status, org);
+
   const [schedules, employees] = await Promise.all([
     fetchSchedules(auth, { from, to, status, employeeId }),
     fetchAllEmployees(auth),
@@ -60,7 +91,7 @@ export async function buildDailyStatusRows(
     if (c !== 0) return c;
     return a.fullName.localeCompare(b.fullName, "he");
   });
-  return { rows, title: statusTitleHe(status), filterEmployeeId, filterEmployeeName };
+  return { rows, title, filterEmployeeId, filterEmployeeName };
 }
 
 export type ParkingReportRow = {

@@ -10,6 +10,31 @@ export type ScheduleRow = {
 
 export type EmployeeRow = { id: string; fullName: string; email: string; isActive?: boolean };
 
+export type OrgScheduleSettingsLite = {
+  disabledBuiltinScheduleStatuses?: string[];
+  customScheduleStatuses: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
+};
+
+export async function fetchScheduleOrgSettings(authHeader: string): Promise<OrgScheduleSettingsLite> {
+  const url = `${scheduleBase()}/api/schedules/org-settings`;
+  const res = await fetch(url, { headers: { Authorization: authHeader } });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new AppError(res.status === 401 || res.status === 403 ? res.status : 502, t.slice(0, 500), "UPSTREAM");
+  }
+  const data = (await res.json()) as OrgScheduleSettingsLite & {
+    managerCanEditSchedules?: boolean;
+    preferenceMinDaysAhead?: number;
+    preferenceRemindersEnabled?: boolean;
+  };
+  return {
+    disabledBuiltinScheduleStatuses: Array.isArray(data.disabledBuiltinScheduleStatuses)
+      ? data.disabledBuiltinScheduleStatuses
+      : [],
+    customScheduleStatuses: Array.isArray(data.customScheduleStatuses) ? data.customScheduleStatuses : [],
+  };
+}
+
 export async function fetchSchedules(
   authHeader: string,
   params: { from: string; to: string; status: string; employeeId?: string }

@@ -61,7 +61,7 @@ export default function DepartmentsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ name: "", description: "", imageUrl: "", accentColor: "" });
-  const [activeOnly, setActiveOnly] = useState(false);
+  const [activeOnly, setActiveOnly] = useState(true);
 
   const q = useQuery({
     queryKey: ["departments", activeOnly],

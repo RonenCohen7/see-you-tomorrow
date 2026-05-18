@@ -30,11 +30,12 @@ export function loadRootEnv() {
   if (loaded) return;
   loaded = true;
 
-  // Always try the cwd first (for backwards compatibility / Docker `command` entries).
-  dotenvConfig();
-
+  /** Root `.env` first so monorepo secrets (e.g. ANTHROPIC_API_KEY) apply to every workspace service. */
   const root = findRepoRoot(here) ?? findRepoRoot(process.cwd());
   if (root) {
-    dotenvConfig({ path: path.join(root, ".env"), override: false });
+    dotenvConfig({ path: path.join(root, ".env") });
   }
+
+  /** Optional per-service `.env` in cwd may override (Docker / local service dir). */
+  dotenvConfig();
 }

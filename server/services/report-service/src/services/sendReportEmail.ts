@@ -3,12 +3,13 @@ import { notificationBase } from "../config/urls.js";
 
 const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
-export async function sendPdfByEmail(params: {
+export async function sendAttachmentByEmail(params: {
   to: string;
   subject: string;
   text: string;
   filename: string;
-  pdf: Buffer;
+  content: Buffer;
+  contentType: string;
 }): Promise<void> {
   const res = await fetch(`${notificationBase()}/internal/notifications/email-attachment`, {
     method: "POST",
@@ -21,12 +22,13 @@ export async function sendPdfByEmail(params: {
       subject: params.subject,
       text: params.text,
       filename: params.filename,
-      pdfBase64: params.pdf.toString("base64"),
+      attachmentBase64: params.content.toString("base64"),
+      contentType: params.contentType,
     }),
   });
   if (!res.ok) {
     const t = await res.text();
-    logger.warn("sendPdfByEmail failed", { status: res.status, body: t.slice(0, 300) });
+    logger.warn("sendAttachmentByEmail failed", { status: res.status, body: t.slice(0, 300) });
     throw new AppError(502, `שליחת מייל נכשלה: ${res.status}`, "UPSTREAM");
   }
 }

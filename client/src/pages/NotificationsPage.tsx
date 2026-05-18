@@ -24,12 +24,8 @@ import type { NotificationItem } from "../types/models";
 import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import { useAuth } from "../store/authContext";
+import { isNotificationReadForUser } from "../utils/notificationRead";
 import { scheduleStatusPresentation } from "../utils/scheduleStatusUi";
-
-function isReadForUser(n: NotificationItem, userId: string | undefined): boolean {
-  if (!userId) return false;
-  return (n.readBy ?? []).some((r) => r.userId === userId);
-}
 
 export default function NotificationsPage() {
   const { t } = useTranslation();
@@ -94,7 +90,7 @@ export default function NotificationsPage() {
       ) : (
         <Stack spacing={0}>
           {items.map((n, index) => {
-            const read = isReadForUser(n, user?.id);
+            const read = isNotificationReadForUser(n, user?.id);
             const sc = n.scheduleContext;
             const mc = n.meetingContext;
             const orgCustoms = orgMetaQ.data?.customScheduleStatuses ?? [];
