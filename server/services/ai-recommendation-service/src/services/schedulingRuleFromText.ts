@@ -7,6 +7,7 @@ const OutSchema = z.object({
   ruleType: z.enum(SCHEDULING_RULE_TYPES as unknown as [string, ...string[]]),
   payload: z.record(z.unknown()),
   explanationHebrew: z.string(),
+  explanationEn: z.string().optional(),
 });
 
 export type SchedulingRuleDraftResult = z.infer<typeof OutSchema>;
@@ -58,7 +59,8 @@ export async function interpretSchedulingRuleFromText(input: {
     `- manager_office_auto_parking: payload must be {} (empty object — auto parking hook at office rows)`,
     "Match user intent to ONE rule type. Prefer location_unavailable if they mention closure/sick-building/unavailable-site/dates tied to ONE site.",
     "Never invent locationId values outside the supplied locations[].id list.",
-    "Output ONLY JSON: { ruleType, payload, explanationHebrew } matching schema.",
+    "Output ONLY JSON: { ruleType, payload, explanationHebrew, explanationEn } matching schema.",
+    "explanationEn: same meaning as explanationHebrew, in English.",
   ].join("\n");
 
   const user = JSON.stringify({

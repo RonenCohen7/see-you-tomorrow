@@ -1,9 +1,14 @@
 import type { ComponentType } from "react";
 import type { SvgIconProps } from "@mui/material";
 import Diversity3Icon from "@mui/icons-material/Diversity3";
+import i18n from "i18next";
 import type { TFunction } from "i18next";
 import { isBuiltinScheduleStatus } from "./scheduleStatusKinds";
 import { statusMeta } from "./statusMeta";
+
+export function scheduleUiLocale(lang = i18n.language): "he" | "en" {
+  return lang.startsWith("he") ? "he" : "en";
+}
 
 /** Color for organizational custom statuses in grids (distinct from core five). */
 export const CUSTOM_SCHEDULE_STATUS_UI_COLOR = "#7c3aed";
@@ -38,8 +43,10 @@ export type ScheduleChipPresentation = {
 export function scheduleStatusPresentation(
   status: string,
   t: TFunction,
-  customs?: ScheduleOrgCustomDef[]
+  customs?: ScheduleOrgCustomDef[],
+  locale?: "he" | "en"
 ): ScheduleChipPresentation {
+  const loc = locale ?? scheduleUiLocale();
   if (isBuiltinScheduleStatus(status)) {
     const m = statusMeta[status];
     return {
@@ -58,7 +65,7 @@ export function scheduleStatusPresentation(
     Icon: Diversity3Icon,
     i18nKey: "__custom_schedule__",
     presenceI18nKey: "__custom_schedule__",
-    label: resolveScheduleLabel(status, t, customs, "he"),
+    label: resolveScheduleLabel(status, t, customs, loc),
     stored: status,
   };
 }

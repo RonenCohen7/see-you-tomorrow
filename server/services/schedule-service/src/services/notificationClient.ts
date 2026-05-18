@@ -175,6 +175,15 @@ export async function notifyPreferencePipelineRejected(payload: {
   await post("/internal/notifications/preference-pipeline-rejected", payload as unknown as Record<string, unknown>);
 }
 
+export async function notifySchedulingRuleProposal(payload: {
+  proposalId: string;
+  summary: string;
+  conflictCount: number;
+  submitterUserId: string;
+}) {
+  await post("/internal/notifications/scheduling-rule-proposal", payload as unknown as Record<string, unknown>);
+}
+
 export async function notifyPreferencePipelineBatchPendingManagers(payload: {
   departmentId: string;
   weekStartSunday: string;

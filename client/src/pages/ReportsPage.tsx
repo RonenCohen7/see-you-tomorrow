@@ -28,6 +28,7 @@ import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { downloadCsv } from "../utils/csvDownload";
 import { todayIsoLocal } from "../utils/date";
 import { customScheduleStoredValue } from "../utils/scheduleStatusKinds";
+import { resolveScheduleLabel, scheduleUiLocale } from "../utils/scheduleStatusUi";
 import { STATUS_ORDER } from "../utils/statusMeta";
 
 type OrgSettingsWire = {
@@ -69,7 +70,8 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const OBJECT_ID = /^[a-f\d]{24}$/i;
 
 export default function ReportsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const scheduleLocale = scheduleUiLocale(i18n.language);
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [statusFrom, setStatusFrom] = useState(todayIsoLocal());
@@ -90,13 +92,16 @@ export default function ReportsPage() {
     const builtins = STATUS_ORDER.filter((k) => !disB.has(k)).map((k) => ({ stored: k, label: t(k) }));
     const customs = (orgQ.data?.customScheduleStatuses ?? [])
       .filter((c) => !c.disabled)
-      .map((c) => ({
-        stored: customScheduleStoredValue(c.id),
-        label: (c.labelHe || "").trim() || customScheduleStoredValue(c.id),
-      }));
+      .map((c) => {
+        const stored = customScheduleStoredValue(c.id);
+        return {
+          stored,
+          label: resolveScheduleLabel(stored, t, orgQ.data?.customScheduleStatuses, scheduleLocale),
+        };
+      });
     const merged = [...builtins, ...customs];
     return merged.length > 0 ? merged : [{ stored: "office", label: t("office") }];
-  }, [orgQ.data, t]);
+  }, [orgQ.data, scheduleLocale, t]);
 
   const [statusValue, setStatusValue] = useState("office");
 
@@ -146,7 +151,10 @@ export default function ReportsPage() {
       setToast({ msg: t("reportsInvalidDateRange"), ok: false });
       return;
     }
-    const safeTitle = (dailyQ.data?.title ?? t(statusValue)).replace(/[\\/]+/g, "-");
+    const tabLabel =
+      reportTabs.find((tab) => tab.stored === statusValue)?.label ??
+      resolveScheduleLabel(statusValue, t, orgQ.data?.customScheduleStatuses, scheduleLocale);
+    const safeTitle = tabLabel.replace(/[\\/]+/g, "-");
     const fn =
       statusFrom === statusTo ? `report-${safeTitle}-${statusFrom}.csv` : `report-${safeTitle}-${statusFrom}-${statusTo}.csv`;
     downloadCsv(fn, ["full_name", "work_date"], dailyRows.map((r) => ({ full_name: r.fullName, work_date: r.workDate })));
@@ -203,7 +211,12 @@ export default function ReportsPage() {
     onError: (e) => setToast({ msg: apiErrorMessage(e, t("error")), ok: false }),
   });
 
-  const dailyTitle = useMemo(() => dailyQ.data?.title ?? t(statusValue), [dailyQ.data?.title, statusValue, t]);
+  const dailyTitle = useMemo(
+    () =>
+      reportTabs.find((tab) => tab.stored === statusValue)?.label ??
+      resolveScheduleLabel(statusValue, t, orgQ.data?.customScheduleStatuses, scheduleLocale),
+    [orgQ.data?.customScheduleStatuses, reportTabs, scheduleLocale, statusValue, t],
+  );
 
   return (
     <Box sx={{ width: "100%", maxWidth: 960, mx: "auto", px: { xs: 1, sm: 2 }, py: 2 }}>

@@ -88,12 +88,12 @@ const scriptsHe: Record<string, HelpSegment[]> = {
     { text: "שינויים נשמרים מקומית בדפדפן או בחשבון, לפי סוג ההגדרה." },
   ],
   "/scheduling-rules": [
-    { text: "כאן מגדירים חוקי ארגון שמשפיעים על אימות לפני אישור המלצות AI ועל פרסום שינויים." },
-    { text: "סגירת מיקום מגדירה טווח תאריכים שבהם משבצות משרד באותו אתר לא עוברות אימות." },
-    {
-      text: "חוק מנהלים ביום מגדיר מינימום שורות של מנהלים במשרד לכל יום — אפשר להפעיל או לכבות כל חוק בנפרד.",
-    },
-    { text: "מחיקה מסירה חוק מהמערכת; הפעלה מחודשת אפשרית רק בהוספת חוק חדש." },
+    { text: "כאן מגדירים חוקי ארגון — בעיקר לאימות לפני אישור המלצות AI; חנייה אוטומטית פועלת בשמירת שיבוץ." },
+    { text: "תארו חוק בשפה חופשית למעלה: אם אין סתירה הוא נשמר מיד; אם יש סתירה — נשלחת הצעה לאישור מנהלים." },
+    { text: "סגירת מיקום: טווח תאריכים שבו לא מאושר משרד באותו אתר ב-AI." },
+    { text: "מינימום מנהלים במשרד: ספירת מנהלים/אדמין במשרד ביום עבודה (לא שישי–שבת)." },
+    { text: "חנייה אוטומטית למנהל במשרד: ניסיון להקצות חניית אורח כששומרים מנהל/אדמין במשרד עם מיקום." },
+    { text: "ממתין לאישור: הצעות עם סתירה — אדמין מאשר או דוחה; המאשר מחליף חוקים סותרים." },
   ],
 };
 
@@ -182,15 +182,23 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   ],
   "/scheduling-rules": [
     {
-      text: "Define organization rules that affect validation before approving AI batches and publishing changes.",
+      text: "Organization rules mainly gate AI recommendation approval; auto-parking runs on schedule save.",
     },
     {
-      text: "Location closure blocks validating office shifts at that site across the dates you pick.",
+      text: "Describe a rule in plain language: saved immediately when there is no conflict; otherwise sent for manager approval.",
     },
     {
-      text: "Managers-per-day sets a minimum of managers marked office — toggle each rule on or off independently.",
+      text: "Location closure: date range where office at that site fails AI validation.",
     },
-    { text: "Delete removes a rule permanently; recreate if you need it again." },
+    {
+      text: "Minimum managers in office: count managers/admins marked office per weekday (Fri–Sat excluded).",
+    },
+    {
+      text: "Manager auto-parking: tries guest parking when a manager/admin is saved as office with a location.",
+    },
+    {
+      text: "Pending approval: conflicting proposals — admin approves (replaces conflicting rules) or rejects.",
+    },
   ],
 };
 

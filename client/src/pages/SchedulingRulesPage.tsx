@@ -20,9 +20,6 @@ import {
   FormControlLabel,
   IconButton,
   InputLabel,
-  List,
-  ListItem,
-  ListItemText,
   MenuItem,
   Select,
   Snackbar,
@@ -34,6 +31,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
@@ -53,7 +51,27 @@ export type SchedulingRuleAiDraft = {
   ruleType: RuleType;
   payload: Record<string, unknown>;
   explanationHebrew: string;
+  explanationEn?: string;
 };
+
+export type SchedulingRuleProposalDto = {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  ruleType: RuleType;
+  payload: Record<string, unknown>;
+  isActive: boolean;
+  explanationHe: string;
+  explanationEn?: string;
+  conflictingRuleIds: string[];
+  createdBy: string;
+  createdAt?: string;
+};
+
+const RULE_TYPE_ORDER: RuleType[] = [
+  "location_unavailable",
+  "min_managers_office_daily",
+  "manager_office_auto_parking",
+];
 
 type DraftSchedulingAnalyzeResponse =
   | { outcome: "scheduling_rule"; draft: SchedulingRuleAiDraft }
@@ -69,61 +87,6 @@ const objectIdRegex = /^[a-f\d]{24}$/i;
 
 function ensureItems<T>(items: unknown): T[] {
   return Array.isArray(items) ? (items as T[]) : [];
-}
-
-function dateRangesOverlap(
-  af: string | undefined,
-  at: string | undefined,
-  bf: string | undefined,
-  bt: string | undefined
-): boolean {
-  const re = /^\d{4}-\d{2}-\d{2}$/;
-  const aStart = af && re.test(af) ? af : "1970-01-01";
-  const aEnd = at && re.test(at) ? at : "9999-12-31";
-  const bStart = bf && re.test(bf) ? bf : "1970-01-01";
-  const bEnd = bt && re.test(bt) ? bt : "9999-12-31";
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
-function detectActiveConflictingRules(
-  draft: { ruleType: RuleType; payload: Record<string, unknown> },
-  existing: SchedulingRuleDto[]
-): SchedulingRuleDto[] {
-  const act = existing.filter((r) => r.isActive);
-  const byId = new Map<string, SchedulingRuleDto>();
-
-  const push = (r: SchedulingRuleDto) => {
-    byId.set(r.id, r);
-  };
-
-  if (draft.ruleType === "manager_office_auto_parking") {
-    act.filter((r) => r.ruleType === "manager_office_auto_parking").forEach(push);
-  }
-
-  if (draft.ruleType === "min_managers_office_daily") {
-    act.filter((r) => r.ruleType === "min_managers_office_daily").forEach(push);
-  }
-
-  if (draft.ruleType === "location_unavailable") {
-    const lid = typeof draft.payload.locationId === "string" ? draft.payload.locationId : "";
-    const af =
-      typeof draft.payload.effectiveFrom === "string" ? draft.payload.effectiveFrom : undefined;
-    const atRaw = draft.payload.effectiveTo;
-    const at = typeof atRaw === "string" ? atRaw : undefined;
-    for (const r of act) {
-      if (r.ruleType !== "location_unavailable") continue;
-      const p = r.payload as Record<string, unknown>;
-      const rlid = typeof p.locationId === "string" ? p.locationId : "";
-      if (rlid !== lid) continue;
-      const bf =
-        typeof p.effectiveFrom === "string" ? p.effectiveFrom : undefined;
-      const btRaw = p.effectiveTo;
-      const bt = typeof btRaw === "string" ? btRaw : undefined;
-      if (dateRangesOverlap(af, at, bf, bt)) push(r);
-    }
-  }
-
-  return [...byId.values()];
 }
 
 function formatRulePayload(rule: SchedulingRuleDto, locationNameById: Map<string, string>): string {
@@ -153,6 +116,20 @@ function chipLabel(ruleType: SchedulingRuleDto["ruleType"], tfn: (key: string) =
   return tfn("schedulingRulesRuleType_manager_office_auto_parking");
 }
 
+function typeIntroKey(ruleType: RuleType): string {
+  return `schedulingRulesTypeIntro_${ruleType}`;
+}
+
+function impactChipLabels(ruleType: RuleType, tfn: (key: string) => string): string[] {
+  if (ruleType === "manager_office_auto_parking") return [tfn("schedulingRulesImpactParking")];
+  return [tfn("schedulingRulesImpactAi")];
+}
+
+function draftExplanation(draft: SchedulingRuleAiDraft, locale: string): string {
+  if (locale.startsWith("en") && draft.explanationEn?.trim()) return draft.explanationEn.trim();
+  return draft.explanationHebrew;
+}
+
 export default function SchedulingRulesPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
@@ -168,8 +145,9 @@ export default function SchedulingRulesPage() {
   const [wizMaintenance, setWizMaintenance] = React.useState<{ explanationHebrew: string } | null>(null);
   const [maintenanceConfirmOpen, setMaintenanceConfirmOpen] = React.useState(false);
   const [wizActive, setWizActive] = React.useState(true);
-  const [overwriteList, setOverwriteList] = React.useState<SchedulingRuleDto[] | null>(null);
   const [savingWizard, setSavingWizard] = React.useState(false);
+  const [searchParams] = useSearchParams();
+  const highlightProposalId = searchParams.get("proposalId")?.trim() || undefined;
 
   const rulesQ = useQuery({
     queryKey: ["scheduling-rules"],
@@ -181,6 +159,30 @@ export default function SchedulingRulesPage() {
   });
 
   const rulesRows = React.useMemo(() => ensureItems<SchedulingRuleDto>(rulesQ.data), [rulesQ.data]);
+
+  const proposalsQ = useQuery({
+    queryKey: ["scheduling-rule-proposals", "pending"],
+    queryFn: async () =>
+      ensureItems<SchedulingRuleProposalDto>(
+        (await api.get<{ items?: unknown }>("/api/schedules/scheduling-rules/proposals?status=pending")).data
+          .items
+      ),
+    refetchOnMount: "always",
+  });
+
+  const pendingProposals = React.useMemo(
+    () => ensureItems<SchedulingRuleProposalDto>(proposalsQ.data),
+    [proposalsQ.data]
+  );
+
+  const groupedRules = React.useMemo(
+    () =>
+      RULE_TYPE_ORDER.map((ruleType) => ({
+        ruleType,
+        rules: rulesRows.filter((r) => r.ruleType === ruleType),
+      })).filter((g) => g.rules.length > 0),
+    [rulesRows]
+  );
 
   const hasAutoParkingRule = React.useMemo(
     () => rulesRows.some((r) => r.ruleType === "manager_office_auto_parking"),
@@ -318,20 +320,26 @@ export default function SchedulingRulesPage() {
     onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
   });
 
-  const persistWizardDraft = React.useCallback(
-    async (draft: SchedulingRuleAiDraft, active: boolean) => {
-      await api.post("/api/schedules/scheduling-rules", {
-        ruleType: draft.ruleType,
-        payload: draft.payload,
-        isActive: active,
-      });
-      setWizDraft(null);
-      setWizText("");
+  const approveProposalMut = useMutation({
+    mutationFn: async (id: string) =>
+      api.post(`/api/schedules/scheduling-rules/proposals/${id}/approve`),
+    onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["scheduling-rules"] });
-      setToast({ ok: true, msg: t("success") });
+      await qc.invalidateQueries({ queryKey: ["scheduling-rule-proposals"] });
+      setToast({ ok: true, msg: t("schedulingRulesProposalApproved") });
     },
-    [qc, t]
-  );
+    onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
+  });
+
+  const rejectProposalMut = useMutation({
+    mutationFn: async (id: string) =>
+      api.post(`/api/schedules/scheduling-rules/proposals/${id}/reject`),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["scheduling-rule-proposals"] });
+      setToast({ ok: true, msg: t("schedulingRulesProposalRejected") });
+    },
+    onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
+  });
 
   const onSaveWizardClicked = React.useCallback(async () => {
     if (!wizDraft) {
@@ -339,38 +347,33 @@ export default function SchedulingRulesPage() {
       return;
     }
     try {
-      if (wizActive) {
-        const conflicts = detectActiveConflictingRules(wizDraft, rulesRows);
-        if (conflicts.length > 0) {
-          setOverwriteList(conflicts);
-          return;
-        }
-      }
       setSavingWizard(true);
-      await persistWizardDraft(wizDraft, wizActive);
+      const locale = i18n.language.startsWith("en") ? "en" : "he";
+      const { data } = await api.post<
+        | { outcome: "created"; rule: SchedulingRuleDto }
+        | { outcome: "proposal"; proposal: SchedulingRuleProposalDto }
+      >("/api/schedules/scheduling-rules/submit", {
+        ruleType: wizDraft.ruleType,
+        payload: wizDraft.payload,
+        isActive: wizActive,
+        explanationHe: wizDraft.explanationHebrew,
+        explanationEn: wizDraft.explanationEn,
+        locations: locationRows.map((l) => ({ id: l.id, name: l.name })),
+      });
+      setWizDraft(null);
+      setWizText("");
+      await qc.invalidateQueries({ queryKey: ["scheduling-rules"] });
+      await qc.invalidateQueries({ queryKey: ["scheduling-rule-proposals"] });
+      setToast({
+        ok: true,
+        msg: data.outcome === "created" ? t("success") : t("schedulingRulesProposalSent"),
+      });
     } catch (e) {
       setToast({ ok: false, msg: apiErrorMessage(e, t("error")) });
     } finally {
       setSavingWizard(false);
     }
-  }, [persistWizardDraft, rulesRows, wizActive, wizDraft, t]);
-
-  const onConfirmOverwrite = React.useCallback(async () => {
-    if (!wizDraft || !overwriteList?.length) {
-      setOverwriteList(null);
-      return;
-    }
-    try {
-      setSavingWizard(true);
-      await Promise.all(overwriteList.map((r) => api.delete(`/api/schedules/scheduling-rules/${r.id}`)));
-      await persistWizardDraft(wizDraft, wizActive);
-      setOverwriteList(null);
-    } catch (e) {
-      setToast({ ok: false, msg: apiErrorMessage(e, t("error")) });
-    } finally {
-      setSavingWizard(false);
-    }
-  }, [overwriteList, persistWizardDraft, wizActive, wizDraft, t]);
+  }, [i18n.language, locationRows, t, wizActive, wizDraft]);
 
   const localeTag = i18n.language === "en" ? "en-GB" : "he-IL";
   const canAddLocation =
@@ -381,6 +384,94 @@ export default function SchedulingRulesPage() {
       <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
         {t("schedulingRulesPageTitle")}
       </Typography>
+
+      <Alert severity="info" sx={{ mb: 2 }}>
+        {t("schedulingRulesManualSaveNote")}
+      </Alert>
+
+      <Typography variant="h6" gutterBottom>
+        {t("schedulingRulesPendingTitle")}
+      </Typography>
+      {proposalsQ.isLoading ? (
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          {t("loading")}
+        </Typography>
+      ) : pendingProposals.length === 0 ? (
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          {t("schedulingRulesPendingEmpty")}
+        </Typography>
+      ) : (
+        <Stack spacing={1.5} sx={{ mb: 3 }}>
+          {pendingProposals.map((p) => {
+            const highlighted = highlightProposalId && p.id.endsWith(highlightProposalId);
+            return (
+              <Card
+                key={p.id}
+                variant="outlined"
+                sx={{
+                  borderColor: highlighted ? "warning.main" : undefined,
+                  borderWidth: highlighted ? 2 : 1,
+                }}
+              >
+                <CardContent>
+                  <Stack spacing={1}>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                      <Chip size="small" label={chipLabel(p.ruleType, t)} color="warning" />
+                      {impactChipLabels(p.ruleType, t).map((lbl) => (
+                        <Chip key={lbl} size="small" variant="outlined" label={lbl} />
+                      ))}
+                    </Stack>
+                    <Typography variant="body2">
+                      {formatRulePayload(
+                        { ...p, id: p.id, priority: 0, isActive: p.isActive },
+                        locationNameById
+                      ) || draftExplanation(
+                        {
+                          ruleType: p.ruleType,
+                          payload: p.payload,
+                          explanationHebrew: p.explanationHe,
+                          explanationEn: p.explanationEn,
+                        },
+                        i18n.language
+                      )}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {draftExplanation(
+                        {
+                          ruleType: p.ruleType,
+                          payload: p.payload,
+                          explanationHebrew: p.explanationHe,
+                          explanationEn: p.explanationEn,
+                        },
+                        i18n.language
+                      )}
+                    </Typography>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        disabled={approveProposalMut.isPending || rejectProposalMut.isPending}
+                        onClick={() => approveProposalMut.mutate(p.id)}
+                      >
+                        {t("schedulingRulesApproveProposal")}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="inherit"
+                        disabled={approveProposalMut.isPending || rejectProposalMut.isPending}
+                        onClick={() => rejectProposalMut.mutate(p.id)}
+                      >
+                        {t("schedulingRulesRejectProposal")}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Stack>
+      )}
 
       <Card variant="outlined" sx={{ mb: 3, p: 2 }}>
         <Typography variant="h6" gutterBottom>
@@ -449,21 +540,29 @@ export default function SchedulingRulesPage() {
               {t("schedulingRulesWizardPreviewTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              {t("schedulingRulesWizardExplanation")}: {wizDraft.explanationHebrew}
+              {t("schedulingRulesWizardExplanation")}: {draftExplanation(wizDraft, i18n.language)}
             </Typography>
-            <Chip
-              sx={{ mr: 1, mb: 1 }}
-              size="small"
-              label={chipLabel(wizDraft.ruleType, t)}
-              color="primary"
-              variant="outlined"
-            />
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-              {t("schedulingRulesWizardPayloadPreview")}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
+              <Chip size="small" label={chipLabel(wizDraft.ruleType, t)} color="primary" variant="outlined" />
+              {impactChipLabels(wizDraft.ruleType, t).map((lbl) => (
+                <Chip key={lbl} size="small" variant="outlined" label={lbl} />
+              ))}
+            </Stack>
+            <Typography variant="body2" fontWeight={600}>
+              {formatRulePayload(
+                {
+                  id: "",
+                  ruleType: wizDraft.ruleType,
+                  payload: wizDraft.payload,
+                  isActive: wizActive,
+                  priority: 0,
+                },
+                locationNameById
+              ) ||
+                (wizDraft.ruleType === "manager_office_auto_parking"
+                  ? t("schedulingRulesPayloadBehaviourOnly")
+                  : "")}
             </Typography>
-            <Box component="pre" sx={{ fontSize: 12, bgcolor: "action.hover", p: 1.5, borderRadius: 1, overflowX: "auto" }}>
-              {JSON.stringify(wizDraft.payload, null, 2)}
-            </Box>
             <FormControlLabel
               sx={{ mt: 1.5, alignItems: "flex-start" }}
               control={
@@ -527,70 +626,79 @@ export default function SchedulingRulesPage() {
           {t("schedulingRulesEmpty")}
         </Typography>
       ) : (
-        <Stack spacing={1.5} sx={{ mb: 4 }}>
-          {rulesRows.map((r) => {
-            const patching = patchMut.isPending && patchMut.variables?.id === r.id;
-            const created =
-              r.createdAt &&
-              !Number.isNaN(new Date(r.createdAt).getTime()) &&
-              new Date(r.createdAt).toLocaleDateString(localeTag);
+        <Stack spacing={3} sx={{ mb: 4 }}>
+          {groupedRules.map(({ ruleType, rules: groupRows }) => (
+            <Box key={ruleType}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                {chipLabel(ruleType, t)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                {t(typeIntroKey(ruleType))}
+              </Typography>
+              <Stack spacing={1.5}>
+                {groupRows.map((r) => {
+                  const patching = patchMut.isPending && patchMut.variables?.id === r.id;
+                  const created =
+                    r.createdAt &&
+                    !Number.isNaN(new Date(r.createdAt).getTime()) &&
+                    new Date(r.createdAt).toLocaleDateString(localeTag);
 
-            return (
-              <Card key={r.id} variant="outlined" sx={{ opacity: r.isActive ? 1 : 0.85 }}>
-                <CardContent sx={{ "&:last-child": { pb: 2 }, py: 1.5 }}>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    alignItems={{ xs: "stretch", sm: "center" }}
-                    spacing={2}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" flexGrow={1}>
-                      <Chip
-                        size="small"
-                        label={chipLabel(r.ruleType, t)}
-                        color="primary"
-                        variant="outlined"
-                      />
-                      <Typography variant="body2">
-                        {formatRulePayload(r, locationNameById) ||
-                          (r.ruleType === "manager_office_auto_parking"
-                            ? t("schedulingRulesPayloadBehaviourOnly")
-                            : "")}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={r.isActive}
-                            disabled={patching}
-                            onChange={(_, checked) =>
-                              patchMut.mutate({ id: r.id, isActive: checked })
-                            }
-                          />
-                        }
-                        label={t("schedulingRulesActiveLabel")}
-                        sx={{ m: 0 }}
-                      />
-                      <IconButton
-                        size="small"
-                        color="error"
-                        aria-label={t("schedulingRulesDeleteAria")}
-                        onClick={() => setDeleteId(r.id)}
-                      >
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Stack>
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>
-                    {t("schedulingRulesMetaLine", {
-                      priority: r.priority,
-                      created: created || "—",
-                    })}
-                  </Typography>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  return (
+                    <Card key={r.id} variant="outlined" sx={{ opacity: r.isActive ? 1 : 0.85 }}>
+                      <CardContent sx={{ "&:last-child": { pb: 2 }, py: 1.5 }}>
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          alignItems={{ xs: "stretch", sm: "center" }}
+                          spacing={2}
+                        >
+                          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" flexGrow={1}>
+                            {impactChipLabels(r.ruleType, t).map((lbl) => (
+                              <Chip key={lbl} size="small" variant="outlined" label={lbl} />
+                            ))}
+                            <Typography variant="body2" fontWeight={600}>
+                              {formatRulePayload(r, locationNameById) ||
+                                (r.ruleType === "manager_office_auto_parking"
+                                  ? t("schedulingRulesPayloadBehaviourOnly")
+                                  : "")}
+                            </Typography>
+                          </Stack>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={r.isActive}
+                                  disabled={patching}
+                                  onChange={(_, checked) =>
+                                    patchMut.mutate({ id: r.id, isActive: checked })
+                                  }
+                                />
+                              }
+                              label={t("schedulingRulesActiveLabel")}
+                              sx={{ m: 0 }}
+                            />
+                            <IconButton
+                              size="small"
+                              color="error"
+                              aria-label={t("schedulingRulesDeleteAria")}
+                              onClick={() => setDeleteId(r.id)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>
+                          {t("schedulingRulesMetaLine", {
+                            priority: r.priority,
+                            created: created || "—",
+                          })}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </Stack>
+            </Box>
+          ))}
         </Stack>
       )}
 
@@ -710,37 +818,6 @@ export default function SchedulingRulesPage() {
           </Box>
         </AccordionDetails>
       </Accordion>
-
-      <Dialog open={overwriteList !== null} onClose={() => !savingWizard && setOverwriteList(null)}>
-        <DialogTitle>{t("schedulingRulesConflictTitle")}</DialogTitle>
-        <DialogContent>
-          <Typography sx={{ mb: 2 }}>{t("schedulingRulesConflictBody")}</Typography>
-          <List dense>
-            {(overwriteList ?? []).map((r) => (
-              <ListItem key={r.id} disablePadding sx={{ mb: 0.75 }}>
-                <ListItemText
-                  primary={<Chip size="small" label={chipLabel(r.ruleType, t)} />}
-                  secondary={formatRulePayload(r, locationNameById)}
-                />
-              </ListItem>
-            ))}
-          </List>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOverwriteList(null)} disabled={savingWizard}>
-            {t("cancel")}
-          </Button>
-          <Button
-            color="warning"
-            variant="contained"
-            disabled={savingWizard || !wizDraft || !(overwriteList && overwriteList.length)}
-            onClick={() => void onConfirmOverwrite()}
-            startIcon={savingWizard ? <CircularProgress color="inherit" size={18} /> : undefined}
-          >
-            {t("schedulingRulesConflictConfirm")}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog
         open={maintenanceConfirmOpen}

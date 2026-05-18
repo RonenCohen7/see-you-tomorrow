@@ -584,6 +584,43 @@ export async function handleMeetingInvite(payload: {
   return pub;
 }
 
+export async function handleSchedulingRuleProposal(payload: {
+  proposalId: string;
+  summary: string;
+  conflictCount: number;
+  submitterUserId: string;
+}) {
+  const recipientIds = await recipientsSvc.resolveOrgRuleApprovers();
+  const filtered = recipientIds.filter((id) => id !== payload.submitterUserId);
+  if (filtered.length === 0) return null;
+
+  const title = "הצעת חוק שיבוץ ממתינה לאישור";
+  const message = `${payload.summary}\nסתירה עם ${payload.conflictCount} חוק(ים) פעיל(ים).\nפתחו הגדרות → חוקי שיבוץ (מזהה הצעה: ${payload.proposalId.slice(-8)}).`;
+
+  const Notification = await model();
+  const doc = await Notification.create({
+    title,
+    message,
+    type: "scheduling_rule_proposal",
+    recipientIds: filtered.map((id) => new mongoose.Types.ObjectId(id)),
+    channels: ["socket", "inapp"],
+    deliveryStatus: "pending",
+    readBy: [],
+    createdBy: new mongoose.Types.ObjectId(payload.submitterUserId),
+    createdAt: new Date(),
+  });
+
+  const pub = toPublic(doc as NotificationDoc & { _id: mongoose.Types.ObjectId });
+  for (const rid of filtered) {
+    socket.emitToUser(rid, SOCKET_EVENTS.notificationNew, pub);
+  }
+  socket.emitDashboardRefresh(filtered);
+  await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
+    logger.warn("scheduling rule proposal notification delivery failed");
+  });
+  return pub;
+}
+
 export async function listForUser(userId: string, page: number, limit: number) {
   const Notification = await model();
   const skip = (page - 1) * limit;
@@ -625,4 +662,28 @@ export async function markRead(notificationId: string, userId: string) {
     await doc.save();
   }
   return toPublic(doc as NotificationDoc & { _id: mongoose.Types.ObjectId });
+}
+
+/** Mark every unread notification for this user as read (bulk). */
+export async function markAllReadForUser(userId: string): Promise<{ marked: number }> {
+  const Notification = await model();
+  const uid = new mongoose.Types.ObjectId(userId);
+  const now = new Date();
+  const result = await Notification.updateMany(
+    {
+      recipientIds: uid,
+      readBy: { $not: { $elemMatch: { userId: uid } } },
+    },
+    { $push: { readBy: { userId: uid, readAt: now } } },
+  );
+  return { marked: result.modifiedCount ?? 0 };
+}
+
+/** Remove all notifications from this user's inbox (pull recipient; delete empty docs). */
+export async function dismissAllForUser(userId: string): Promise<{ dismissed: number }> {
+  const Notification = await model();
+  const uid = new mongoose.Types.ObjectId(userId);
+  const pull = await Notification.updateMany({ recipientIds: uid }, { $pull: { recipientIds: uid } });
+  await Notification.deleteMany({ recipientIds: { $size: 0 } });
+  return { dismissed: pull.modifiedCount ?? 0 };
 }

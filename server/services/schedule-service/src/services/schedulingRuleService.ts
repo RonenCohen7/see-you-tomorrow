@@ -55,7 +55,7 @@ export async function createRule(input: {
   if (!SCHEDULING_RULE_TYPES.includes(input.ruleType)) {
     throw new AppError(400, "סוג חוק לא תקין", "VALIDATION");
   }
-  validatePayload(input.ruleType, input.payload);
+  validateRulePayload(input.ruleType, input.payload);
   const M = await model();
   const doc = await M.create({
     ruleType: input.ruleType,
@@ -74,7 +74,7 @@ export async function updateRule(
   const doc = await M.findById(id);
   if (!doc) throw new AppError(404, "חוק לא נמצא", "NOT_FOUND");
   if (patch.payload !== undefined) {
-    validatePayload(doc.ruleType as SchedulingRuleType, patch.payload);
+    validateRulePayload(doc.ruleType as SchedulingRuleType, patch.payload);
     doc.payload = patch.payload;
   }
   if (patch.isActive !== undefined) doc.isActive = patch.isActive;
@@ -90,7 +90,7 @@ export async function deleteRule(id: string) {
 
 const objectIdRegex = /^[a-f\d]{24}$/i;
 
-function validatePayload(ruleType: SchedulingRuleType, payload: Record<string, unknown>) {
+export function validateRulePayload(ruleType: SchedulingRuleType, payload: Record<string, unknown>) {
   if (ruleType === "location_unavailable") {
     const loc = payload.locationId;
     const from = payload.effectiveFrom;

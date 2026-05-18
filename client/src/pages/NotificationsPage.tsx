@@ -4,19 +4,27 @@ import PersonIcon from "@mui/icons-material/Person";
 import EditCalendarIcon from "@mui/icons-material/EditCalendar";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import {
+  Alert,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   Skeleton,
+  Snackbar,
   Stack,
   Typography,
   alpha,
   useTheme,
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
@@ -34,6 +42,8 @@ export default function NotificationsPage() {
   const theme = useTheme();
   const qc = useQueryClient();
   const { user } = useAuth();
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
 
   const orgMetaQ = useQuery({
     queryKey: ["org-settings"],
@@ -60,7 +70,33 @@ export default function NotificationsPage() {
     },
   });
 
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["unread"],
+    queryFn: async () => (await api.get<{ count: number }>("/api/notifications/unread-count")).data.count,
+    enabled: Boolean(user?.id),
+  });
+
+  const markAllReadMut = useMutation({
+    mutationFn: async () => api.put("/api/notifications/read-all"),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["notifications"] });
+      await qc.invalidateQueries({ queryKey: ["unread"] });
+      setActionToast(t("notificationsMarkAllReadDone"));
+    },
+  });
+
+  const clearAllMut = useMutation({
+    mutationFn: async () => api.delete("/api/notifications/mine"),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["notifications"] });
+      await qc.invalidateQueries({ queryKey: ["unread"] });
+      setClearConfirmOpen(false);
+      setActionToast(t("notificationsClearAllDone"));
+    },
+  });
+
   const items = q.data?.items ?? [];
+  const unreadInList = items.filter((n) => !isNotificationReadForUser(n, user?.id)).length;
 
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
@@ -70,6 +106,29 @@ export default function NotificationsPage() {
           {t("notifications")}
         </Typography>
         <Chip size="small" label={`${items.length} ${t("notificationsTimelineCount")}`} variant="outlined" />
+        {(unreadCount > 0 || unreadInList > 0) && (
+          <Chip size="small" color="warning" label={`${unreadCount} ${t("notificationsUnreadBadge")}`} />
+        )}
+      </Stack>
+
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={unreadCount <= 0 || markAllReadMut.isPending || clearAllMut.isPending}
+          onClick={() => markAllReadMut.mutate()}
+        >
+          {t("notificationsMarkAllRead")}
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          color="error"
+          disabled={items.length === 0 && unreadCount <= 0}
+          onClick={() => setClearConfirmOpen(true)}
+        >
+          {t("notificationsClearAll")}
+        </Button>
       </Stack>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 720, lineHeight: 1.65 }}>
@@ -330,6 +389,30 @@ export default function NotificationsPage() {
           })}
         </Stack>
       )}
+
+      <Dialog open={clearConfirmOpen} onClose={() => setClearConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t("notificationsClearAllConfirmTitle")}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t("notificationsClearAllConfirmBody")}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearConfirmOpen(false)}>{t("cancel")}</Button>
+          <Button color="error" variant="contained" disabled={clearAllMut.isPending} onClick={() => clearAllMut.mutate()}>
+            {t("notificationsClearAllConfirm")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(actionToast)}
+        autoHideDuration={4000}
+        onClose={() => setActionToast(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity="success" onClose={() => setActionToast(null)} sx={{ width: "100%" }}>
+          {actionToast}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

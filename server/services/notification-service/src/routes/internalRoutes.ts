@@ -19,5 +19,6 @@ r.post("/notifications/preference-pipeline-applied", ctrl.preferencePipelineAppl
 r.post("/notifications/preference-pipeline-rejected", ctrl.preferencePipelineRejected);
 r.post("/notifications/preference-pipeline-batch-pending-managers", ctrl.preferencePipelineBatchPendingManagers);
 r.post("/notifications/email-attachment", ctrl.emailAttachment);
+r.post("/notifications/scheduling-rule-proposal", ctrl.schedulingRuleProposal);
 
 export const internalRoutes = r;

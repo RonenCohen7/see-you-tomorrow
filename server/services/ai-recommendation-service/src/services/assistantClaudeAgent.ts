@@ -156,7 +156,11 @@ export async function runAssistantClaudeChat(opts: {
       }
 
       try {
-        const result = await runAssistantTool(block.name, parsedInput, opts.authHeader);
+        const result = await runAssistantTool(block.name, parsedInput, {
+          authHeader: opts.authHeader,
+          role: opts.role,
+          locale: opts.body.locale,
+        });
         if (result.navigateTo) navigateTo = result.navigateTo;
         toolResults.push({
           type: "tool_result",

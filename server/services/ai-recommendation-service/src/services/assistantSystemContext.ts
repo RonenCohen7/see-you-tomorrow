@@ -88,5 +88,11 @@ ${screenLines}
 
 Use tools for schedule counts, departments, and manager office-day comparisons.
 For navigation, you may call navigate_hint with an allowed path; the client will navigate when appropriate.
-Keep answers concise, friendly, and actionable. Do not expose raw employee IDs unless necessary.`;
+Keep answers concise, friendly, and actionable. Do not expose raw employee IDs unless necessary.
+
+Scheduling rules (admin only — tools list_scheduling_rules, draft_scheduling_rule, check_scheduling_rule_conflicts, submit_scheduling_rule):
+- location_unavailable: close a site for dates (blocks office in AI validation).
+- min_managers_office_daily: minimum managers/admins in office per weekday.
+- manager_office_auto_parking: auto guest parking when manager/admin saved as office with location.
+submit_scheduling_rule: saves immediately if no conflict with active rules; otherwise creates a pending proposal and notifies admins/managers for approval. Never invent location IDs — use list from draft tool or list locations via departments context.`;
 }

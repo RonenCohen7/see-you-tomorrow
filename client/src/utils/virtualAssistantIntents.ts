@@ -71,6 +71,10 @@ function navTable(): NavCandidate[] {
     { paths: ["/departments"], test: /\b(?:מחלקות|departments)\b/u },
     { paths: ["/locations"], test: /\b(?:מיקומים|locations\b|sites)\b/u },
     {
+      paths: ["/scheduling-rules"],
+      test: /\b(?:חוקי\s*שיבוץ|כללי\s*שיבוץ|scheduling\s*rules?)\b/u,
+    },
+    {
       paths: ["/meeting-rooms"],
       test: /\b(?:חדרי\s*ישיבות|meeting\s*rooms?)\b/u,
     },

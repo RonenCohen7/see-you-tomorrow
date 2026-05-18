@@ -1,6 +1,7 @@
 const emp = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002";
 const dept = () => process.env.DEPARTMENT_SERVICE_URL ?? "http://localhost:4003";
 const sch = () => process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005";
+const loc = () => process.env.LOCATION_SERVICE_URL ?? "http://localhost:4004";
 
 export type ScheduleRow = {
   id: string;
@@ -25,6 +26,24 @@ async function userGet<T>(authHeader: string, base: () => string, path: string):
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`GET ${path} failed (${res.status}): ${body.slice(0, 200)}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function userPost<T>(
+  authHeader: string,
+  base: () => string,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${base()}${path}`, {
+    method: "POST",
+    headers: { Authorization: authHeader, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`POST ${path} failed (${res.status}): ${text.slice(0, 300)}`);
   }
   return res.json() as Promise<T>;
 }
@@ -66,4 +85,28 @@ export async function fetchActiveEmployees(authHeader: string, maxPages = 8) {
     if (data.items.length < limit) break;
   }
   return items;
+}
+
+export async function fetchLocations(authHeader: string) {
+  return userGet<{ items: Array<{ id: string; name: string }> }>(authHeader, loc, "/api/locations");
+}
+
+export async function fetchSchedulingRules(authHeader: string) {
+  return userGet<{ items: unknown[] }>(authHeader, sch, "/api/schedules/scheduling-rules");
+}
+
+export async function checkSchedulingRuleConflicts(
+  authHeader: string,
+  body: Record<string, unknown>,
+) {
+  return userPost<Record<string, unknown>>(
+    authHeader,
+    sch,
+    "/api/schedules/scheduling-rules/check-conflicts",
+    body,
+  );
+}
+
+export async function submitSchedulingRule(authHeader: string, body: Record<string, unknown>) {
+  return userPost<Record<string, unknown>>(authHeader, sch, "/api/schedules/scheduling-rules/submit", body);
 }

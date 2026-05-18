@@ -63,6 +63,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import SearchIcon from "@mui/icons-material/Search";
 import EmergencyIcon from "@mui/icons-material/MedicalServices";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
+import LocalParkingIcon from "@mui/icons-material/LocalParking";
 import FileDownloadOutlined from "@mui/icons-material/FileDownloadOutlined";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -87,6 +89,13 @@ import {
 } from "../utils/employeeRequirements";
 import { downloadCsv } from "../utils/csvDownload";
 import { fileToResizedJpegDataUrl } from "../utils/imageResize";
+import type { ParkingSpotPublic } from "../utils/parkingSmartAlerts";
+import {
+  buildPermanentParkingByEmployee,
+  selectablePermanentParkingSpots,
+  spotAssignedToEmployee,
+  syncPermanentParkingAssignment,
+} from "../utils/permanentParking";
 
 const MARITAL_STATUSES: MaritalStatus[] = ["single", "married", "divorced", "widowed", "partner"];
 
@@ -109,6 +118,7 @@ type FormState = {
   maritalStatus: MaritalStatus | "";
   emergencyContact: string;
   notes: string;
+  parkingSpotId: string;
 };
 
 const emptyForm: FormState = {
@@ -127,6 +137,7 @@ const emptyForm: FormState = {
   maritalStatus: "",
   emergencyContact: "",
   notes: "",
+  parkingSpotId: "",
 };
 
 function looseEmailOk(s: string): boolean {
@@ -398,6 +409,19 @@ export default function EmployeesPage() {
     queryFn: async () => (await api.get<{ items: Loc[] }>("/api/locations")).data.items,
   });
 
+  const parkingSpotsQ = useQuery({
+    queryKey: ["parking-spots"],
+    queryFn: async () => (await api.get<{ items: ParkingSpotPublic[] }>("/api/parking/spots")).data.items,
+    enabled: canWrite,
+    staleTime: 60_000,
+  });
+
+  const parkingSpots = parkingSpotsQ.data ?? [];
+  const permanentParkingByEmployee = useMemo(
+    () => buildPermanentParkingByEmployee(parkingSpots),
+    [parkingSpots]
+  );
+
   const deptById = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d]) ?? []), [deptsQ.data]);
   const deptMap = useMemo(() => new Map(deptsQ.data?.map((d) => [d.id, d.name])), [deptsQ.data]);
   const locMap = useMemo(() => new Map(locsQ.data?.map((l) => [l.id, l.name])), [locsQ.data]);
@@ -424,6 +448,19 @@ export default function EmployeesPage() {
     return active;
   }, [locsQ.data, form.locationId]);
 
+  const parkingSpotPickerOptions = useMemo(
+    () =>
+      selectablePermanentParkingSpots(parkingSpots, {
+        locationId: form.locationId.trim() || undefined,
+        employeeId: editingId ?? undefined,
+        currentSpotId: form.parkingSpotId.trim() || undefined,
+      }),
+    [parkingSpots, form.locationId, form.parkingSpotId, editingId]
+  );
+
+  const showParkingInForm = form.role === "manager" || form.role === "admin";
+  const newManagerNeedsParking = !editingId && form.role === "manager";
+
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload: Record<string, unknown> = {
@@ -442,12 +479,22 @@ export default function EmployeesPage() {
         emergencyContact: form.emergencyContact.trim() || undefined,
         notes: form.notes.trim() || undefined,
       };
+      const previousSpotId = editingId ? spotAssignedToEmployee(parkingSpots, editingId) : null;
+      const nextSpotId =
+        form.role === "manager" || form.role === "admin" ? form.parkingSpotId.trim() : "";
+
+      let employeeId = editingId;
       if (editingId) {
         if (form.password) payload.password = form.password;
-        return api.put(`/api/employees/${editingId}`, payload);
+        await api.put(`/api/employees/${editingId}`, payload);
+      } else {
+        payload.password = form.password;
+        const created = await api.post<Employee>("/api/employees", payload);
+        employeeId = created.data.id;
       }
-      payload.password = form.password;
-      return api.post("/api/employees", payload);
+      if (employeeId) {
+        await syncPermanentParkingAssignment(api, employeeId, nextSpotId, previousSpotId || null);
+      }
     },
     onSuccess: async () => {
       setToast({ msg: t("success"), ok: true });
@@ -456,6 +503,7 @@ export default function EmployeesPage() {
       setForm(emptyForm);
       await qc.invalidateQueries({ queryKey: ["employees"] });
       await qc.invalidateQueries({ queryKey: ["employees-compliance-list"] });
+      await qc.invalidateQueries({ queryKey: ["parking-spots"] });
     },
     onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
   });
@@ -597,10 +645,13 @@ export default function EmployeesPage() {
       maritalStatus: emp.maritalStatus ?? "",
       emergencyContact: emp.emergencyContact ?? "",
       notes: emp.notes ?? "",
+      parkingSpotId: spotAssignedToEmployee(parkingSpots, emp.id),
     });
     setOpenEmployee(null);
     setFormOpen(true);
   }
+
+  const parkingSaveOk = !newManagerNeedsParking || !!form.parkingSpotId.trim();
 
   const totalPages = Math.max(1, Math.ceil((q.data?.total ?? 0) / pageSize));
   const items = q.data?.items ?? [];
@@ -761,6 +812,7 @@ export default function EmployeesPage() {
             <EmployeeCard
               key={emp.id}
               employee={emp}
+              permanentParking={permanentParkingByEmployee.get(emp.id)}
               departmentName={emp.departmentId ? deptMap?.get(emp.departmentId) : undefined}
               departmentAccentColor={
                 emp.departmentId ? deptById.get(emp.departmentId)?.accentColor : undefined
@@ -788,6 +840,7 @@ export default function EmployeesPage() {
           openEmployee?.departmentId ? deptById.get(openEmployee.departmentId)?.accentColor : undefined
         }
         locationName={openEmployee?.locationId ? locMap?.get(openEmployee.locationId) : undefined}
+        permanentParking={openEmployee ? permanentParkingByEmployee.get(openEmployee.id) : undefined}
         canWrite={canWrite}
         avatarUploading={!!openEmployee && avatarMut.isPending && avatarMut.variables?.id === openEmployee.id}
         onAvatarUpload={
@@ -806,7 +859,12 @@ export default function EmployeesPage() {
         departments={deptPickerOptions}
         locations={locPickerOptions}
         isPending={saveMut.isPending}
-        isSaveDisabled={!isEmployeeFormComplete(form, !!editingId) || saveMut.isPending}
+        showParkingField={showParkingInForm}
+        parkingSpotOptions={parkingSpotPickerOptions}
+        newManagerNeedsParking={newManagerNeedsParking}
+        isSaveDisabled={
+          !isEmployeeFormComplete(form, !!editingId) || !parkingSaveOk || saveMut.isPending
+        }
         onClose={() => {
           setFormOpen(false);
           setEditingId(null);
@@ -1132,6 +1190,7 @@ export default function EmployeesPage() {
 
 function EmployeeCard({
   employee,
+  permanentParking,
   departmentName,
   departmentAccentColor,
   onOpen,
@@ -1140,6 +1199,7 @@ function EmployeeCard({
   onAvatarUpload,
 }: {
   employee: Employee;
+  permanentParking?: { label: string; locationName: string };
   departmentName?: string;
   departmentAccentColor?: string;
   onOpen: () => void;
@@ -1183,20 +1243,38 @@ function EmployeeCard({
         <CardContent sx={{ pt: 2.5, px: 2, pb: 2 }}>
           <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography
-                variant="subtitle1"
-                fontWeight={800}
-                title={employee.fullName}
-                sx={{
-                  wordBreak: "break-word",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {employee.fullName}
-              </Typography>
+              <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="subtitle1"
+                  fontWeight={800}
+                  title={employee.fullName}
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    wordBreak: "break-word",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {employee.fullName}
+                </Typography>
+                {permanentParking && (
+                  <Tooltip
+                    title={t("employeesPermanentParkingTooltip", {
+                      label: permanentParking.label,
+                      location: permanentParking.locationName,
+                    })}
+                    arrow
+                  >
+                    <DirectionsCarIcon
+                      sx={{ fontSize: 18, color: "primary.main", flexShrink: 0, mt: 0.15, opacity: 0.9 }}
+                      aria-label={t("employeesPermanentParking")}
+                    />
+                  </Tooltip>
+                )}
+              </Stack>
               {employee.jobTitle && (
                 <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ color: "text.secondary", minWidth: 0 }}>
                   <WorkIcon sx={{ fontSize: 14, flexShrink: 0, mt: 0.2 }} />
@@ -1359,6 +1437,7 @@ function EmployeeDetailDialog({
   departmentName,
   departmentAccentColor,
   locationName,
+  permanentParking,
   onClose,
   onEdit,
   canWrite,
@@ -1370,6 +1449,7 @@ function EmployeeDetailDialog({
   departmentName?: string;
   departmentAccentColor?: string;
   locationName?: string;
+  permanentParking?: { label: string; locationName: string };
   onClose: () => void;
   onEdit?: (emp: Employee) => void;
   canWrite?: boolean;
@@ -1566,6 +1646,13 @@ function EmployeeDetailDialog({
             <DetailRow Icon={DepartmentIcon} label={t("department")} value={departmentName || t("noDepartment")} />
             <DetailRow Icon={LocationOnIcon} label={t("location")} value={locationName || t("noLocation")} />
             <DetailRow Icon={BadgeIcon} label={t("role")} value={t(`role.${employee.role}`)} />
+            {permanentParking && (
+              <DetailRow
+                Icon={LocalParkingIcon}
+                label={t("employeesPermanentParking")}
+                value={`${permanentParking.label} · ${permanentParking.locationName}`}
+              />
+            )}
           </DetailSection>
 
           <DetailSection title={t("personalInfo")}>
@@ -2102,6 +2189,9 @@ function EmployeeFormDialog({
   setForm,
   departments,
   locations,
+  showParkingField,
+  parkingSpotOptions,
+  newManagerNeedsParking,
   isPending,
   isSaveDisabled,
   onClose,
@@ -2114,6 +2204,9 @@ function EmployeeFormDialog({
   setForm: (f: FormState) => void;
   departments: Dept[];
   locations: Loc[];
+  showParkingField: boolean;
+  parkingSpotOptions: ParkingSpotPublic[];
+  newManagerNeedsParking: boolean;
   isPending: boolean;
   isSaveDisabled: boolean;
   onClose: () => void;
@@ -2237,7 +2330,14 @@ function EmployeeFormDialog({
             select
             label={t("role")}
             value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as FormState["role"] })}
+            onChange={(e) => {
+              const role = e.target.value as FormState["role"];
+              setForm({
+                ...form,
+                role,
+                parkingSpotId: role === "employee" ? "" : form.parkingSpotId,
+              });
+            }}
           >
             <MenuItem value="admin">{t("role.admin")}</MenuItem>
             <MenuItem value="manager">{t("role.manager")}</MenuItem>
@@ -2265,7 +2365,19 @@ function EmployeeFormDialog({
             select
             label={t("location")}
             value={form.locationId}
-            onChange={(e) => setForm({ ...form, locationId: e.target.value })}
+            onChange={(e) => {
+              const locationId = e.target.value;
+              const spotStillValid =
+                !form.parkingSpotId ||
+                parkingSpotOptions.some(
+                  (s) => s.id === form.parkingSpotId && (!locationId || s.locationId === locationId)
+                );
+              setForm({
+                ...form,
+                locationId,
+                parkingSpotId: spotStillValid ? form.parkingSpotId : "",
+              });
+            }}
           >
             <MenuItem value="">{t("noLocation")}</MenuItem>
             {locations.map((l) => (
@@ -2275,6 +2387,37 @@ function EmployeeFormDialog({
               </MenuItem>
             ))}
           </TextField>
+          {showParkingField && (
+            <TextField
+              select
+              required={newManagerNeedsParking}
+              label={t("employeesParkingSpotLabel")}
+              value={form.parkingSpotId}
+              onChange={(e) => setForm({ ...form, parkingSpotId: e.target.value })}
+              helperText={
+                parkingSpotOptions.length === 0
+                  ? t("employeesNoVacantSpots")
+                  : newManagerNeedsParking
+                    ? t("employeesParkingSpotRequired")
+                    : t("employeesParkingSpotHint")
+              }
+              error={newManagerNeedsParking && !form.parkingSpotId.trim()}
+              sx={{
+                gridColumn: { sm: "1 / span 2" },
+                ...requiredOutlinedFieldSx(theme, !newManagerNeedsParking || !!form.parkingSpotId.trim()),
+              }}
+            >
+              {!newManagerNeedsParking && (
+                <MenuItem value="">{t("employeesParkingSpotNone")}</MenuItem>
+              )}
+              {parkingSpotOptions.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.label}
+                  {form.locationId ? "" : ` · ${s.locationName}`}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
         </Box>
 
         <Divider sx={{ my: 3 }} />

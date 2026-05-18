@@ -32,6 +32,18 @@ export async function markRead(req: AuthRequest, res: Response) {
   res.json(doc);
 }
 
+export async function markAllRead(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const result = await svc.markAllReadForUser(req.user.id);
+  res.json({ ok: true as const, ...result });
+}
+
+export async function dismissAll(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const result = await svc.dismissAllForUser(req.user.id);
+  res.json({ ok: true as const, ...result });
+}
+
 const systemBroadcastBody = z.object({
   title: z.string().trim().min(1).max(120),
   message: z.string().trim().min(1).max(2000),

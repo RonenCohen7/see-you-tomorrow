@@ -217,3 +217,18 @@ export async function emailAttachment(req: Request, res: Response) {
   });
   res.status(204).end();
 }
+
+const schedulingRuleProposalPayload = z.object({
+  proposalId: z.string().min(1),
+  summary: z.string().min(1),
+  conflictCount: z.number().int().nonnegative(),
+  submitterUserId: z.string().regex(/^[a-f\d]{24}$/i),
+});
+
+export async function schedulingRuleProposal(req: Request, res: Response) {
+  const parsed = schedulingRuleProposalPayload.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const doc = await svc.handleSchedulingRuleProposal(parsed.data);
+  if (!doc) return res.sendStatus(204);
+  res.status(201).json(doc);
+}

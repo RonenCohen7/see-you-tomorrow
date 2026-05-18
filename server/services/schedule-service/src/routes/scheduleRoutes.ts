@@ -4,6 +4,7 @@ import * as ctrl from "../controllers/scheduleController.js";
 import * as prefCtrl from "../controllers/preferenceController.js";
 import * as aiBatchCtrl from "../controllers/scheduleAiBatchController.js";
 import * as ruleCtrl from "../controllers/schedulingRuleController.js";
+import * as proposalCtrl from "../controllers/schedulingRuleProposalController.js";
 
 const r = Router();
 
@@ -20,6 +21,13 @@ r.get("/ai-batches/pending-pipeline", requireAuth, aiBatchCtrl.listPendingPrefer
 r.post("/ai-batches/:id/reject-pipeline", requireAuth, aiBatchCtrl.rejectAiBatch);
 
 r.get("/scheduling-rules", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.list);
+r.get("/scheduling-rules/summaries", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.listSummaries);
+r.post("/scheduling-rules/check-conflicts", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.checkConflicts);
+r.get("/scheduling-rules/proposals", requireAuth, ruleCtrl.schedulingRuleAdmin, proposalCtrl.list);
+r.post("/scheduling-rules/proposals", requireAuth, ruleCtrl.schedulingRuleAdmin, proposalCtrl.create);
+r.post("/scheduling-rules/submit", requireAuth, ruleCtrl.schedulingRuleAdmin, proposalCtrl.submit);
+r.post("/scheduling-rules/proposals/:id/approve", requireAuth, ruleCtrl.schedulingRuleAdmin, proposalCtrl.approve);
+r.post("/scheduling-rules/proposals/:id/reject", requireAuth, ruleCtrl.schedulingRuleAdmin, proposalCtrl.reject);
 r.post("/scheduling-rules", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.create);
 r.patch("/scheduling-rules/:id", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.update);
 r.delete("/scheduling-rules/:id", requireAuth, ruleCtrl.schedulingRuleAdmin, ruleCtrl.remove);

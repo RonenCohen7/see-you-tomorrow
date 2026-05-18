@@ -8,9 +8,11 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   GlobalStyles,
   IconButton,
+  Snackbar,
   Stack,
   Tooltip,
   Typography,
@@ -58,6 +60,8 @@ export function NotificationsAttentionFab({ socket }: Props) {
   const qc = useQueryClient();
   const loc = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
 
   const { data: unreadCount = 0, isLoading: unreadLoading } = useQuery({
     queryKey: ["unread"],
@@ -101,6 +105,25 @@ export function NotificationsAttentionFab({ socket }: Props) {
   const readMut = useMutation({
     mutationFn: async (id: string) => api.put(`/api/notifications/${id}/read`),
     onSuccess: invalidateNotifs,
+  });
+
+  const markAllReadMut = useMutation({
+    mutationFn: async () => api.put<{ marked: number }>("/api/notifications/read-all"),
+    onSuccess: async () => {
+      await invalidateNotifs();
+      setActionToast(t("notificationsMarkAllReadDone"));
+      setDialogOpen(false);
+    },
+  });
+
+  const clearAllMut = useMutation({
+    mutationFn: async () => api.delete("/api/notifications/mine"),
+    onSuccess: async () => {
+      await invalidateNotifs();
+      setClearConfirmOpen(false);
+      setActionToast(t("notificationsClearAllDone"));
+      setDialogOpen(false);
+    },
   });
 
   if (!user || loc.pathname === "/notifications") return null;
@@ -293,12 +316,53 @@ export function NotificationsAttentionFab({ socket }: Props) {
             </>
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5, flexWrap: "wrap", gap: 1, justifyContent: "space-between" }}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              variant="outlined"
+              disabled={markAllReadMut.isPending || clearAllMut.isPending}
+              onClick={() => markAllReadMut.mutate()}
+            >
+              {t("notificationsMarkAllRead")}
+            </Button>
+            <Button
+              variant="text"
+              color="error"
+              disabled={markAllReadMut.isPending || clearAllMut.isPending}
+              onClick={() => setClearConfirmOpen(true)}
+            >
+              {t("notificationsClearAll")}
+            </Button>
+          </Stack>
           <Button component={RouterLink} to="/notifications" variant="contained" color="warning" onClick={() => setDialogOpen(false)}>
             {t("notificationsFabOpenAll")}
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={clearConfirmOpen} onClose={() => setClearConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t("notificationsClearAllConfirmTitle")}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{t("notificationsClearAllConfirmBody")}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearConfirmOpen(false)}>{t("cancel")}</Button>
+          <Button color="error" variant="contained" disabled={clearAllMut.isPending} onClick={() => clearAllMut.mutate()}>
+            {t("notificationsClearAllConfirm")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(actionToast)}
+        autoHideDuration={4000}
+        onClose={() => setActionToast(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity="success" onClose={() => setActionToast(null)} sx={{ width: "100%" }}>
+          {actionToast}
+        </Alert>
+      </Snackbar>
     </>
   );
 }

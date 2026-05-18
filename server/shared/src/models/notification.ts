@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPES = [
   "preference_pipeline_no_location",
   "meeting_invite",
   "system",
+  "scheduling_rule_proposal",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

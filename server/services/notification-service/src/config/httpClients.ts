@@ -43,3 +43,10 @@ export async function fetchAdminIds() {
   const data = (await internal(`/internal/employees/admins`, empBase)) as { ids: string[] } | null;
   return data?.ids ?? [];
 }
+
+export async function fetchEmployeeIdsByRole(role: "manager" | "admin") {
+  const data = (await internal(`/internal/employees/by-role/${role}/ids`, empBase)) as {
+    ids: string[];
+  } | null;
+  return data?.ids ?? [];
+}

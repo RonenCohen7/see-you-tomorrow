@@ -64,3 +64,11 @@ export async function resolveDeptManagersAdminsRecipients(departmentId: string):
   for (const a of admins) ids.add(a);
   return [...ids];
 }
+
+/** Org-wide scheduling rule approvers: all admins + all managers. */
+export async function resolveOrgRuleApprovers(): Promise<string[]> {
+  const ids = new Set<string>();
+  for (const a of await http.fetchAdminIds()) ids.add(a);
+  for (const m of await http.fetchEmployeeIdsByRole("manager")) ids.add(m);
+  return [...ids];
+}
