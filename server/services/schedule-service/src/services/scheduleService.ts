@@ -5,10 +5,10 @@ import {
   DB_NAMES,
   getConnection,
   getScheduleModel,
+  isBuiltinScheduleStatus,
   SCHEDULE_STATUSES,
   type ScheduleDoc,
   type ScheduleSource,
-  type ScheduleStatus,
 } from "@syt/shared";
 import {
   monthUtcRange,
@@ -23,7 +23,12 @@ import * as notify from "./notificationClient.js";
 import * as parkingSyncHook from "./locationParkingSync.js";
 import { fetchEmployeesByDepartment, fetchInactiveEmployeeIdsPage } from "./remoteEmployee.js";
 import { assertEmployeeAssignableForScheduleWrites } from "./scheduleEmployeeAssignable.js";
-
+import {
+  assertStoredScheduleStatusAllowed,
+  scheduleStatusDisplayHebrew,
+  scheduleStatusLabelHe,
+} from "./scheduleStatusLabels.js";
+import * as orgSettings from "./orgSettingsService.js";
 export function toPublic(doc: ScheduleDoc) {
   return {
     id: doc._id.toString(),
@@ -58,7 +63,7 @@ async function insertScheduleRecord(
     departmentId?: string;
     locationId?: string;
     workDate: string;
-    status: ScheduleStatus;
+    status: string;
     hours?: number;
     note?: string;
     updatedBy?: string;
@@ -67,6 +72,7 @@ async function insertScheduleRecord(
   },
   options?: { skipNotify?: boolean }
 ) {
+  await assertStoredScheduleStatusAllowed(input.status);
   const Schedule = await model();
   const workDate = utcDay(input.workDate);
   const doc = await Schedule.create({
@@ -89,6 +95,7 @@ async function insertScheduleRecord(
     locationId: pub.locationId,
   });
   if (!options?.skipNotify) {
+    const statusDisplayHe = await scheduleStatusDisplayHebrew(pub.status);
     await notify.notifyScheduleChange({
       scheduleId: pub.id,
       employeeId: pub.employeeId,
@@ -96,6 +103,7 @@ async function insertScheduleRecord(
       locationId: pub.locationId,
       workDate: pub.workDate,
       status: pub.status,
+      statusDisplayHe,
       updatedBy: input.updatedBy,
       note: input.note,
     });
@@ -109,7 +117,7 @@ export async function createSchedule(
     departmentId?: string;
     locationId?: string;
     workDate: string;
-    status: ScheduleStatus;
+    status: string;
     hours?: number;
     note?: string;
     updatedBy?: string;
@@ -129,7 +137,7 @@ export async function updateSchedule(
     departmentId: string;
     locationId: string;
     workDate: string;
-    status: ScheduleStatus;
+    status: string;
     hours: number;
     note: string;
     updatedBy: string;
@@ -145,6 +153,8 @@ export async function updateSchedule(
   const rowDay = toIsoDate(doc.workDate instanceof Date ? doc.workDate : new Date(doc.workDate));
   const todayUtc = new Date().toISOString().slice(0, 10);
   if (rowDay >= todayUtc) await assertEmployeeAssignableForScheduleWrites(doc.employeeId.toString());
+
+  if (input.status !== undefined) await assertStoredScheduleStatusAllowed(input.status);
 
   if (input.workDate) doc.workDate = utcDay(input.workDate);
   if (input.departmentId !== undefined) doc.departmentId = input.departmentId as unknown as Types.ObjectId;
@@ -170,6 +180,7 @@ export async function updateSchedule(
     locationId: pub.locationId,
   });
   if (!options?.skipNotify) {
+    const statusDisplayHe = await scheduleStatusDisplayHebrew(pub.status);
     await notify.notifyScheduleChange({
       scheduleId: pub.id,
       employeeId: pub.employeeId,
@@ -177,6 +188,7 @@ export async function updateSchedule(
       locationId: pub.locationId,
       workDate: pub.workDate,
       status: pub.status,
+      statusDisplayHe,
       updatedBy: input.updatedBy ?? doc.updatedBy?.toString(),
       note: pub.note,
     });
@@ -195,6 +207,7 @@ export async function deleteSchedule(id: string) {
     status: pub.status,
     locationId: pub.locationId,
   });
+  const offLabel = await scheduleStatusDisplayHebrew("off");
   await notify.notifyScheduleChange({
     scheduleId: pub.id,
     employeeId: pub.employeeId,
@@ -202,6 +215,7 @@ export async function deleteSchedule(id: string) {
     locationId: pub.locationId,
     workDate: pub.workDate,
     status: "off",
+    statusDisplayHe: offLabel,
     updatedBy: pub.updatedBy,
     note: "Schedule deleted",
   });
@@ -213,7 +227,7 @@ export async function setEmployeeDayStatus(
   input: {
     employeeId: string;
     workDate: string;
-    status: ScheduleStatus;
+    status: string;
     departmentId?: string;
     locationId?: string;
     hours?: number;
@@ -252,7 +266,7 @@ export async function listSchedules(filter: {
   employeeId?: string;
   departmentId?: string;
   locationId?: string;
-  status?: ScheduleStatus;
+  status?: string;
   from?: string;
   to?: string;
 }) {
@@ -309,8 +323,14 @@ export async function monthSummary(monthYm: string) {
   };
   const rows = await Schedule.aggregate<AggRow>(pipeline);
   const days = rows.map((r) => {
-    const counts: Record<string, number> = { office: 0, home: 0, vacation: 0, sick: 0, off: 0 };
-    for (const s of r.byStatus) counts[s.status] = s.count;
+    const counts: Record<string, number> = { office: 0, home: 0, vacation: 0, sick: 0, off: 0, custom: 0 };
+    for (const s of r.byStatus) {
+      if (isBuiltinScheduleStatus(s.status)) {
+        counts[s.status] += s.count;
+      } else {
+        counts.custom += s.count;
+      }
+    }
     return { _id: r._id, ...counts } as {
       _id: string;
       office: number;
@@ -318,6 +338,7 @@ export async function monthSummary(monthYm: string) {
       vacation: number;
       sick: number;
       off: number;
+      custom: number;
     };
   });
   type AiAgg = { _id: string; aiAssignments: number };
@@ -361,7 +382,7 @@ export async function upsertBulkInternal(
   items: Array<{
     employeeId: string;
     workDate: string;
-    status: ScheduleStatus;
+    status: string;
     hours?: number;
     departmentId?: string;
     locationId?: string;
@@ -424,7 +445,9 @@ export async function upsertBulkInternal(
     }
   }
   if (!options?.skipNotifications) {
+    const orgSnap = await orgSettings.getOrgSchedulesFull();
     for (const r of results) {
+      const statusDisplayHe = scheduleStatusLabelHe(r.status, orgSnap.customScheduleStatuses);
       await notify.notifyScheduleChange({
         scheduleId: r.id,
         employeeId: r.employeeId,
@@ -432,6 +455,7 @@ export async function upsertBulkInternal(
         locationId: r.locationId,
         workDate: r.workDate,
         status: r.status,
+        statusDisplayHe,
         updatedBy: undefined,
         note: r.note,
       });
@@ -448,7 +472,7 @@ export async function createSchedulesForDateRange(input: {
   locationId?: string;
   workDateFrom: string;
   workDateTo: string;
-  status: ScheduleStatus;
+  status: string;
   hours?: number;
   note?: string;
   updatedBy?: string;
@@ -473,6 +497,8 @@ export async function createSchedulesForDateRange(input: {
   const results = await upsertBulkInternal(items, { skipNotifications: true });
   const first = results[0];
   if (first) {
+    const orgSnap = await orgSettings.getOrgSchedulesFull();
+    const statusDisplayHe = scheduleStatusLabelHe(input.status, orgSnap.customScheduleStatuses);
     await notify.notifyScheduleRangeChange({
       scheduleId: first.id,
       employeeId: input.employeeId,
@@ -482,6 +508,7 @@ export async function createSchedulesForDateRange(input: {
       workDateTo: days[days.length - 1]!,
       dayCount: days.length,
       status: input.status,
+      statusDisplayHe,
       updatedBy: input.updatedBy,
       note: input.note,
     });
@@ -499,7 +526,7 @@ export async function replaceEmployeeScheduleRangeFromAnchor(
   input: {
     workDateFrom: string;
     workDateTo: string;
-    status: ScheduleStatus;
+    status: string;
     hours?: number;
     note?: string;
     updatedBy?: string;
@@ -552,7 +579,7 @@ export async function replaceEmployeeSchedulesInRangeByEmployeeId(
   input: {
     workDateFrom: string;
     workDateTo: string;
-    status: ScheduleStatus;
+    status: string;
     hours?: number;
     note?: string;
     departmentId?: string;
@@ -680,7 +707,7 @@ export async function applyDepartmentScheduleRange(params: {
   departmentId: string;
   workDateFrom: string;
   workDateTo: string;
-  status: ScheduleStatus;
+  status: string;
   hours?: number;
   note?: string;
   includeEmployeeIds: string[];
@@ -728,7 +755,7 @@ const MAX_WEEK_GRID_CELLS = 400;
 export async function applyWeekGrid(params: {
   departmentId: string;
   weekStartSunday: string;
-  cells: { employeeId: string; workDate: string; status: ScheduleStatus }[];
+  cells: { employeeId: string; workDate: string; status: string }[];
   updatedBy: string;
 }): Promise<{ updated: number; skippedProtected: number }> {
   let weekDays: string[];
@@ -742,7 +769,7 @@ export async function applyWeekGrid(params: {
     throw new AppError(400, "יותר מדי תאים בשיבוץ השבועי", "VALIDATION");
   }
 
-  const cellMap = new Map<string, { employeeId: string; workDate: string; status: ScheduleStatus }>();
+  const cellMap = new Map<string, { employeeId: string; workDate: string; status: string }>();
   for (const c of params.cells) {
     if (!allowedDays.has(c.workDate)) {
       throw new AppError(400, "תאריך מחוץ לשבוע שנבחר", "VALIDATION");

@@ -1,14 +1,17 @@
 import {
   Alert,
+  Autocomplete,
   Avatar,
   Box,
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  LinearProgress,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -39,12 +42,19 @@ import PeopleIcon from "@mui/icons-material/People";
 import ViewWeekIcon from "@mui/icons-material/ViewWeek";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import axios from "axios";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
+import { assertScheduleSaveGatewayReachableDev, SCHEDULE_SAVE_TIMEOUT_MS } from "../constants/scheduleSave";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import { useTranslation } from "react-i18next";
 import { useAuth, useRole } from "../store/authContext";
+import { customScheduleStoredValue, isBuiltinScheduleStatus } from "../utils/scheduleStatusKinds";
+import {
+  CUSTOM_SCHEDULE_STATUS_UI_COLOR,
+  scheduleStatusPresentation,
+} from "../utils/scheduleStatusUi";
 import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import { ManagerOfficeCoverageBanner } from "../components/ManagerOfficeCoverageBanner";
@@ -52,14 +62,13 @@ import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { scheduleNoteShortDisplay } from "../utils/scheduleNoteDisplay";
 import { todayIsoLocal } from "../utils/date";
 import { utcWeekdayShort, nextIsraeliWeekUtcFromReference } from "../utils/israeliWeek";
-import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
-import type { StatusKey } from "../theme/theme";
+import { STATUS_ORDER } from "../utils/statusMeta";
 
 type FormState = {
   employeeId: string;
   workDateStart: string;
   workDateEnd: string;
-  status: StatusKey;
+  status: string;
   hours: string;
   note: string;
 };
@@ -87,7 +96,7 @@ type DeptBulkFormState = {
   departmentId: string;
   workDateStart: string;
   workDateEnd: string;
-  status: StatusKey;
+  status: string;
   hours: string;
   note: string;
 };
@@ -133,6 +142,12 @@ export default function ScheduleManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [assignmentSaveErrorDialog, setAssignmentSaveErrorDialog] = useState<{ title: string; message: string } | null>(
+    null
+  );
+  const [peekEmployeeId, setPeekEmployeeId] = useState<string | null>(null);
+  const saveWasEditingRef = useRef(false);
+  const saveScheduleAbortRef = useRef<AbortController | null>(null);
 
   const [deptBulkOpen, setDeptBulkOpen] = useState(false);
   const [deptBulkStep, setDeptBulkStep] = useState<"form" | "review">("form");
@@ -143,7 +158,7 @@ export default function ScheduleManagementPage() {
   const [weeklyOpen, setWeeklyOpen] = useState(false);
   const [weeklyWeek, setWeeklyWeek] = useState<{ weekStartSunday: string; days: string[] } | null>(null);
   const [weeklyDeptId, setWeeklyDeptId] = useState("");
-  const [weeklyDraft, setWeeklyDraft] = useState<Record<string, StatusKey>>({});
+  const [weeklyDraft, setWeeklyDraft] = useState<Record<string, string>>({});
   const [weeklyLocked, setWeeklyLocked] = useState<Record<string, boolean>>({});
   const [weeklyGridInitKey, setWeeklyGridInitKey] = useState(0);
 
@@ -165,6 +180,12 @@ export default function ScheduleManagementPage() {
     },
   });
 
+  const peekEmployeeQ = useQuery({
+    queryKey: ["schedule-peek-employee", peekEmployeeId],
+    enabled: Boolean(peekEmployeeId),
+    queryFn: async () => (await api.get<Employee>(`/api/employees/${peekEmployeeId!}`)).data,
+  });
+
   const schedulesQ = useQuery({
     queryKey: ["schedules-all"],
     queryFn: async () => (await api.get<{ items: Schedule[] }>("/api/schedules")).data,
@@ -175,6 +196,20 @@ export default function ScheduleManagementPage() {
     queryFn: async () => (await api.get<{ items: DeptOption[] }>("/api/departments")).data.items,
     enabled: role === "admin" || role === "manager",
   });
+
+  const orgScheduleMetaQ = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: async () =>
+      (
+        await api.get<{
+          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+        }>("/api/schedules/org-settings")
+      ).data,
+    enabled: Boolean(user?.id),
+    staleTime: 60_000,
+  });
+
+  const orgCustoms = orgScheduleMetaQ.data?.customScheduleStatuses ?? [];
 
   const weeklyRangeFrom = weeklyWeek?.days[0];
   const weeklyRangeTo = weeklyWeek?.days[6];
@@ -215,6 +250,13 @@ export default function ScheduleManagementPage() {
     return m;
   }, [employeesQ.data?.items]);
 
+  const employeesForAutocomplete = useMemo(() => {
+    const list = employeesQ.data?.items ?? [];
+    return [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, intlTag));
+  }, [employeesQ.data?.items, intlTag]);
+
+  const selectedEmployeeForForm = form.employeeId ? employeeMap.get(form.employeeId) ?? null : null;
+
   const allScheduleRows = useMemo(() => schedulesQ.data?.items ?? [], [schedulesQ.data?.items]);
 
   const filteredScheduleRows = useMemo(() => {
@@ -246,66 +288,133 @@ export default function ScheduleManagementPage() {
   );
 
   const saveMut = useMutation({
+    onMutate: () => {
+      saveWasEditingRef.current = editingId !== null;
+      saveScheduleAbortRef.current?.abort();
+      saveScheduleAbortRef.current = new AbortController();
+    },
     mutationFn: async () => {
+      const signal = saveScheduleAbortRef.current?.signal;
       if (form.workDateStart > form.workDateEnd) {
         const err = new Error("INVALID_DATE_RANGE");
         (err as Error & { code?: string }).code = "INVALID_DATE_RANGE";
         throw err;
       }
+      await assertScheduleSaveGatewayReachableDev();
       const payload: Record<string, unknown> = {
         status: form.status,
         note: form.note || undefined,
       };
       const h = form.hours.trim() === "" ? undefined : Number(form.hours);
       if (h !== undefined && !Number.isNaN(h)) payload.hours = h;
+      const reqCfg = { timeout: SCHEDULE_SAVE_TIMEOUT_MS, ...(signal ? { signal } : {}) };
       if (editingId) {
         if (form.workDateStart === form.workDateEnd) {
           payload.workDate = form.workDateStart;
-          return api.put(`/api/schedules/${editingId}`, payload);
+          return api.put(`/api/schedules/${editingId}`, payload, reqCfg);
         }
-        return api.put(`/api/schedules/${editingId}/replace-range`, {
+        return api.put(
+          `/api/schedules/${editingId}/replace-range`,
+          {
+            workDateFrom: form.workDateStart,
+            workDateTo: form.workDateEnd,
+            status: form.status,
+            note: form.note || undefined,
+            ...(h !== undefined && !Number.isNaN(h) ? { hours: h } : {}),
+          },
+          reqCfg,
+        );
+      }
+      payload.employeeId = form.employeeId;
+      if (form.workDateStart === form.workDateEnd) {
+        payload.workDate = form.workDateStart;
+        return api.post("/api/schedules", payload, reqCfg);
+      }
+      return api.post(
+        "/api/schedules/range",
+        {
+          employeeId: form.employeeId,
           workDateFrom: form.workDateStart,
           workDateTo: form.workDateEnd,
           status: form.status,
           note: form.note || undefined,
           ...(h !== undefined && !Number.isNaN(h) ? { hours: h } : {}),
-        });
-      }
-      payload.employeeId = form.employeeId;
-      if (form.workDateStart === form.workDateEnd) {
-        payload.workDate = form.workDateStart;
-        return api.post("/api/schedules", payload);
-      }
-      return api.post("/api/schedules/range", {
-        employeeId: form.employeeId,
-        workDateFrom: form.workDateStart,
-        workDateTo: form.workDateEnd,
-        status: form.status,
-        note: form.note || undefined,
-        ...(h !== undefined && !Number.isNaN(h) ? { hours: h } : {}),
-      });
+        },
+        reqCfg,
+      );
     },
-    onSuccess: async (response) => {
-      const data = response?.data as { count?: number } | undefined;
-      if (data && typeof data.count === "number" && data.count > 1) {
-        setToast({ msg: t("schedulesRangeSaved", { count: data.count }), ok: true });
-      } else {
-        setToast({ msg: t("success"), ok: true });
-      }
+    onSuccess: (response) => {
+      const wasEditing = saveWasEditingRef.current;
+      /** axios full response or plain body if ever unwrapped */
+      const body =
+        response && typeof response === "object" && "data" in response
+          ? (response as { data: unknown }).data
+          : response;
+      const data = body as { count?: number } | undefined;
+
       setOpen(false);
       setEditingId(null);
       setForm(emptyForm);
-      await qc.invalidateQueries({ queryKey: ["schedules-all"] });
-      await qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
-      await qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
+      setPeekEmployeeId(null);
+
+      void qc.invalidateQueries({ queryKey: ["schedules-all"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-coverage"] });
+      void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
+
+      if (!wasEditing) {
+        navigate("/calendar", {
+          state: {
+            assignmentSavedBanner: true,
+            assignmentSavedWasRange: Boolean(data && typeof data.count === "number" && data.count > 1),
+            assignmentSavedRangeCount:
+              data && typeof data.count === "number" && data.count > 1 ? data.count : undefined,
+          },
+        });
+        return;
+      }
+
+      if (data && typeof data.count === "number" && data.count > 1) {
+        setToast({ msg: t("schedulesRangeSaved", { count: data.count }), ok: true });
+      } else {
+        setToast({ msg: t("schedulesAssignmentUpdatedToast"), ok: true });
+      }
     },
     onError: (err) => {
+      if (axios.isAxiosError(err) && err.code === "ERR_CANCELED") {
+        return;
+      }
       const code = (err as Error & { code?: string }).code;
+      if (code === "DEV_GATEWAY_UNREACHABLE") {
+        setOpen(false);
+        setPeekEmployeeId(null);
+        setAssignmentSaveErrorDialog({
+          title: t("schedulesSaveFailedTitle"),
+          message: t("schedulesSaveDevGatewayUnreachable"),
+        });
+        return;
+      }
       if (code === "INVALID_DATE_RANGE") {
         setToast({ msg: t("schedulesInvalidDateRange"), ok: false });
         return;
       }
-      setToast({ msg: apiErrorMessage(err, t("error")), ok: false });
+      /** Close the shift dialog so the user is not left with a stuck form behind the error dialog. */
+      setOpen(false);
+      setPeekEmployeeId(null);
+      const msg = apiErrorMessage(err, t("error"));
+      const apiCode =
+        axios.isAxiosError(err) &&
+        err.response?.data &&
+        typeof err.response.data === "object" &&
+        "code" in err.response.data &&
+        typeof (err.response.data as { code?: string }).code === "string"
+          ? (err.response.data as { code: string }).code
+          : undefined;
+      const isInactiveBlocked = apiCode === "EMPLOYEE_INACTIVE";
+
+      setAssignmentSaveErrorDialog({
+        title: isInactiveBlocked ? t("schedulesCannotAssignInactiveTitle") : t("schedulesSaveFailedTitle"),
+        message: msg,
+      });
     },
   });
 
@@ -356,7 +465,7 @@ export default function ScheduleManagementPage() {
     if (!weeklyEmpsQ.isSuccess || !weeklySchedQ.isSuccess) return;
     const emps = weeklyEmpsQ.data?.items ?? [];
     const scheds = weeklySchedQ.data?.items ?? [];
-    const draft: Record<string, StatusKey> = {};
+    const draft: Record<string, string> = {};
     const locked: Record<string, boolean> = {};
     for (const emp of emps) {
       for (const wd of weeklyDays) {
@@ -371,7 +480,7 @@ export default function ScheduleManagementPage() {
         } else if (rows.length === 0) {
           draft[key] = "office";
         } else {
-          draft[key] = rows[0]!.status as StatusKey;
+          draft[key] = rows[0]!.status;
         }
       }
     }
@@ -545,8 +654,9 @@ export default function ScheduleManagementPage() {
     },
   });
 
-  function weeklyStatusColor(s: StatusKey) {
-    return s === "vacation" ? WEEKLY_VACATION_DISPLAY : statusMeta[s].color;
+  function weeklyStatusColor(s: string) {
+    if (s === "vacation") return WEEKLY_VACATION_DISPLAY;
+    return scheduleStatusPresentation(s, t, orgCustoms).color;
   }
 
   function openCreate() {
@@ -625,12 +735,12 @@ export default function ScheduleManagementPage() {
       headerName: t("notificationsStatusLabel"),
       width: 150,
       renderCell: ({ row }) => {
-        const meta = statusMeta[row.status];
+        const meta = scheduleStatusPresentation(row.status, t, orgCustoms);
         return (
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ height: "100%" }}>
             <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
             <Typography variant="body2" fontWeight={700} sx={{ color: meta.color }}>
-              {t(meta.i18nKey)}
+              {meta.label}
             </Typography>
           </Stack>
         );
@@ -789,18 +899,36 @@ export default function ScheduleManagementPage() {
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
         {STATUS_ORDER.map((k) => {
-          const meta = statusMeta[k];
+          const meta = scheduleStatusPresentation(k, t, orgCustoms);
           return (
             <Chip
               key={k}
               size="small"
               icon={<meta.Icon fontSize="small" />}
-              label={t(meta.i18nKey)}
+              label={meta.label}
               sx={{
                 bgcolor: alpha(meta.color, 0.12),
                 color: meta.color,
                 border: `1px solid ${alpha(meta.color, 0.4)}`,
                 "& .MuiChip-icon": { color: meta.color },
+              }}
+            />
+          );
+        })}
+        {orgCustoms.map((c) => {
+          const stored = customScheduleStoredValue(c.id);
+          const meta = scheduleStatusPresentation(stored, t, orgCustoms);
+          return (
+            <Chip
+              key={stored}
+              size="small"
+              icon={<meta.Icon fontSize="small" />}
+              label={meta.label}
+              sx={{
+                bgcolor: alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, 0.12),
+                color: CUSTOM_SCHEDULE_STATUS_UI_COLOR,
+                border: `1px solid ${alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, 0.4)}`,
+                "& .MuiChip-icon": { color: CUSTOM_SCHEDULE_STATUS_UI_COLOR },
               }}
             />
           );
@@ -866,7 +994,9 @@ export default function ScheduleManagementPage() {
           getRowId={(r) => r.id}
           loading={schedulesQ.isLoading || employeesQ.isLoading}
           columns={columns}
-          getRowClassName={({ row }) => `syt-row syt-row--${row.status}`}
+          getRowClassName={({ row }) =>
+            `syt-row ${isBuiltinScheduleStatus(row.status) ? `syt-row--${row.status}` : "syt-row--custom-extra"}`
+          }
           onRowDoubleClick={(params) => {
             const row = params.row;
             if (!SCHEDULE_STATUSES_IN_DAILY_REPORT.has(row.status)) {
@@ -906,7 +1036,7 @@ export default function ScheduleManagementPage() {
               alignItems: "center",
             },
             ...STATUS_ORDER.reduce((acc, k) => {
-              const c = statusMeta[k].color;
+              const { color: c } = scheduleStatusPresentation(k, t, orgCustoms);
               return {
                 ...acc,
                 [`& .syt-row--${k}`]: {
@@ -920,15 +1050,90 @@ export default function ScheduleManagementPage() {
                 },
               };
             }, {}),
+            "& .syt-row--custom-extra": {
+              backgroundColor: (th: { palette: { mode: "light" | "dark" } }) =>
+                alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, th.palette.mode === "dark" ? 0.14 : 0.08),
+              borderInlineStart: `4px solid ${CUSTOM_SCHEDULE_STATUS_UI_COLOR}`,
+              "&:hover": {
+                backgroundColor: (th: { palette: { mode: "light" | "dark" } }) =>
+                  alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, th.palette.mode === "dark" ? 0.22 : 0.16),
+              },
+            },
           }}
         />
       </Box>
 
-      <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)}>
-        <Alert severity={toast?.ok ? "success" : "error"} onClose={() => setToast(null)}>
+      <Snackbar
+        open={!!toast}
+        autoHideDuration={4000}
+        onClose={() => setToast(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        sx={{ mt: 7 }}
+      >
+        <Alert severity={toast?.ok ? "success" : "error"} onClose={() => setToast(null)} sx={{ minWidth: 280 }}>
           {toast?.msg}
         </Alert>
       </Snackbar>
+
+      <Dialog open={assignmentSaveErrorDialog != null} onClose={() => setAssignmentSaveErrorDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{assignmentSaveErrorDialog?.title ?? ""}</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mt: 0 }}>
+            {assignmentSaveErrorDialog?.message ?? ""}
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setAssignmentSaveErrorDialog(null)}>
+            {t("close")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={peekEmployeeId != null} onClose={() => setPeekEmployeeId(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{t("schedulesEmployeePeekTitle")}</DialogTitle>
+        <DialogContent dividers>
+          {!peekEmployeeQ.data && peekEmployeeQ.isPending ? (
+            <Stack alignItems="center" sx={{ py: 3 }}>
+              <CircularProgress />
+            </Stack>
+          ) : peekEmployeeQ.isError ? (
+            <Alert severity="error">{t("schedulesEmployeePeekLoadFailed")}</Alert>
+          ) : peekEmployeeQ.data ? (
+            <Stack spacing={1.25}>
+              <Typography variant="h6">{peekEmployeeQ.data.fullName}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {peekEmployeeQ.data.email}
+              </Typography>
+              {peekEmployeeQ.data.jobTitle ? (
+                <Typography variant="body2">{peekEmployeeQ.data.jobTitle}</Typography>
+              ) : null}
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                <Chip
+                  label={peekEmployeeQ.data.isActive !== false ? t("active") : t("inactive")}
+                  color={peekEmployeeQ.data.isActive !== false ? "success" : "default"}
+                  size="small"
+                />
+              </Stack>
+              {peekEmployeeQ.data.isActive === false ? (
+                <Alert severity="warning">{t("schedulesInactiveEmployeeSelectedHint")}</Alert>
+              ) : null}
+              {role === "admin" ? (
+                <Button
+                  variant="contained"
+                  component={RouterLink}
+                  to={`/employees?openEmployeeId=${encodeURIComponent(peekEmployeeQ.data.id)}`}
+                  sx={{ alignSelf: "flex-start", mt: 1 }}
+                >
+                  {t("schedulesOpenEmployeeAdminPage")}
+                </Button>
+              ) : null}
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPeekEmployeeId(null)}>{t("close")}</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={deptBulkOpen}
@@ -995,15 +1200,27 @@ export default function ScheduleManagementPage() {
                 select
                 label={t("notificationsStatusLabel")}
                 value={deptBulkForm.status}
-                onChange={(e) => setDeptBulkForm({ ...deptBulkForm, status: e.target.value as StatusKey })}
+                onChange={(e) => setDeptBulkForm({ ...deptBulkForm, status: e.target.value })}
               >
                 {STATUS_ORDER.map((s) => {
-                  const meta = statusMeta[s];
+                  const meta = scheduleStatusPresentation(s, t, orgCustoms);
                   return (
                     <MenuItem key={s} value={s}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
-                        <span>{t(meta.i18nKey)}</span>
+                        <span>{meta.label}</span>
+                      </Stack>
+                    </MenuItem>
+                  );
+                })}
+                {orgCustoms.map((c) => {
+                  const stored = customScheduleStoredValue(c.id);
+                  const meta = scheduleStatusPresentation(stored, t, orgCustoms);
+                  return (
+                    <MenuItem key={stored} value={stored}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
+                        <span>{meta.label}</span>
                       </Stack>
                     </MenuItem>
                   );
@@ -1217,7 +1434,7 @@ export default function ScheduleManagementPage() {
                                 value={st}
                                 disabled={locked}
                                 onChange={(e) => {
-                                  const v = e.target.value as StatusKey;
+                                  const v = e.target.value;
                                   setWeeklyDraft((prev) => ({ ...prev, [cellKey]: v }));
                                 }}
                                 inputProps={{ "aria-label": `${emp.fullName ?? emp.id} ${wd}` }}
@@ -1232,26 +1449,38 @@ export default function ScheduleManagementPage() {
                                   },
                                 }}
                                 renderValue={(selected) => {
-                                  const sk = selected as StatusKey;
-                                  const m = statusMeta[sk];
-                                  const c = weeklyStatusColor(sk);
+                                  const key = String(selected);
+                                  const m = scheduleStatusPresentation(key, t, orgCustoms);
+                                  const c = weeklyStatusColor(key);
                                   return (
                                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
                                       <m.Icon sx={{ fontSize: 16, color: c }} />
                                       <Typography variant="caption" fontWeight={700} sx={{ color: c }}>
-                                        {t(m.i18nKey)}
+                                        {m.label}
                                       </Typography>
                                     </Stack>
                                   );
                                 }}
                               >
                                 {STATUS_ORDER.map((s) => {
-                                  const m = statusMeta[s];
+                                  const m = scheduleStatusPresentation(s, t, orgCustoms);
                                   return (
                                     <MenuItem key={s} value={s}>
                                       <Stack direction="row" spacing={1} alignItems="center">
                                         <m.Icon sx={{ fontSize: 18, color: weeklyStatusColor(s) }} />
-                                        <span>{t(m.i18nKey)}</span>
+                                        <span>{m.label}</span>
+                                      </Stack>
+                                    </MenuItem>
+                                  );
+                                })}
+                                {orgCustoms.map((c) => {
+                                  const stored = customScheduleStoredValue(c.id);
+                                  const m = scheduleStatusPresentation(stored, t, orgCustoms);
+                                  return (
+                                    <MenuItem key={stored} value={stored}>
+                                      <Stack direction="row" spacing={1} alignItems="center">
+                                        <m.Icon sx={{ fontSize: 18, color: weeklyStatusColor(stored) }} />
+                                        <span>{m.label}</span>
                                       </Stack>
                                     </MenuItem>
                                   );
@@ -1298,7 +1527,17 @@ export default function ScheduleManagementPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" fullScreen={isXs}>
+      <Dialog
+        open={open}
+        onClose={(_, reason) => {
+          if (saveMut.isPending && (reason === "backdropClick" || reason === "escapeKeyDown")) return;
+          setOpen(false);
+        }}
+        disableEscapeKeyDown={saveMut.isPending}
+        fullWidth
+        maxWidth="sm"
+        fullScreen={isXs}
+      >
         <DialogTitle>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}>
@@ -1313,19 +1552,63 @@ export default function ScheduleManagementPage() {
               {t("schedulesEditRangeReplaceWarning")}
             </Alert>
           ) : null}
-          <TextField
-            select
-            label={t("deptBulkEmployeeColumn")}
-            value={form.employeeId}
-            disabled={!!editingId}
-            onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
-          >
-            {(employeesQ.data?.items ?? []).map((emp) => (
-              <MenuItem key={emp.id} value={emp.id}>
-                {emp.fullName} {emp.jobTitle ? `· ${emp.jobTitle}` : ""}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Autocomplete
+            disabled={Boolean(editingId)}
+            loading={employeesQ.isPending}
+            options={employeesForAutocomplete}
+            value={selectedEmployeeForForm}
+            onChange={(_, v) => setForm({ ...form, employeeId: v?.id ?? "" })}
+            isOptionEqualToValue={(a, b) => a.id === b.id}
+            getOptionLabel={(e) =>
+              `${e.fullName}${e.jobTitle ? ` · ${e.jobTitle}` : ""}${e.isActive === false ? ` (${t("inactive")})` : ""}`
+            }
+            filterOptions={(opts, params) => {
+              if (editingId) return opts;
+              const iq = params.inputValue.trim().toLowerCase().replace(/\s+/g, " ");
+              if (iq.length < 2) return [];
+              return opts
+                .filter(
+                  (e) =>
+                    (e.fullName ?? "").toLowerCase().includes(iq) ||
+                    (e.email ?? "").toLowerCase().includes(iq) ||
+                    e.id.toLowerCase().includes(iq)
+                )
+                .slice(0, 100);
+            }}
+            noOptionsText={editingId ? "" : t("schedulesEmployeeSearchMinChars")}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={t("deptBulkEmployeeColumn")}
+                helperText={editingId ? undefined : t("schedulesEmployeeAutocompleteHint")}
+              />
+            )}
+          />
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={!form.employeeId}
+              onClick={() => setPeekEmployeeId(form.employeeId)}
+            >
+              {t("schedulesViewEmployeeDetails")}
+            </Button>
+            {role === "admin" && form.employeeId ? (
+              <Button
+                size="small"
+                variant="text"
+                component={RouterLink}
+                to={`/employees?openEmployeeId=${encodeURIComponent(form.employeeId)}`}
+              >
+                {t("schedulesOpenEmployeeAdminPage")}
+              </Button>
+            ) : null}
+          </Stack>
+          {selectedEmployeeForForm?.isActive === false ? (
+            <Alert severity="warning" sx={{ py: 0.75 }}>
+              {t("schedulesInactiveEmployeeSelectedHint")}
+            </Alert>
+          ) : null}
           <TextField
             type="date"
             label={t("schedulesDateFrom")}
@@ -1347,15 +1630,27 @@ export default function ScheduleManagementPage() {
             select
             label={t("notificationsStatusLabel")}
             value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value as StatusKey })}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
           >
             {STATUS_ORDER.map((s) => {
-              const meta = statusMeta[s];
+              const meta = scheduleStatusPresentation(s, t, orgCustoms);
               return (
                 <MenuItem key={s} value={s}>
                   <Stack direction="row" spacing={1} alignItems="center">
                     <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
-                    <span>{t(s)}</span>
+                    <span>{meta.label}</span>
+                  </Stack>
+                </MenuItem>
+              );
+            })}
+            {orgCustoms.map((c) => {
+              const stored = customScheduleStoredValue(c.id);
+              const meta = scheduleStatusPresentation(stored, t, orgCustoms);
+              return (
+                <MenuItem key={stored} value={stored}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
+                    <span>{meta.label}</span>
                   </Stack>
                 </MenuItem>
               );
@@ -1377,15 +1672,35 @@ export default function ScheduleManagementPage() {
             onChange={(e) => setForm({ ...form, note: e.target.value })}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpen(false)}>{t("cancel")}</Button>
-          <Button
-            variant="contained"
-            disabled={saveMut.isPending || !form.employeeId || !form.workDateStart || !form.workDateEnd}
-            onClick={() => saveMut.mutate()}
-          >
-            {saveMut.isPending ? t("loading") : t("save")}
-          </Button>
+        <DialogActions sx={{ flexDirection: "column", alignItems: "stretch", px: 3, pb: 2, pt: 1, gap: 1.5 }}>
+          {saveMut.isPending ? (
+            <Box sx={{ width: "100%" }}>
+              <LinearProgress />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, lineHeight: 1.45 }}>
+                {t("schedulesSaveAwaitingServer")}
+              </Typography>
+            </Box>
+          ) : null}
+          <Stack direction="row" sx={{ width: "100%" }} justifyContent="space-between" alignItems="center">
+            <Button
+              onClick={() => {
+                if (saveMut.isPending) {
+                  saveScheduleAbortRef.current?.abort();
+                  saveMut.reset();
+                }
+                setOpen(false);
+              }}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="contained"
+              disabled={saveMut.isPending || !form.employeeId || !form.workDateStart || !form.workDateEnd}
+              onClick={() => saveMut.mutate()}
+            >
+              {saveMut.isPending ? t("loading") : t("save")}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
     </Box>

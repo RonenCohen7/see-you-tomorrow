@@ -36,7 +36,10 @@ export interface ScheduleNotificationContext {
   workDate: string;
   /** When set and different from workDate, the update spans multiple days (inclusive). */
   workDateEnd?: string;
+  /** Raw persisted status (built-in enum or custom:… ). */
   status: string;
+  /** Hebrew-friendly label used in sockets/email copy (derived from builtins or org customs). */
+  statusDisplayHe?: string;
   note?: string;
   updatedBy?: string;
   updatedByName?: string;
@@ -90,6 +93,7 @@ const scheduleContextSchema = new Schema(
     workDate: { type: String },
     workDateEnd: { type: String },
     status: { type: String },
+    statusDisplayHe: { type: String },
     note: { type: String },
     updatedBy: { type: String },
     updatedByName: { type: String },

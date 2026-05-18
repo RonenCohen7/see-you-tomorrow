@@ -183,6 +183,7 @@ export const heTranslation = {
   calendarMeetingStrip: "ישיבות",
   calendarMeetingDayBanner: "ישיבות ביום זה",
   calendarMoreStatuses: "+{{count}}",
+  calendarPresenceCustomSchedule: "סטטוסים נוספים: {{count}}",
   meetingRoomsIntro:
     "ניהול חדרים למנהל מערכת והזמנות ישיבות לכל העובדים — עם מוזמנים, חומרים (קישורים וקבצים קטנים) והתראות במערכת ובמייל.",
   meetingTabManage: "ניהול חדרים",
@@ -288,6 +289,23 @@ export const heTranslation = {
     "לחופשה או מחלה של מספר ימים בחרו תאריך התחלה וסיום. לכל יום נוצרת רשומת שיבוץ נפרדת (אותו סטטוס, הערה ושעות אם הוזנו).",
   schedulesInvalidDateRange: "תאריך הסיום חייב להיות אחרי או שווה לתאריך ההתחלה.",
   schedulesRangeSaved: "נוצרו {{count}} רשומות שיבוץ בטווח.",
+  schedulesEmployeeSearchMinChars: "הקלידו לפחות שני תווים לחיפוש",
+  schedulesEmployeeAutocompleteHint: "חיפוש לפי שם מלא או אימייל. כשמתחילים להקליד מוצגות עד מאה תוצאות.",
+  schedulesViewEmployeeDetails: "פרטי עובד בקצרה",
+  schedulesOpenEmployeeAdminPage: "מעבר לעמוד עובדים (עריכת פרופיל)",
+  schedulesEmployeePeekTitle: "פרטי עובד",
+  schedulesEmployeePeekLoadFailed: "לא ניתן לטעון את פרטי העובד מהשרת.",
+  schedulesInactiveEmployeeSelectedHint:
+    "העובד/ת בסטטוס לא פעיל — המערכת לא תשמור שיבוץ חדש. ניתן לבדוק בפרופיל להפעלה או לבחור עובד/ת פעיל/ת.",
+  schedulesCannotAssignInactiveTitle: "לא ניתן לשבץ עובד בסטטוס לא פעיל",
+  schedulesSaveFailedTitle: "השיבוץ לא נשמר",
+  schedulesSaveDevGatewayUnreachable:
+    "בפיתוח מקומי: השרת המקומי לא עונה לבדיקת זמינות מהירה (gateway). בדרך כלל חסרה הרצת סטאק או שירותי Docker Compose.",
+  schedulesAssignmentSavedToast: "השיבוץ נקלט בהצלחה במערכת.",
+  schedulesAssignmentSavedTitle: "השיבוץ נקלט",
+  schedulesAssignmentUpdatedToast: "עדכון המשמרת נשמר בהצלחה.",
+  schedulesSaveAwaitingServer:
+    "שומרים מול השרת — ההליך הרגיל אמור להסתיים תוך מספר שניות.",
   ai: "המלצות AI",
   notifications: "התראות",
   notificationsTimelineCount: "אירועים",

@@ -4,6 +4,7 @@ import {
   DB_NAMES,
   getConnection,
   getScheduleModel,
+  isBuiltinScheduleStatus,
   requireAdmin,
   type AuthRequest,
   type ScheduleDoc,
@@ -50,6 +51,10 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
     prefPatch.preferenceRemindersEnabled !== undefined
   ) {
     await orgSettings.patchOrgSchedulesPrefs(prefPatch);
+  }
+
+  if (req.body.customScheduleStatuses !== undefined) {
+    await orgSettings.setOrgCustomScheduleStatuses(req.body.customScheduleStatuses);
   }
 
   const s = await orgSettings.getOrgSchedulesFull();
@@ -118,15 +123,35 @@ export async function month(req: AuthRequest, res: Response) {
 
   const dayMap = new Map<
     string,
-    { office: number; home: number; vacation: number; sick: number; off: number; aiAssignments: number }
+    {
+      office: number;
+      home: number;
+      vacation: number;
+      sick: number;
+      off: number;
+      custom: number;
+      aiAssignments: number;
+    }
   >();
   for (const row of filtered) {
     const k = row.workDate;
-    const cur =
-      dayMap.get(k) ?? { office: 0, home: 0, vacation: 0, sick: 0, off: 0, aiAssignments: 0 };
-    cur[row.status as "office" | "home" | "vacation" | "sick" | "off"]++;
-    if (row.source === "ai") cur.aiAssignments++;
-    dayMap.set(k, cur);
+    const bucket = dayMap.get(k) ?? {
+      office: 0,
+      home: 0,
+      vacation: 0,
+      sick: 0,
+      off: 0,
+      custom: 0,
+      aiAssignments: 0,
+    };
+    const next = { ...bucket };
+    if (isBuiltinScheduleStatus(row.status)) {
+      next[row.status]++;
+    } else {
+      next.custom++;
+    }
+    if (row.source === "ai") next.aiAssignments++;
+    dayMap.set(k, next);
   }
   const days = [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, counts]) => ({
     _id: date,

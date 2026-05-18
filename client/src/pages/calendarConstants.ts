@@ -5,6 +5,8 @@ export type DayAgg = {
   vacation: number;
   sick: number;
   off: number;
+  /** Unique employees with organizational custom status (`custom:…`) that day. */
+  custom?: number;
   /** Count of schedule rows authored via approved AI apply (same day may include manual rows too). */
   aiAssignments?: number;
 };

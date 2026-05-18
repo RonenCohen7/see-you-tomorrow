@@ -186,6 +186,8 @@ export const enTranslation = {
   calendarMeetingStrip: "Meetings",
   calendarMeetingDayBanner: "Meetings this day",
   calendarMoreStatuses: "+{{count}}",
+  /** Seven-day strip tooltip: employees in org-defined custom schedule types (rolled up). */
+  calendarPresenceCustomSchedule: "Custom schedule types: {{count}}",
   meetingRoomsIntro:
     "Admins manage rooms; employees and managers can book meetings with invitees, materials (small links and files), and notifications.",
   meetingTabManage: "Manage rooms",
@@ -291,6 +293,22 @@ export const enTranslation = {
     "For multi-day vacation or sick leave choose start and end. Each day becomes its own assignment row (same status, note and optional hours).",
   schedulesInvalidDateRange: "End date must be on or after start date.",
   schedulesRangeSaved: "Created {{count}} assignment rows for the range.",
+  schedulesEmployeeSearchMinChars: "Type at least 2 characters to search",
+  schedulesEmployeeAutocompleteHint: "Search by full name or email. Up to 100 matches are listed.",
+  schedulesViewEmployeeDetails: "Employee preview",
+  schedulesOpenEmployeeAdminPage: "Open Employees page",
+  schedulesEmployeePeekTitle: "Employee details",
+  schedulesEmployeePeekLoadFailed: "Could not load this employee.",
+  schedulesInactiveEmployeeSelectedHint:
+    "This person is inactive — new assignments cannot be saved. Activate them on the Employees page or pick an active teammate.",
+  schedulesCannotAssignInactiveTitle: "Cannot assign an inactive employee",
+  schedulesSaveFailedTitle: "Could not save assignment",
+  schedulesSaveDevGatewayUnreachable:
+    "Local dev: the gateway did not respond to a quick readiness check (stack or Docker dependencies are usually down).",
+  schedulesAssignmentSavedToast: "Assignment saved.",
+  schedulesAssignmentSavedTitle: "Saved",
+  schedulesAssignmentUpdatedToast: "Shift updated successfully.",
+  schedulesSaveAwaitingServer: "Saving to the server — this should finish within a few seconds.",
   ai: "AI suggestions",
   notifications: "Notifications",
   notificationsTimelineCount: "Events",

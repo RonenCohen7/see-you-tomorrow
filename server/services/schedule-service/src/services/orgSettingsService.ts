@@ -3,8 +3,46 @@ import {
   getConnection,
   getOrganizationSettingsModel,
   AppError,
+  type CustomScheduleStatusDef,
 } from "@syt/shared";
+import { randomBytes } from "node:crypto";
 
+const MAX_CUSTOM_SCHEDULE_STATUSES = 40;
+
+function normalizeCustomStatusesInput(body: unknown): CustomScheduleStatusDef[] {
+  if (!Array.isArray(body)) {
+    throw new AppError(400, "customScheduleStatuses חייבת להיות מערך", "VALIDATION");
+  }
+  if (body.length > MAX_CUSTOM_SCHEDULE_STATUSES) {
+    throw new AppError(400, `לכל היותר ${MAX_CUSTOM_SCHEDULE_STATUSES} סטטוסים מותאמים`, "VALIDATION");
+  }
+  const out: CustomScheduleStatusDef[] = [];
+  const seen = new Set<string>();
+  for (const row of body) {
+    if (!row || typeof row !== "object") {
+      throw new AppError(400, "רשומת סטטוס לא תקינה", "VALIDATION");
+    }
+    const raw = row as Record<string, unknown>;
+    let id = typeof raw.id === "string" ? raw.id.trim() : "";
+    const labelHe = typeof raw.labelHe === "string" ? raw.labelHe.trim() : "";
+    const labelEn =
+      raw.labelEn != null && String(raw.labelEn).trim() !== "" ? String(raw.labelEn).trim().slice(0, 120) : undefined;
+    if (labelHe.length < 1 || labelHe.length > 120) {
+      throw new AppError(400, "labelHe באורך 1–120 תווים", "VALIDATION");
+    }
+    if (!id) {
+      id = randomBytes(12).toString("hex");
+    } else if (!/^[a-f0-9]{8,48}$/i.test(id)) {
+      throw new AppError(400, "מזהה סטטוס מותאם לא תקין", "VALIDATION");
+    }
+    if (seen.has(id)) {
+      throw new AppError(400, "כפילות במזהי סטטוס מותאם", "VALIDATION");
+    }
+    seen.add(id);
+    out.push(labelEn !== undefined ? { id, labelHe, labelEn } : { id, labelHe });
+  }
+  return out;
+}
 export async function getManagerCanEditSchedules(): Promise<boolean> {
   const conn = await getConnection(DB_NAMES.settings);
   const Model = getOrganizationSettingsModel(conn);
@@ -80,6 +118,17 @@ export async function patchOrgSchedulesPrefs(input: {
   return doc!;
 }
 
+export async function setOrgCustomScheduleStatuses(list: unknown) {
+  const normalized = normalizeCustomStatusesInput(list);
+  const conn = await getConnection(DB_NAMES.settings);
+  const Model = getOrganizationSettingsModel(conn);
+  await Model.findOneAndUpdate(
+    {},
+    { $set: { customScheduleStatuses: normalized, updatedAt: new Date() } },
+    { upsert: true, new: true }
+  );
+}
+
 export async function getOrgSchedulesFull() {
   const conn = await getConnection(DB_NAMES.settings);
   const Model = getOrganizationSettingsModel(conn);
@@ -92,9 +141,15 @@ export async function getOrgSchedulesFull() {
       updatedAt: new Date(),
     });
   }
+  const customs = Array.isArray(doc.customScheduleStatuses) ? doc.customScheduleStatuses : [];
   return {
     managerCanEditSchedules: doc.managerCanEditSchedules,
     preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 7,
     preferenceRemindersEnabled: doc.preferenceRemindersEnabled !== false,
+    customScheduleStatuses: customs.map((c) =>
+      c.labelEn?.trim()
+        ? { id: String(c.id), labelHe: String(c.labelHe), labelEn: String(c.labelEn) }
+        : { id: String(c.id), labelHe: String(c.labelHe) }
+    ),
   };
 }

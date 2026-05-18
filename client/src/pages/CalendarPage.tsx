@@ -1,9 +1,14 @@
 import {
   Avatar,
+  Alert,
   Box,
   Button,
   Card,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Skeleton,
   Stack,
   Tab,
@@ -22,7 +27,7 @@ import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import api from "../services/api";
@@ -30,6 +35,9 @@ import { currentMonthYm, todayIsoLocal } from "../utils/date";
 import type { Employee, Schedule } from "../types/models";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
+import Diversity3Icon from "@mui/icons-material/Diversity3";
+import { isBuiltinScheduleStatus } from "../utils/scheduleStatusKinds";
+import { CUSTOM_SCHEDULE_STATUS_UI_COLOR } from "../utils/scheduleStatusUi";
 import { useRole, useAuth } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
@@ -62,6 +70,11 @@ function calendarStatusInlineMax(isXs: boolean) {
   return isXs ? 2 : 3;
 }
 
+/** Built-in buckets plus one rolled-up bucket for organizational custom statuses in the seven-day strip. */
+type CalendarSevenStripEntry =
+  | { kind: "builtin"; statusKey: StatusKey; n: number }
+  | { kind: "customRollup"; n: number };
+
 function isoFromDate(d: Date): string {
   const z = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
@@ -89,6 +102,7 @@ export default function CalendarPage() {
   const { locale } = useLocale();
   const intlTag = appIntlLocale(locale);
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const statusInlineMax = calendarStatusInlineMax(isXs);
@@ -100,7 +114,30 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(currentMonthYm());
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [calTab, setCalTab] = useState(0);
+  const [assignmentSavedLanding, setAssignmentSavedLanding] = useState<{ open: boolean; message: string } | null>(
+    null,
+  );
   const { socket } = useSocket(user?.id);
+
+  useEffect(() => {
+    const st = location.state as {
+      assignmentSavedBanner?: boolean;
+      assignmentSavedWasRange?: boolean;
+      assignmentSavedRangeCount?: number;
+    } | null;
+
+    if (!st?.assignmentSavedBanner) return;
+
+    const msg =
+      st.assignmentSavedWasRange === true &&
+      typeof st.assignmentSavedRangeCount === "number" &&
+      st.assignmentSavedRangeCount > 1
+        ? t("schedulesRangeSaved", { count: st.assignmentSavedRangeCount })
+        : t("schedulesAssignmentSavedToast");
+
+    setAssignmentSavedLanding({ open: true, message: msg });
+    navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} });
+  }, [location.state, location.pathname, location.search, navigate, t]);
 
   const weekdayLetters = useMemo(() => {
     const raw = t("calendarWeekdayLetters", { returnObjects: true });
@@ -559,12 +596,27 @@ export default function CalendarPage() {
                       : pkRaw.filter((p) => employeeMap.get(p.employeeId)?.isActive !== false);
                   const mt = meetingsByIso.get(iso) ?? [];
                   const aiRowCount = list.filter((s) => s.source === "ai").length;
-                  const byStatus = new Map<StatusKey, Set<string>>();
+                  const builtinSets = new Map<StatusKey, Set<string>>();
+                  const customEmp = new Set<string>();
                   for (const s of list) {
-                    if (!byStatus.has(s.status)) byStatus.set(s.status, new Set());
-                    byStatus.get(s.status)!.add(s.employeeId);
+                    if (isBuiltinScheduleStatus(s.status)) {
+                      const k = s.status as StatusKey;
+                      let set = builtinSets.get(k);
+                      if (!set) {
+                        set = new Set();
+                        builtinSets.set(k, set);
+                      }
+                      set.add(s.employeeId);
+                    } else {
+                      customEmp.add(s.employeeId);
+                    }
                   }
-                  const stripEntries = STATUS_ORDER.map((k) => ({ k, n: byStatus.get(k)?.size ?? 0 })).filter((x) => x.n > 0);
+                  const stripEntries: CalendarSevenStripEntry[] = [];
+                  for (const k of STATUS_ORDER) {
+                    const n = builtinSets.get(k)?.size ?? 0;
+                    if (n > 0) stripEntries.push({ kind: "builtin", statusKey: k, n });
+                  }
+                  if (customEmp.size > 0) stripEntries.push({ kind: "customRollup", n: customEmp.size });
                   const stripVisible = stripEntries.slice(0, statusInlineMax);
                   const stripHidden = stripEntries.slice(statusInlineMax);
                   return (
@@ -658,10 +710,38 @@ export default function CalendarPage() {
                             {dayNum}
                           </Typography>
                           <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
-                            {stripVisible.map(({ k, n }) => {
-                              const meta = statusMeta[k];
+                            {stripVisible.map((entry) => {
+                              if (entry.kind === "builtin") {
+                                const bm = statusMeta[entry.statusKey];
+                                const BIcon = bm.Icon;
+                                return (
+                                  <Tooltip key={entry.statusKey} title={`${t(bm.presenceI18nKey)}: ${entry.n}`} arrow>
+                                    <Stack
+                                      direction="row"
+                                      spacing={0.25}
+                                      alignItems="center"
+                                      sx={{
+                                        px: 0.55,
+                                        py: 0.2,
+                                        borderRadius: 1,
+                                        bgcolor: alpha(bm.color, 0.14),
+                                        color: bm.color,
+                                        fontSize: 13,
+                                        fontWeight: 800,
+                                      }}
+                                    >
+                                      <BIcon sx={{ fontSize: 15 }} />
+                                      <span>{entry.n}</span>
+                                    </Stack>
+                                  </Tooltip>
+                                );
+                              }
                               return (
-                                <Tooltip key={k} title={`${t(meta.presenceI18nKey)}: ${n}`} arrow>
+                                <Tooltip
+                                  key="__custom-rollup"
+                                  arrow
+                                  title={t("calendarPresenceCustomSchedule", { count: entry.n })}
+                                >
                                   <Stack
                                     direction="row"
                                     spacing={0.25}
@@ -670,14 +750,14 @@ export default function CalendarPage() {
                                       px: 0.55,
                                       py: 0.2,
                                       borderRadius: 1,
-                                      bgcolor: alpha(meta.color, 0.14),
-                                      color: meta.color,
+                                      bgcolor: alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, 0.14),
+                                      color: CUSTOM_SCHEDULE_STATUS_UI_COLOR,
                                       fontSize: 13,
                                       fontWeight: 800,
                                     }}
                                   >
-                                    <meta.Icon sx={{ fontSize: 15 }} />
-                                    <span>{n}</span>
+                                    <Diversity3Icon sx={{ fontSize: 15 }} />
+                                    <span>{entry.n}</span>
                                   </Stack>
                                 </Tooltip>
                               );
@@ -686,7 +766,11 @@ export default function CalendarPage() {
                               <Tooltip
                                 arrow
                                 title={stripHidden
-                                  .map(({ k, n }) => `${t(statusMeta[k].presenceI18nKey)}: ${n}`)
+                                  .map((e) =>
+                                    e.kind === "builtin"
+                                      ? `${t(statusMeta[e.statusKey].presenceI18nKey)}: ${e.n}`
+                                      : t("calendarPresenceCustomSchedule", { count: e.n })
+                                  )
                                   .join(" · ")}
                               >
                                 <Stack
@@ -972,6 +1056,25 @@ export default function CalendarPage() {
           {t("taglineCalendar")}
         </Typography>
       </Box>
+
+      <Dialog
+        open={assignmentSavedLanding?.open === true}
+        onClose={() => setAssignmentSavedLanding(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>{t("schedulesAssignmentSavedTitle")}</DialogTitle>
+        <DialogContent>
+          <Alert severity="success" sx={{ typography: "body1" }}>
+            {assignmentSavedLanding?.message ?? ""}
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button variant="contained" onClick={() => setAssignmentSavedLanding(null)}>
+            {t("close")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <CalendarDayEditorDialog
         open={!!openDay}

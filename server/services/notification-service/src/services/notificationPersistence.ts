@@ -39,6 +39,9 @@ export function toPublic(doc: NotificationDoc & { _id: mongoose.Types.ObjectId }
           workDate: doc.scheduleContext.workDate,
           workDateEnd: doc.scheduleContext.workDateEnd,
           status: doc.scheduleContext.status,
+          ...(doc.scheduleContext.statusDisplayHe
+            ? { statusDisplayHe: doc.scheduleContext.statusDisplayHe }
+            : {}),
           note: doc.scheduleContext.note,
           updatedBy: doc.scheduleContext.updatedBy,
           updatedByName: doc.scheduleContext.updatedByName,
@@ -70,6 +73,7 @@ export async function handleScheduleChange(payload: {
   locationId?: string;
   workDate: string;
   status: string;
+  statusDisplayHe?: string;
   updatedBy?: string;
   note?: string;
 }) {
@@ -87,10 +91,12 @@ export async function handleScheduleChange(payload: {
   const employeeName = emp?.fullName?.trim() || `עובד ${payload.employeeId.slice(-6)}`;
   const updatedByName = updater?.fullName?.trim() || undefined;
 
+  const statusLine = payload.statusDisplayHe?.trim() ?? payload.status;
+
   const title = "עדכון שיבוץ בלוח זמנים";
   const message = updatedByName
-    ? `${employeeName} · ${payload.workDate} · סטטוס ${payload.status} · עודכן על ידי ${updatedByName}`
-    : `${employeeName} · ${payload.workDate} · סטטוס ${payload.status}`;
+    ? `${employeeName} · ${payload.workDate} · סטטוס ${statusLine} · עודכן על ידי ${updatedByName}`
+    : `${employeeName} · ${payload.workDate} · סטטוס ${statusLine}`;
 
   const scheduleContext = {
     scheduleId: payload.scheduleId,
@@ -98,6 +104,7 @@ export async function handleScheduleChange(payload: {
     employeeName,
     workDate: payload.workDate,
     status: payload.status,
+    ...(payload.statusDisplayHe ? { statusDisplayHe: payload.statusDisplayHe } : {}),
     ...(payload.note ? { note: payload.note } : {}),
     ...(payload.updatedBy ? { updatedBy: payload.updatedBy, updatedByName } : {}),
   };
@@ -130,23 +137,22 @@ export async function handleScheduleChange(payload: {
   }
   socket.emitDashboardRefresh(recipientIds);
 
-  const q = emailQueue.getEmailQueue();
-  for (const rid of recipientIds) {
-    await q.add(
-      `email-${doc._id}-${rid}`,
-      {
+  emailQueue.enqueueEmailJobsBestEffort(
+    recipientIds.map((rid) => ({
+      name: `email-${doc._id}-${rid}`,
+      data: {
         notificationId: pub.id,
         recipientId: rid,
         workDate: payload.workDate,
-        status: payload.status,
+        status: statusLine,
       },
-      {
+      opts: {
         attempts: 5,
         backoff: { type: "exponential", delay: 2000 },
         removeOnComplete: true,
-      }
-    );
-  }
+      },
+    })),
+  );
 
   await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
     logger.warn("notification delivery status update failed");
@@ -164,6 +170,7 @@ export async function handleScheduleRangeChange(payload: {
   workDateTo: string;
   dayCount: number;
   status: string;
+  statusDisplayHe?: string;
   updatedBy?: string;
   note?: string;
 }) {
@@ -181,11 +188,13 @@ export async function handleScheduleRangeChange(payload: {
   const employeeName = emp?.fullName?.trim() || `עובד ${payload.employeeId.slice(-6)}`;
   const updatedByName = updater?.fullName?.trim() || undefined;
 
+  const statusLine = payload.statusDisplayHe?.trim() ?? payload.status;
+
   const title = "עדכון טווח שיבוץ בלוח זמנים";
   const rangeLabel = `${payload.workDateFrom} – ${payload.workDateTo} (${payload.dayCount} ימים)`;
   const message = updatedByName
-    ? `${employeeName} · ${rangeLabel} · סטטוס ${payload.status} · עודכן על ידי ${updatedByName}`
-    : `${employeeName} · ${rangeLabel} · סטטוס ${payload.status}`;
+    ? `${employeeName} · ${rangeLabel} · סטטוס ${statusLine} · עודכן על ידי ${updatedByName}`
+    : `${employeeName} · ${rangeLabel} · סטטוס ${statusLine}`;
 
   const scheduleContext = {
     scheduleId: payload.scheduleId,
@@ -194,6 +203,7 @@ export async function handleScheduleRangeChange(payload: {
     workDate: payload.workDateFrom,
     workDateEnd: payload.workDateTo,
     status: payload.status,
+    ...(payload.statusDisplayHe ? { statusDisplayHe: payload.statusDisplayHe } : {}),
     ...(payload.note ? { note: payload.note } : {}),
     ...(payload.updatedBy ? { updatedBy: payload.updatedBy, updatedByName } : {}),
   };
@@ -226,24 +236,23 @@ export async function handleScheduleRangeChange(payload: {
   }
   socket.emitDashboardRefresh(recipientIds);
 
-  const q = emailQueue.getEmailQueue();
-  for (const rid of recipientIds) {
-    await q.add(
-      `email-${doc._id}-${rid}`,
-      {
+  emailQueue.enqueueEmailJobsBestEffort(
+    recipientIds.map((rid) => ({
+      name: `email-${doc._id}-${rid}`,
+      data: {
         notificationId: pub.id,
         recipientId: rid,
         workDate: payload.workDateFrom,
         workDateEnd: payload.workDateTo,
-        status: payload.status,
+        status: statusLine,
       },
-      {
+      opts: {
         attempts: 5,
         backoff: { type: "exponential", delay: 2000 },
         removeOnComplete: true,
-      }
-    );
-  }
+      },
+    })),
+  );
 
   await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
     logger.warn("notification delivery status update failed");
@@ -550,24 +559,23 @@ export async function handleMeetingInvite(payload: {
   }
   socket.emitDashboardRefresh(recipientIds);
 
-  const q = emailQueue.getEmailQueue();
-  for (const rid of recipientIds) {
-    await q.add(
-      `email-meeting-${doc._id}-${rid}`,
-      {
+  emailQueue.enqueueEmailJobsBestEffort(
+    recipientIds.map((rid) => ({
+      name: `email-meeting-${doc._id}-${rid}`,
+      data: {
         notificationKind: "meeting_invite" as const,
         notificationId: pub.id,
         recipientId: rid,
         meetingSubject: title,
         meetingBody: message,
       },
-      {
+      opts: {
         attempts: 5,
         backoff: { type: "exponential", delay: 2000 },
         removeOnComplete: true,
-      }
-    );
-  }
+      },
+    })),
+  );
 
   await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
     logger.warn("meeting notification delivery status update failed");

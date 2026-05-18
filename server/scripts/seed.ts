@@ -59,6 +59,7 @@ async function main() {
     managerCanEditSchedules: false,
     preferenceMinDaysAhead: 7,
     preferenceRemindersEnabled: true,
+    customScheduleStatuses: [],
     updatedAt: new Date(),
   });
 

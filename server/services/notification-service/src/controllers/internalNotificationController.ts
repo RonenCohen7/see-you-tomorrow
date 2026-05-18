@@ -18,6 +18,7 @@ const schedulePayload = z.object({
   locationId: z.string().optional(),
   workDate: z.string(),
   status: z.string(),
+  statusDisplayHe: z.string().optional(),
   updatedBy: z.string().optional(),
   note: z.string().optional(),
 });
@@ -38,6 +39,7 @@ const scheduleRangePayload = z.object({
   workDateTo: z.string(),
   dayCount: z.number().int().positive(),
   status: z.string(),
+  statusDisplayHe: z.string().optional(),
   updatedBy: z.string().optional(),
   note: z.string().optional(),
 });

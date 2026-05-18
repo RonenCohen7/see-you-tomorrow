@@ -28,6 +28,16 @@ const NOTIFICATION_URL = process.env.NOTIFICATION_SERVICE_URL ?? "http://localho
 const AI_URL = process.env.AI_SERVICE_URL ?? "http://localhost:4007";
 const REPORT_URL = process.env.REPORT_SERVICE_URL ?? "http://localhost:4008";
 
+const PROXY_BACKEND_DOWN_USER =
+  "שירות המערכת אינו זמין זמנית. נסו שוב מאוחר יותר. אם הבעיה נמשכת, פנו למנהל המערכת או לתמיכה.";
+/** Shown only when NODE_ENV is not production — for developers fixing local stack */
+const PROXY_BACKEND_DOWN_DEV =
+  "שירות ה־backend לא זמין בסביבת הפיתוח. בדרך כלל צריך להרים את סטאק השרתים ואת שירותי הנתונים (למשל דרך Docker Compose) לפי מדריך המפתחים.";
+
+function proxyBackendUnavailableMessage(): string {
+  return process.env.NODE_ENV === "production" ? PROXY_BACKEND_DOWN_USER : PROXY_BACKEND_DOWN_DEV;
+}
+
 const app = express();
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
@@ -69,8 +79,7 @@ function mountHttp(mountPath: string, target: string) {
           out.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
           out.end(
             JSON.stringify({
-              error:
-                "שירות ה-backend לא זמין. שלבים (כל אחת בשורה נפרדת בטרמינל): (1) MongoDB — אם אין mongod מקומי, מהשורש: npm run docker:deps (2) מהשורש: npm run dev — פקודה אחת בשורה; אל תצמיד שתי פקודות npm באותה שורה בלי רווח ביניהן.",
+              error: proxyBackendUnavailableMessage(),
               code: "BAD_GATEWAY",
             })
           );

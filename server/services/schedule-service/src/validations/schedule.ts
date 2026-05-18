@@ -4,12 +4,21 @@ import { israeliWeekDatesFromSundayUtc, utcDay } from "../utils/dateRange.js";
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i);
 
+const storedScheduleStatusSchema = z.union([
+  z.enum(SCHEDULE_STATUSES),
+  z.string().regex(/^custom:[a-f0-9]{8,48}$/i),
+]);
+
+const optionalStoredScheduleStatusFilter = z
+  .union([z.enum(SCHEDULE_STATUSES), z.string().regex(/^custom:[a-f0-9]{8,48}$/i)])
+  .optional();
+
 export const createScheduleSchema = z.object({
   employeeId: objectId,
   departmentId: objectId.optional(),
   locationId: objectId.optional(),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  status: z.enum(SCHEDULE_STATUSES),
+  status: storedScheduleStatusSchema,
   hours: z.number().min(0).max(24).optional(),
   note: z.string().optional(),
 });
@@ -21,7 +30,7 @@ export const createScheduleRangeSchema = z
     locationId: objectId.optional(),
     workDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     workDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    status: z.enum(SCHEDULE_STATUSES),
+    status: storedScheduleStatusSchema,
     hours: z.number().min(0).max(24).optional(),
     note: z.string().optional(),
   })
@@ -36,7 +45,7 @@ export const replaceScheduleRangeSchema = z
   .object({
     workDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     workDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    status: z.enum(SCHEDULE_STATUSES),
+    status: storedScheduleStatusSchema,
     hours: z.number().min(0).max(24).optional(),
     note: z.string().optional(),
     departmentId: objectId.optional(),
@@ -63,7 +72,7 @@ export const departmentRangeApplySchema = z
     departmentId: objectId,
     workDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     workDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    status: z.enum(SCHEDULE_STATUSES),
+    status: storedScheduleStatusSchema,
     hours: z.number().min(0).max(24).optional(),
     note: z.string().optional(),
     includeEmployeeIds: z.array(objectId).max(200),
@@ -82,7 +91,7 @@ export const weekGridApplySchema = z
         z.object({
           employeeId: objectId,
           workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-          status: z.enum(SCHEDULE_STATUSES),
+          status: storedScheduleStatusSchema,
         })
       )
       .max(400),
@@ -128,7 +137,7 @@ export const listQuerySchema = z.object({
   employeeId: objectId.optional(),
   departmentId: objectId.optional(),
   locationId: objectId.optional(),
-  status: z.enum(SCHEDULE_STATUSES).optional(),
+  status: optionalStoredScheduleStatusFilter,
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   forecast: z.enum(["true", "false"]).optional(),

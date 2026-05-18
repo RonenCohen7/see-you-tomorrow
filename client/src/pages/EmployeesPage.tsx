@@ -68,6 +68,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import type { Employee, MaritalStatus } from "../types/models";
 import { useRole } from "../store/authContext";
@@ -307,12 +308,43 @@ export default function EmployeesPage() {
   const qc = useQueryClient();
   const role = useRole();
   const canWrite = role === "admin";
+  const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(24);
   const [search, setSearch] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
   const [openEmployee, setOpenEmployee] = useState<Employee | null>(null);
+
+  useEffect(() => {
+    const id = searchParams.get("openEmployeeId");
+    if (!id || !canWrite) return;
+
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await api.get<Employee>(`/api/employees/${encodeURIComponent(id)}`);
+        if (alive) setOpenEmployee(data);
+      } catch {
+        /** ignore invalid id / forbidden */
+      } finally {
+        if (!alive) return;
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("openEmployeeId");
+            return next;
+          },
+          { replace: true },
+        );
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [searchParams, setSearchParams, canWrite]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);

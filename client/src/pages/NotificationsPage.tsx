@@ -24,8 +24,7 @@ import type { NotificationItem } from "../types/models";
 import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import { useAuth } from "../store/authContext";
-import { statusMeta } from "../utils/statusMeta";
-import type { StatusKey } from "../theme/theme";
+import { scheduleStatusPresentation } from "../utils/scheduleStatusUi";
 
 function isReadForUser(n: NotificationItem, userId: string | undefined): boolean {
   if (!userId) return false;
@@ -39,6 +38,18 @@ export default function NotificationsPage() {
   const theme = useTheme();
   const qc = useQueryClient();
   const { user } = useAuth();
+
+  const orgMetaQ = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: async () =>
+      (
+        await api.get<{
+          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+        }>("/api/schedules/org-settings")
+      ).data,
+    enabled: Boolean(user?.id),
+    staleTime: 60_000,
+  });
 
   const q = useQuery({
     queryKey: ["notifications"],
@@ -86,8 +97,10 @@ export default function NotificationsPage() {
             const read = isReadForUser(n, user?.id);
             const sc = n.scheduleContext;
             const mc = n.meetingContext;
-            const statusKey = (sc?.status ?? "") as StatusKey;
-            const sm = statusMeta[statusKey];
+            const orgCustoms = orgMetaQ.data?.customScheduleStatuses ?? [];
+            const statusPres =
+              sc?.status && sc.status.trim() !== "" ? scheduleStatusPresentation(sc.status, t, orgCustoms) : null;
+            const statusChipLabel = (sc?.statusDisplayHe?.trim() || statusPres?.label || sc?.status || "").trim();
             const isLast = index === items.length - 1;
             return (
               <Box
@@ -191,20 +204,22 @@ export default function NotificationsPage() {
                         </Stack>
 
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                          {sm ? <sm.Icon sx={{ fontSize: 20, color: sm.color }} /> : null}
+                          {statusPres ? (
+                            <statusPres.Icon sx={{ fontSize: 20, color: statusPres.color }} />
+                          ) : null}
                           <Typography variant="body2" fontWeight={700}>
                             {t("notificationsStatusLabel")}
                           </Typography>
-                          {sm ? (
-                            <Chip
-                              size="small"
-                              label={t(sm.i18nKey)}
-                              sx={{ fontWeight: 700, color: sm.color, borderColor: alpha(sm.color, 0.5) }}
-                              variant="outlined"
-                            />
-                          ) : (
-                            <Chip size="small" label={sc.status} variant="outlined" />
-                          )}
+                          <Chip
+                            size="small"
+                            label={statusChipLabel || sc.status}
+                            sx={{
+                              fontWeight: 700,
+                              color: statusPres?.color ?? theme.palette.text.secondary,
+                              borderColor: statusPres?.color ? alpha(statusPres.color, 0.5) : undefined,
+                            }}
+                            variant="outlined"
+                          />
                         </Stack>
 
                         {sc.updatedByName ? (

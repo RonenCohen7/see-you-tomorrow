@@ -14,6 +14,7 @@ export default defineConfig({
     ],
     proxy: {
       "/api": { target: "http://localhost:4000", changeOrigin: true },
+      "/health": { target: "http://localhost:4000", changeOrigin: true },
       "/socket.io": { target: "http://localhost:4000", changeOrigin: true, ws: true },
     },
   },

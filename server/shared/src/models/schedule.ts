@@ -4,6 +4,23 @@ import { Schema } from "mongoose";
 export const SCHEDULE_STATUSES = ["office", "home", "vacation", "sick", "off"] as const;
 export type ScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
 
+/** Stored value for organization-defined statuses: `custom:` + hex id from OrganizationSettings.customScheduleStatuses. */
+export const CUSTOM_SCHEDULE_STATUS_PREFIX = "custom:" as const;
+
+const CUSTOM_STATUS_REF_RE = /^custom:[a-f0-9]{8,48}$/i;
+
+export function isBuiltinScheduleStatus(s: string): s is ScheduleStatus {
+  return (SCHEDULE_STATUSES as readonly string[]).includes(s);
+}
+
+export function isValidStoredScheduleStatus(s: string): boolean {
+  return isBuiltinScheduleStatus(s) || CUSTOM_STATUS_REF_RE.test(s);
+}
+
+export function customScheduleStoredValue(idHex: string): string {
+  return `${CUSTOM_SCHEDULE_STATUS_PREFIX}${idHex}`;
+}
+
 /** How the row was authored (UI / manual vs approved AI batch). */
 export const SCHEDULE_SOURCES = ["manual", "ai"] as const;
 export type ScheduleSource = (typeof SCHEDULE_SOURCES)[number];
@@ -14,7 +31,8 @@ export interface ScheduleDoc {
   departmentId?: import("mongoose").Types.ObjectId;
   locationId?: import("mongoose").Types.ObjectId;
   workDate: Date;
-  status: ScheduleStatus;
+  /** Built-in `ScheduleStatus` or `custom:<hexId>` registered on the organization. */
+  status: string;
   hours?: number;
   note?: string;
   updatedBy?: import("mongoose").Types.ObjectId;
@@ -32,8 +50,11 @@ const scheduleSchema = new Schema<ScheduleDoc>(
     workDate: { type: Date, required: true },
     status: {
       type: String,
-      enum: SCHEDULE_STATUSES,
       required: true,
+      validate: {
+        validator: (v: string) => isValidStoredScheduleStatus(v),
+        message: "Invalid schedule status",
+      },
     },
     /**
      * Optional segment length (0..24). When omitted, the entry represents a full day.

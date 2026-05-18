@@ -1,5 +1,11 @@
 import axios from "axios";
 
+/** End-user wording — no local dev commands (Docker / npm). */
+const MSG_TIMEOUT_USER =
+  "השרת התעכב והבקשה לא הושלמה בזמן. רעננו את העמוד או נסו שוב. אם הבעיה חוזרת, פנו למנהל המערכת.";
+const MSG_NETWORK_USER =
+  "לא ניתן להתחבר לשרת כרגע. בדקו את החיבור לאינטרנט, רעננו את העמוד או נסו מאוחר יותר. אם זה נמשך, פנו למנהל המערכת.";
+
 /** Pull a user-visible message from failed API calls (Express `{ error, code }` or network). */
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -9,9 +15,9 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
     }
     if (!err.response) {
       if (err.code === "ECONNABORTED") {
-        return "השרת לא הגיב בזמן. ודא ש-MongoDB רץ (npm run docker:deps בשורה נפרדת), ואז npm run dev מהשורש — כל פקודה בשורה משלה.";
+        return MSG_TIMEOUT_USER;
       }
-      return "לא ניתן להתחבר לשרת. ודא שה־gateway רץ (פורט 4000), ש-MongoDB זמין, ושהרצת npm run dev מהשורש (פקודה אחת בשורה).";
+      return MSG_NETWORK_USER;
     }
     return fallback;
   }

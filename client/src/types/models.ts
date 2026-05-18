@@ -27,7 +27,8 @@ export interface Schedule {
   departmentId?: string;
   locationId?: string;
   workDate: string;
-  status: "office" | "home" | "vacation" | "sick" | "off";
+  /** Built-in or `custom:<id>` from organization settings. */
+  status: string;
   /** 0..24, optional. Absent = full day. Multiple entries per employee/day are allowed. */
   hours?: number;
   note?: string;
@@ -52,6 +53,7 @@ export interface NotificationItem {
     workDate: string;
     workDateEnd?: string;
     status: string;
+    statusDisplayHe?: string;
     note?: string;
     updatedBy?: string;
     updatedByName?: string;

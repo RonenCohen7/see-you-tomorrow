@@ -1,4 +1,4 @@
-import { Queue, Worker } from "bullmq";
+import { Queue, Worker, type JobsOptions } from "bullmq";
 import { logger } from "@syt/shared";
 import * as mailer from "./mailer.js";
 import * as http from "../config/httpClients.js";
@@ -42,6 +42,26 @@ export function getEmailQueue() {
     queue = new Queue<EmailJob>("email-notifications", { connection: redisConnection() });
   }
   return queue;
+}
+
+/**
+ * Do not block HTTP handlers on BullMQ — when Redis is down, `Queue.add` can stall the whole
+ * schedule-save path via the notification internal API.
+ */
+export function enqueueEmailJobsBestEffort(jobs: { name: string; data: EmailJob; opts: JobsOptions }[]): void {
+  if (jobs.length === 0) return;
+  void (async () => {
+    try {
+      const q = getEmailQueue();
+      for (const j of jobs) {
+        await q.add(j.name, j.data, j.opts);
+      }
+    } catch (e) {
+      logger.warn("email queue enqueue failed — is Redis running (docker compose)?", {
+        err: e instanceof Error ? e.message : String(e),
+      });
+    }
+  })();
 }
 
 export function startEmailWorker() {

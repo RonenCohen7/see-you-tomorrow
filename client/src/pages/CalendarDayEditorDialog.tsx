@@ -29,12 +29,13 @@ import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/EditOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/AddCircle";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
+import { assertScheduleSaveGatewayReachableDev, SCHEDULE_SAVE_TIMEOUT_MS } from "../constants/scheduleSave";
 import api from "../services/api";
 import type { Employee, Schedule } from "../types/models";
 import type { MeetingBookingPublic } from "../types/meeting";
@@ -44,22 +45,46 @@ import type { StatusKey } from "../theme/theme";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 import { compareSchedulesForCalendarRoster } from "../utils/calendarRosterSort";
 import { useAuth } from "../store/authContext";
+import { customScheduleStoredValue, isBuiltinScheduleStatus } from "../utils/scheduleStatusKinds";
+import { CUSTOM_SCHEDULE_STATUS_UI_COLOR, scheduleStatusPresentation } from "../utils/scheduleStatusUi";
 
-function buildGroupedCalendarRoster(
+type RosterGrouped = {
+  builtins: Record<StatusKey, Schedule[]>;
+  customGroups: Map<string, Schedule[]>;
+};
+
+function groupCalendarDayRoster(
   roster: Schedule[],
   employeeMap: Map<string, Employee>,
   rosterSortLocale: string
-): Record<StatusKey, Schedule[]> {
-  const out: Record<StatusKey, Schedule[]> = { office: [], home: [], vacation: [], sick: [], off: [] };
-  for (const s of roster) out[s.status].push(s);
+): RosterGrouped {
+  const builtins: Record<StatusKey, Schedule[]> = {
+    office: [],
+    home: [],
+    vacation: [],
+    sick: [],
+    off: [],
+  };
+  const customGroups = new Map<string, Schedule[]>();
   const cmp = (a: Schedule, b: Schedule) =>
     compareSchedulesForCalendarRoster(a, b, employeeMap, rosterSortLocale);
-  for (const k of STATUS_ORDER) {
-    out[k].sort(cmp);
+  for (const s of roster) {
+    if (isBuiltinScheduleStatus(s.status)) {
+      builtins[s.status].push(s);
+    } else {
+      const arr = customGroups.get(s.status) ?? [];
+      arr.push(s);
+      customGroups.set(s.status, arr);
+    }
   }
-  return out;
+  for (const k of STATUS_ORDER) {
+    builtins[k].sort(cmp);
+  }
+  for (const arr of customGroups.values()) {
+    arr.sort(cmp);
+  }
+  return { builtins, customGroups };
 }
-
 export function CalendarDayEditorDialog({
   open,
   date,
@@ -103,7 +128,7 @@ export function CalendarDayEditorDialog({
   const [editor, setEditor] = useState<{
     id?: string;
     employeeId: string;
-    status: StatusKey;
+    status: string;
     hours: string;
     note: string;
   } | null>(null);
@@ -133,6 +158,19 @@ export function CalendarDayEditorDialog({
       Boolean(date && date >= utcTodayIso)
   );
 
+  const orgScheduleMetaQ = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: async () =>
+      (
+        await api.get<{
+          customScheduleStatuses: { id: string; labelHe: string; labelEn?: string }[];
+        }>("/api/schedules/org-settings")
+      ).data,
+    enabled: Boolean(open && user?.id),
+    staleTime: 60_000,
+  });
+  const orgCustoms = orgScheduleMetaQ.data?.customScheduleStatuses ?? [];
+
   /** Future/today UTC: hide inactive employees entirely (counts + roster + parking lines in this modal). */
   const calendarVisibleScheduleItems = useMemo(() => {
     if (!date || date < utcTodayIso) return items;
@@ -140,7 +178,7 @@ export function CalendarDayEditorDialog({
   }, [items, employeeMap, date, utcTodayIso]);
 
   const grouped = useMemo(
-    () => buildGroupedCalendarRoster(calendarVisibleScheduleItems, employeeMap, rosterSortLocale),
+    () => groupCalendarDayRoster(calendarVisibleScheduleItems, employeeMap, rosterSortLocale),
     [calendarVisibleScheduleItems, employeeMap, rosterSortLocale]
   );
 
@@ -199,6 +237,7 @@ export function CalendarDayEditorDialog({
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!editor || !date) return;
+      await assertScheduleSaveGatewayReachableDev();
       const payload: Record<string, unknown> = {
         workDate: date,
         status: editor.status,
@@ -208,11 +247,12 @@ export function CalendarDayEditorDialog({
         const h = Number(editor.hours);
         if (!Number.isNaN(h)) payload.hours = h;
       }
+      const cfg = { timeout: SCHEDULE_SAVE_TIMEOUT_MS };
       if (editor.id) {
-        await api.put(`/api/schedules/${editor.id}`, payload);
+        await api.put(`/api/schedules/${editor.id}`, payload, cfg);
       } else {
         payload.employeeId = editor.employeeId;
-        await api.post("/api/schedules", payload);
+        await api.post("/api/schedules", payload, cfg);
       }
     },
     onSuccess: async () => {
@@ -220,7 +260,14 @@ export function CalendarDayEditorDialog({
       setEditor(null);
       await onChanged();
     },
-    onError: (err) => setToast({ msg: apiErrorMessage(err, t("error")), ok: false }),
+    onError: (err) => {
+      const code = (err as Error & { code?: string }).code;
+      if (code === "DEV_GATEWAY_UNREACHABLE") {
+        setToast({ msg: t("schedulesSaveDevGatewayUnreachable"), ok: false });
+        return;
+      }
+      setToast({ msg: apiErrorMessage(err, t("error")), ok: false });
+    },
   });
 
   const deleteMut = useMutation({
@@ -477,7 +524,7 @@ export function CalendarDayEditorDialog({
               </Box>
             )}
             {STATUS_ORDER.map((k) => {
-              const list = grouped[k];
+              const list = grouped.builtins[k];
               if (list.length === 0) return null;
               const meta = statusMeta[k];
               return (
@@ -614,6 +661,135 @@ export function CalendarDayEditorDialog({
                 </Box>
               );
             })}
+            {[...grouped.customGroups.entries()].map(([stored, list]) => {
+              if (list.length === 0) return null;
+              const meta = scheduleStatusPresentation(stored, t, orgCustoms);
+              return (
+                <Box key={stored}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                    <Avatar
+                      sx={{
+                        bgcolor: alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, 0.16),
+                        color: CUSTOM_SCHEDULE_STATUS_UI_COLOR,
+                        width: 30,
+                        height: 30,
+                      }}
+                    >
+                      <meta.Icon sx={{ fontSize: 18 }} />
+                    </Avatar>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: meta.color }}>
+                      {meta.label}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={list.length}
+                      sx={{
+                        bgcolor: alpha(CUSTOM_SCHEDULE_STATUS_UI_COLOR, 0.16),
+                        color: CUSTOM_SCHEDULE_STATUS_UI_COLOR,
+                      }}
+                    />
+                  </Stack>
+                  <Stack spacing={1}>
+                    {list.map((s) => {
+                      const empRecord = employeeMap.get(s.employeeId);
+                      const name = empRecord?.fullName ?? `…${s.employeeId.slice(-6)}`;
+                      const inactiveFutureBadge =
+                        Boolean(empRecord?.isActive === false && date && date >= utcTodayIso);
+                      return (
+                        <Stack
+                          key={s.id}
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1.5}
+                          alignItems={{ xs: "stretch", sm: "center" }}
+                          sx={{
+                            px: { xs: 1, sm: 1.5 },
+                            py: 0.75,
+                            borderRadius: 1.5,
+                            bgcolor: alpha(meta.color, theme.palette.mode === "dark" ? 0.14 : 0.07),
+                            borderInlineStart: `4px solid ${meta.color}`,
+                          }}
+                        >
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: "break-word" }}>
+                              {name}
+                            </Typography>
+                            {inactiveFutureBadge ? (
+                              <Chip
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                                label={t("calDayAssignmentInactiveBadge")}
+                                sx={{ mt: 0.35 }}
+                              />
+                            ) : null}
+                          </Box>
+                          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                            {s.source === "ai" && (
+                              <Chip
+                                size="small"
+                                label={t("scheduleSourceAi")}
+                                color="secondary"
+                                variant="outlined"
+                                sx={{ height: 22, fontWeight: 700 }}
+                              />
+                            )}
+                            {s.hours != null && (
+                              <Chip size="small" label={t("calEditorHoursLabel", { hours: s.hours })} variant="outlined" />
+                            )}
+                            {s.note ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  flex: { xs: "1 1 100%", sm: "0 1 auto" },
+                                  minWidth: 0,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: { xs: "normal", sm: "nowrap" },
+                                  maxWidth: { sm: 200 },
+                                }}
+                              >
+                                {s.note}
+                              </Typography>
+                            ) : null}
+                            {canWrite && (
+                              <Stack direction="row" spacing={0.5} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
+                                <Tooltip
+                                  title={inactiveFutureBadge ? t("calEditorInactiveShiftBlocked") : t("edit")}
+                                  arrow
+                                >
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      disabled={inactiveFutureBadge}
+                                      onClick={() => startEdit(s)}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title={t("delete")} arrow>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                      if (confirm(t("calEditorConfirmDelete", { name }))) deleteMut.mutate(s.id);
+                                    }}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            )}
+                          </Stack>
+                        </Stack>
+                      );
+                    })}
+                  </Stack>
+                </Box>
+              );
+            })}
             {calendarVisibleScheduleItems.length === 0 && (
               <Typography color="text.secondary" sx={{ textAlign: "center", py: 4 }}>
                 {t("noData")}
@@ -649,17 +825,27 @@ export function CalendarDayEditorDialog({
               select
               label={t("notificationsStatusLabel")}
               value={editor?.status ?? "office"}
-              onChange={(e) =>
-                setEditor((cur) => (cur ? { ...cur, status: e.target.value as StatusKey } : cur))
-              }
+              onChange={(e) => setEditor((cur) => (cur ? { ...cur, status: e.target.value } : cur))}
             >
               {STATUS_ORDER.map((s) => {
-                const meta = statusMeta[s];
+                const meta = scheduleStatusPresentation(s, t, orgCustoms);
                 return (
                   <MenuItem key={s} value={s}>
                     <Stack direction="row" spacing={1} alignItems="center">
                       <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
-                      <span>{t(s)}</span>
+                      <span>{meta.label}</span>
+                    </Stack>
+                  </MenuItem>
+                );
+              })}
+              {orgCustoms.map((c) => {
+                const stored = customScheduleStoredValue(c.id);
+                const meta = scheduleStatusPresentation(stored, t, orgCustoms);
+                return (
+                  <MenuItem key={stored} value={stored}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <meta.Icon sx={{ color: meta.color, fontSize: 18 }} />
+                      <span>{meta.label}</span>
                     </Stack>
                   </MenuItem>
                 );

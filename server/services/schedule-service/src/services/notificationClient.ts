@@ -34,6 +34,8 @@ export async function notifyScheduleChange(payload: {
   locationId?: string;
   workDate: string;
   status: string;
+  /** Hebrew label shown in sockets/emails/UI (optional for backward compat). */
+  statusDisplayHe?: string;
   updatedBy?: string;
   note?: string;
 }) {
@@ -64,6 +66,7 @@ export async function notifyScheduleRangeChange(payload: {
   workDateTo: string;
   dayCount: number;
   status: string;
+  statusDisplayHe?: string;
   updatedBy?: string;
   note?: string;
 }) {

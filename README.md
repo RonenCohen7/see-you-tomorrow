@@ -50,6 +50,12 @@ see-you-tomorrow/
 └── README.md
 ```
 
+## End users vs. developers
+
+Anyone who **only uses** the product in the browser does **not** run commands from this repository (no Docker, no `npm run dev`). Those flows are **for developers** building or self-hosting the stack. Hosted deployments operate databases and services on behalf of end users.
+
+Production tip: run the gateway with **`NODE_ENV=production`** so generic messages are shown in the UI when upstream services fail; omitting production mode may expose brief developer-oriented hints.
+
 ## Prerequisites
 
 - Node 22+  
@@ -77,7 +83,7 @@ see-you-tomorrow/
    npm run build --workspaces --if-present
    ```
 
-4. Start MongoDB and Redis (and MailHog for mail testing): `npm run docker:deps` (same as `docker compose up -d mongo redis mailhog`). Requires a running Docker daemon (e.g. Docker Desktop).
+4. Start MongoDB and Redis (and MailHog for mail testing), **on your dev machine only**: `npm run docker:deps` (same as `docker compose up -d mongo redis mailhog`). Requires Docker (e.g. Docker Desktop). End users of a deployed app never run this.
 
 5. Seed demo data (250 employees, departments, locations, sample schedules):
 
@@ -116,7 +122,32 @@ see-you-tomorrow/
 
    Use separate commands only if you prefer multiple terminals; **do not** paste them without spaces (for example `npm run dev:gatewaynpm run dev:auth` is invalid).
 
+### Shell gotcha — **`|` vs `&&`**, and duplicate `npm run dev`
+
+**Wrong:** `npm run docker:deps | npm run dev` — a **pipe (`|`) does not mean “run both”** here; Compose output is wired to stdin of the next command. Prefer:
+
+```bash
+npm run docker:deps && npm run dev
+```
+
+(or **two terminals**: run `docker:deps` once, then in another terminal `npm run dev`).
+
+**Wrong:** starting **`npm run dev` twice** (two terminals). Every service listens on fixed ports (**4000**–**4008**); the second copy crashes with **`EADDRINUSE`** on all of them — exactly what your logs show.
+
+**Fix:** Ctrl+C the other dev session **or**:
+
+```bash
+npm run kill:ports
+npm run dev
+```
+
+`npm run dev` normally runs **`predev` → kill:ports** first; stuck ports can still happen if something outside that list grabbed a port — run **`kill:ports`** manually. If Vite chooses **5174** because **5173** is in use, use **`http://localhost:5174`** (and matching ngrok port).
+
 ## Troubleshooting
+
+### `listen EADDRINUSE` on ports `4000`–`4008`
+
+Another **`npm run dev`** (or leftover Node) still holds gateway / microservice ports. Stop it or run **`npm run kill:ports`** from the repo root — it checks each port separately (macOS `lsof` does not accept comma lists). Then **one** `npm run dev`. Only a **single** full-stack dev fan-out should run.
 
 ### Redis `ECONNREFUSED` on `127.0.0.1:6379` or `::1:6379` (`[notif]` logs)
 
@@ -155,7 +186,7 @@ ngrok forwards HTTPS to **`http://localhost:5173`** (the Vite dev server). Nothi
 
    Or: `ngrok http 127.0.0.1:5173`.
 
-If you changed the Vite port in `client/vite.config.ts`, use that port with ngrok. If another process holds **5173**, fix or kill it (see `npm run kill:ports` if present in scripts) before retrying.
+If you changed the Vite port in `client/vite.config.ts`, use that port with ngrok. If another process holds **5173**, Vite may pick **5174** or higher — tunnel **that** port. You can clear listeners with **`npm run kill:ports`** (covers **5173**–**5175**) before retrying.
 
 ## Docker Compose (backend)
 
