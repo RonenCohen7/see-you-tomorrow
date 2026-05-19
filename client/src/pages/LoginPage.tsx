@@ -16,6 +16,7 @@ import AppBrandTitle from "../components/AppBrandTitle";
 import PublicHeader from "../components/PublicHeader";
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { defaultLandingForRole } from "../utils/roleRouting";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultLandingForRole(user.role)} replace />;
   }
 
   async function doLogin(emailToUse: string, passwordToUse: string) {
@@ -37,8 +38,8 @@ export default function LoginPage() {
     setError(null);
     try {
       console.info("[login] POST /api/auth/login", { email: emailToUse });
-      await login(emailToUse, passwordToUse);
-      nav("/dashboard");
+      const signedIn = await login(emailToUse, passwordToUse);
+      nav(defaultLandingForRole(signedIn?.role ?? null));
     } catch (err: unknown) {
       console.error("[login] failed", err);
       setError(apiErrorMessage(err, t("loginError")));

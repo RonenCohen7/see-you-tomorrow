@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import PublicHeader from "../components/PublicHeader";
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { defaultLandingForRole } from "../utils/roleRouting";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultLandingForRole(user.role)} replace />;
   }
 
   async function submit(e: React.FormEvent) {
@@ -37,14 +38,14 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     try {
-      await register({
+      const registered = await register({
         fullName,
         email,
         password,
         phone: phone || undefined,
         jobTitle: jobTitle || undefined,
       });
-      nav("/dashboard", { state: { justRegistered: true } });
+      nav(defaultLandingForRole(registered?.role ?? null), { state: { justRegistered: true } });
     } catch (err: unknown) {
       setError(apiErrorMessage(err, t("error")));
     } finally {

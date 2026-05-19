@@ -75,7 +75,14 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <DashboardPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/calendar/month/:ym" element={<CalendarFullMonthPage />} />
                   <Route path="/meeting-rooms" element={<MeetingRoomsPage />} />
@@ -151,7 +158,14 @@ export default function App() {
                       </ManagerOrAdminRoute>
                     }
                   />
-                  <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route
+                    path="/notifications"
+                    element={
+                      <ManagerOrAdminRoute>
+                        <NotificationsPage />
+                      </ManagerOrAdminRoute>
+                    }
+                  />
                   <Route
                     path="/ai"
                     element={

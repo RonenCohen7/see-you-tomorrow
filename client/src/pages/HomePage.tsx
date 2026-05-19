@@ -16,6 +16,7 @@ import {
   landingVioletBlobSx,
 } from "../components/marketing/landingTheme";
 import { useAuth } from "../store/authContext";
+import { defaultLandingForRole } from "../utils/roleRouting";
 
 export default function HomePage() {
   const { t } = useTranslation();
@@ -30,7 +31,7 @@ export default function HomePage() {
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={defaultLandingForRole(user.role)} replace />;
   }
 
   return (

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../store/authContext";
 import PublicLanguageToggle from "./PublicLanguageToggle";
 import { brandGradient } from "./marketing/brandGradient";
+import { defaultLandingForRole } from "../utils/roleRouting";
 
 type PublicHeaderProps = {
   variant?: "default" | "marketing";
@@ -145,7 +146,13 @@ export default function PublicHeader({ variant = "default" }: PublicHeaderProps)
           </Button>
           <PublicLanguageToggle />
           {user ? (
-            <Button component={RouterLink} to="/dashboard" variant="contained" color="primary" size="small">
+            <Button
+              component={RouterLink}
+              to={defaultLandingForRole(user.role)}
+              variant="contained"
+              color="primary"
+              size="small"
+            >
               {t("enterApp")}
             </Button>
           ) : (

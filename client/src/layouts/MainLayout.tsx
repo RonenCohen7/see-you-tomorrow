@@ -69,7 +69,7 @@ const WIDTH_COMPACT = 220;
 
 const adminOnlyNav = ["/employees", "/departments", "/locations", "/scheduling-rules"];
 /** מנהל מחלקה / אדמין בלבד — לא מוצג למשתמש עם תפקיד עובד */
-const managerAdminNav = ["/schedules", "/parking", "/ai"];
+const managerAdminNav = ["/dashboard", "/schedules", "/parking", "/ai", "/notifications"];
 
 type NavItem = {
   to: string;
@@ -110,6 +110,8 @@ export default function MainLayout() {
   const role = useRole();
   const { user, logout } = useAuth();
   const { socket, connected } = useSocket(user?.id);
+  /** עובד רגיל אינו רואה התראות, סוכן חכם או כפתורי FAB ניהוליים. */
+  const isEmployee = role === "employee";
   const [newUserSnackbarOpen, setNewUserSnackbarOpen] = React.useState(false);
   const [systemSnack, setSystemSnack] = React.useState<SystemBroadcastClientPayload | null>(null);
   const clearedRegisterState = React.useRef(false);
@@ -157,7 +159,7 @@ export default function MainLayout() {
     queryKey: ["unread"],
     queryFn: async () => (await api.get<{ count: number }>("/api/notifications/unread-count")).data.count,
     refetchInterval: 60_000,
-    enabled: !!user,
+    enabled: !!user && !isEmployee,
   });
 
   const nav = allPaths.filter((p) => {
@@ -215,20 +217,22 @@ export default function MainLayout() {
             </Tooltip>
           );
         })}
-        <Tooltip title={t("helpFabTooltip")} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
-          <ListItemButton
-            onClick={() => {
-              setScreenHelpOpen(true);
-              if (mobile) setMobileOpen(false);
-            }}
-            aria-label={t("helpFabAria")}
-          >
-            <ListItemIcon sx={{ color: "text.secondary" }}>
-              <Avatar alt="" src="/help-avatar.png" variant="rounded" sx={{ width: 28, height: 28, flexShrink: 0 }} />
-            </ListItemIcon>
-            <ListItemText primary={t("helpMenuItem")} primaryTypographyProps={{ fontWeight: 500 }} />
-          </ListItemButton>
-        </Tooltip>
+        {!isEmployee && (
+          <Tooltip title={t("helpFabTooltip")} placement={theme.direction === "rtl" ? "left" : "right"} arrow disableInteractive>
+            <ListItemButton
+              onClick={() => {
+                setScreenHelpOpen(true);
+                if (mobile) setMobileOpen(false);
+              }}
+              aria-label={t("helpFabAria")}
+            >
+              <ListItemIcon sx={{ color: "text.secondary" }}>
+                <Avatar alt="" src="/help-avatar.png" variant="rounded" sx={{ width: 28, height: 28, flexShrink: 0 }} />
+              </ListItemIcon>
+              <ListItemText primary={t("helpMenuItem")} primaryTypographyProps={{ fontWeight: 500 }} />
+            </ListItemButton>
+          </Tooltip>
+        )}
       </List>
       <Divider />
       <Box sx={{ p: 1 }}>
@@ -359,13 +363,15 @@ export default function MainLayout() {
               <Typography variant="caption">{connected ? t("liveConnected") : t("liveDisconnected")}</Typography>
             </Box>
             <LanguageToggle />
-            <Tooltip title={t("notifications")} arrow>
-              <IconButton color="inherit" component={RouterLink} to="/notifications" size="medium">
-                <Badge badgeContent={unread ?? 0} color="secondary">
-                  <NotificationsIcon />
-                </Badge>
-              </IconButton>
-            </Tooltip>
+            {!isEmployee && (
+              <Tooltip title={t("notifications")} arrow>
+                <IconButton color="inherit" component={RouterLink} to="/notifications" size="medium">
+                  <Badge badgeContent={unread ?? 0} color="secondary">
+                    <NotificationsIcon />
+                  </Badge>
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         </Toolbar>
       </AppBar>
@@ -451,7 +457,7 @@ export default function MainLayout() {
         </Box>
       </Box>
       </Box>
-      {user ? (
+      {user && !isEmployee ? (
         <>
           <ScreenHelpOverlay open={screenHelpOpen} onClose={() => setScreenHelpOpen(false)} />
           <Box

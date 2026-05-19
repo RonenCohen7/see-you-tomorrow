@@ -16,14 +16,14 @@ type AuthState = {
 };
 
 type AuthCtx = AuthState & {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<Employee>;
   register: (input: {
     fullName: string;
     email: string;
     password: string;
     phone?: string;
     jobTitle?: string;
-  }) => Promise<void>;
+  }) => Promise<Employee>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     setTokens(data.accessToken, data.refreshToken);
     setUser(data.employee);
+    return data.employee;
   }, []);
 
   const register = useCallback(
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       setTokens(data.accessToken, data.refreshToken);
       setUser(data.employee);
+      return data.employee;
     },
     []
   );
