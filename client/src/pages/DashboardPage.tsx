@@ -86,9 +86,11 @@ export default function DashboardPage() {
     queryFn: async () => (await api.get<{ items: Schedule[] }>(`/api/schedules/day/${today}`)).data,
   });
 
+  /** Active employees only — inactive employee rows must not inflate dashboard counts. */
   const qEmp = useQuery({
-    queryKey: ["employees-count"],
-    queryFn: async () => (await api.get<{ total: number }>("/api/employees?page=1&limit=1")).data,
+    queryKey: ["employees-count-active"],
+    queryFn: async () =>
+      (await api.get<{ total: number }>("/api/employees?page=1&limit=1&isActive=true")).data,
     enabled: isAdminOrManager,
   });
 
@@ -116,6 +118,15 @@ export default function DashboardPage() {
     return m;
   }, [qEmpList.data]);
 
+  /** Active-employee lookup — used to drop inactive rows from today's counts. */
+  const activeEmployeeIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const e of qEmpList.data ?? []) {
+      if (e.isActive !== false) s.add(e.id);
+    }
+    return s;
+  }, [qEmpList.data]);
+
   useEffect(() => {
     if (!socket) return;
     const onRefresh = () => {
@@ -128,15 +139,34 @@ export default function DashboardPage() {
     };
   }, [socket, qDay]);
 
-  const items = qDay.data?.items ?? [];
-  const stats = useMemo(
-    () =>
-      STATUS_ORDER.reduce<Record<string, number>>((acc, k) => {
-        acc[k] = items.filter((i) => i.status === k).length;
-        return acc;
-      }, {}),
-    [items]
-  );
+  /**
+   * Drop rows tied to inactive employee profiles (matches the calendar).
+   * Until the employees list is loaded we conservatively keep everything so
+   * we don't briefly render zeros for an admin/manager.
+   */
+  const rawItems = qDay.data?.items ?? [];
+  const items = useMemo(() => {
+    if (!isAdminOrManager) return rawItems;
+    if (qEmpList.isLoading || !qEmpList.data) return rawItems;
+    return rawItems.filter((i) => activeEmployeeIds.has(i.employeeId));
+  }, [rawItems, isAdminOrManager, qEmpList.isLoading, qEmpList.data, activeEmployeeIds]);
+
+  /**
+   * Count unique employees per status — split-day rows for the same employee
+   * must not double-count (same rule the calendar uses).
+   */
+  const stats = useMemo(() => {
+    const perStatus: Record<string, Set<string>> = {};
+    for (const k of STATUS_ORDER) perStatus[k] = new Set<string>();
+    for (const it of items) {
+      const bucket = perStatus[it.status];
+      if (bucket) bucket.add(it.employeeId);
+    }
+    return STATUS_ORDER.reduce<Record<string, number>>((acc, k) => {
+      acc[k] = perStatus[k].size;
+      return acc;
+    }, {});
+  }, [items]);
 
   const visibleTiles = tiles.filter((t) => {
     if (t.adminOnly && user?.role !== "admin") return false;
@@ -313,15 +343,22 @@ export default function DashboardPage() {
                         alignContent: "flex-start",
                       }}
                     >
-                      {items
-                        .filter((s) => s.status === "office")
+                      {Array.from(
+                        items
+                          .filter((s) => s.status === "office")
+                          .reduce((map, s) => {
+                            if (!map.has(s.employeeId)) map.set(s.employeeId, s);
+                            return map;
+                          }, new Map<string, Schedule>())
+                          .values()
+                      )
                         .slice(0, 12)
                         .map((s) => {
                           const name = employeeNameById.get(s.employeeId);
                           const meta = statusMeta.office;
                           return (
                             <Chip
-                              key={s.id}
+                              key={s.employeeId}
                               icon={<meta.Icon fontSize="small" />}
                               label={name ?? `…${s.employeeId.slice(-4)}`}
                               size="small"

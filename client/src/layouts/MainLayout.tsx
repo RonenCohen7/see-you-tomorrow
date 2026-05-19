@@ -205,6 +205,7 @@ export default function MainLayout() {
                 to={to}
                 selected={selected}
                 onClick={() => mobile && setMobileOpen(false)}
+                data-help-target={`nav-${key}`}
               >
                 <ListItemIcon sx={{ color: selected ? "primary.main" : "text.secondary" }}>
                   <Icon fontSize="medium" />
@@ -459,7 +460,11 @@ export default function MainLayout() {
       </Box>
       {user && !isEmployee ? (
         <>
-          <ScreenHelpOverlay open={screenHelpOpen} onClose={() => setScreenHelpOpen(false)} />
+          <ScreenHelpOverlay
+            open={screenHelpOpen}
+            onClose={() => setScreenHelpOpen(false)}
+            visibleNavKeys={nav.map((n) => n.key)}
+          />
           <Box
             sx={{
               position: "fixed",

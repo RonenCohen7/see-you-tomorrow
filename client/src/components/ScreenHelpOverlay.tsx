@@ -11,6 +11,8 @@ import {
   Paper,
   Stack,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
   Button,
   alpha,
@@ -21,8 +23,14 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
-import { getHelpSegments, helpHighlightSelector, helpScreenTitleKey } from "../help/screenHelpScripts";
+import {
+  getHelpSegments,
+  getMenuTourSegments,
+  helpHighlightSelector,
+  helpScreenTitleKey,
+} from "../help/screenHelpScripts";
 import { useLocale } from "../locale/LocaleContext";
+import { useRole } from "../store/authContext";
 import {
   normalizeTextForTts,
   pickVoiceForLocale,
@@ -41,7 +49,11 @@ const SPOTLIGHT_PAD = 8;
 export type ScreenHelpOverlayProps = {
   open: boolean;
   onClose: () => void;
+  /** Keys for the menu items currently visible to this user (display order). */
+  visibleNavKeys?: ReadonlyArray<string>;
 };
+
+type HelpMode = "screen" | "menu";
 
 type RectLite = Pick<DOMRect, "top" | "left" | "right" | "bottom" | "width" | "height">;
 
@@ -191,13 +203,15 @@ function HelpTourArrow({
   );
 }
 
-export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
+export function ScreenHelpOverlay({ open, onClose, visibleNavKeys }: ScreenHelpOverlayProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const { pathname } = useLocation();
   const { locale } = useLocale();
+  const role = useRole();
 
+  const [mode, setMode] = useState<HelpMode>("screen");
   const [muted, setMuted] = useState(true);
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [speaking, setSpeaking] = useState(false);
@@ -209,7 +223,12 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
   const utterGenRef = useRef(0);
   const prevOpenRef = useRef(false);
 
-  const segments = useMemo(() => getHelpSegments(pathname, locale), [pathname, locale]);
+  const screenSegments = useMemo(() => getHelpSegments(pathname, locale), [pathname, locale]);
+  const menuSegments = useMemo(
+    () => getMenuTourSegments(locale, visibleNavKeys ?? [], role),
+    [locale, visibleNavKeys, role]
+  );
+  const segments = mode === "menu" ? menuSegments : screenSegments;
   const screenTitleKey = useMemo(() => helpScreenTitleKey(pathname), [pathname]);
 
   const zDim = theme.zIndex.tooltip + 15;
@@ -220,10 +239,11 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
     setSegmentIndex(0);
     setSpeaking(false);
     window.speechSynthesis.cancel();
-  }, [pathname]);
+  }, [pathname, mode]);
 
   useEffect(() => {
     if (open && !prevOpenRef.current) {
+      setMode("screen");
       setMuted(true);
       setSegmentIndex(0);
       setRestartToken((x) => x + 1);
@@ -497,8 +517,22 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography id="syt-help-dialog-title" component="span" variant="subtitle1" fontWeight={900}>
                 {t("helpDialogTitle")}
-                {screenTitleKey ? (
-                  <Typography component="span" variant="body2" color="text.secondary" sx={{ display: "block", fontWeight: 600, mt: 0.35 }}>
+                {mode === "menu" ? (
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ display: "block", fontWeight: 600, mt: 0.35 }}
+                  >
+                    — {t("helpModeMenuTitle")}
+                  </Typography>
+                ) : screenTitleKey ? (
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ display: "block", fontWeight: 600, mt: 0.35 }}
+                  >
                     — {t(screenTitleKey)}
                   </Typography>
                 ) : null}
@@ -514,6 +548,25 @@ export function ScreenHelpOverlay({ open, onClose }: ScreenHelpOverlayProps) {
               <CloseIcon fontSize="small" />
             </IconButton>
           </Stack>
+
+          <ToggleButtonGroup
+            size="small"
+            color="primary"
+            exclusive
+            value={mode}
+            onChange={(_e, next: HelpMode | null) => {
+              if (!next || next === mode) return;
+              bumpUtterGeneration();
+              setMode(next);
+              setSegmentIndex(0);
+              setRestartToken((x) => x + 1);
+            }}
+            aria-label={t("helpModeToggleAria")}
+            sx={{ alignSelf: "stretch", "& .MuiToggleButton-root": { flex: 1, py: 0.6 } }}
+          >
+            <ToggleButton value="screen">{t("helpModeScreen")}</ToggleButton>
+            <ToggleButton value="menu">{t("helpModeMenu")}</ToggleButton>
+          </ToggleButtonGroup>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "center", sm: "flex-start" }}>
             <Box

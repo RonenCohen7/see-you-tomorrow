@@ -1,4 +1,5 @@
 import type { AppLocale } from "../locale/localeConstants";
+import type { Role } from "../types/models";
 
 /** Optional `highlight` is the value of `data-help-target` on a DOM node (not a free-form selector). */
 export type HelpSegment = { text: string; highlight?: string };
@@ -234,6 +235,145 @@ export function getHelpSegments(pathname: string, locale: AppLocale): HelpSegmen
   const bank = locale === "en" ? scriptsEn : scriptsHe;
   const fallback = locale === "en" ? defaultHelpEn : defaultHelpHe;
   return bank[key] ?? fallback;
+}
+
+/**
+ * Per nav-key explanation for the menu tour. Phrased so that closely-related
+ * items (AI vs notifications vs scheduling rules vs preference queue) are
+ * clearly distinguished from one another.
+ */
+type MenuExplanation = { he: string; en: string };
+
+const menuItemExplanations: Record<string, MenuExplanation> = {
+  dashboard: {
+    he: "לוח הבקרה — תצוגה אחת לכל מה שחשוב היום: נוכחות, חניות, התראות פעילות וקיצורי דרך לפעולה.",
+    en: "Dashboard — one screen with today's essentials: attendance, parking, active alerts, and quick actions.",
+  },
+  calendar: {
+    he: "יומן — תצוגה ויזואלית של ימי העבודה שלך והצוות (משרד / בית / חופשה). לחיצה על יום פותחת עריכת סטטוס.",
+    en: "Calendar — visual view of your week and the team (office / home / vacation). Tap a day to edit its status.",
+  },
+  meetingRooms: {
+    he: "חדרי ישיבות — הזמנת חדר לפגישה: בחירת חדר, יום ושעות. כאן גם רואים את ההזמנות הקיימות.",
+    en: "Meeting rooms — book a room: pick room, day and hours. You can also see existing bookings here.",
+  },
+  attendancePrefs: {
+    he: "העדפות שיבוץ — כאן עובד מסמן לאיזה יום הוא רוצה להגיע למשרד, להישאר בבית או לקחת חופשה. לאחר ההגשה ה-AI לוקח את ההעדפות ובונה הצעת לוח לאישור המנהל.",
+    en: "Preferences — employees mark which days they want office, home, or vacation. After submit the AI builds a draft schedule for manager approval.",
+  },
+  employees: {
+    he: "עובדים — ניהול כרטיסי עובדים: פרטים, מחלקה, תפקיד, מיקום וחנייה קבועה. אדמין בלבד.",
+    en: "Employees — manage employee cards: details, department, role, location and permanent parking. Admin only.",
+  },
+  departments: {
+    he: "מחלקות — מבנה הארגון: שיוך עובדים למחלקה ולמנהל אחראי. אדמין בלבד.",
+    en: "Departments — org structure: tie employees to a department and its manager. Admin only.",
+  },
+  locations: {
+    he: "מיקומים — המשרדים הפיזיים: קיבולת ומלאי חניות לכל אתר. אדמין בלבד.",
+    en: "Locations — physical offices: capacity and parking inventory per site. Admin only.",
+  },
+  schedulingRules: {
+    he: "חוקי שיבוץ — הגדרות מבניות שמשפיעות איך ה-AI בונה הצעות וכיצד שומרים שיבוצים: למשל סגירת מיקום בתאריכים, מינימום מנהלים במשרד או הקצאת חניית אורח אוטומטית למנהלים. שונה מ-«המלצות AI»: כאן זה החוקים הקבועים, שם זה ההצעה הספציפית.",
+    en: "Scheduling rules — structural settings that shape AI proposals and saves: e.g. location closure dates, minimum managers in office, automatic guest parking for managers. Different from «AI recommendations»: here are the fixed rules; there is the concrete proposal.",
+  },
+  schedules: {
+    he: "ניהול שיבוצים — הרשימה המלאה של כל המשמרות במערכת. כאן מוסיפים/עורכים/מוחקים שיבוצים, מחפשים עובד ומפיקים דוחות. שונה מ«יומן»: היומן הוא תצוגה ויזואלית של הצוות שלך, כאן רואים את כל הרשומות הגולמיות.",
+    en: "Schedules — full list of every assignment row. Add/edit/delete shifts, search employees and run reports. Different from «Calendar»: the calendar is a visual team view; this is the raw assignment data.",
+  },
+  teamAttendancePrefs: {
+    he: "העדפות צוות — מה הצוות שלך סימן כהעדפה לשבוע הקרוב. זה הקלט ל-AI לפני שהוא בונה הצעת לוח. שונה מ«תור אישור העדפות»: זה הסקירה הגולמית; שם זה כבר הצעה מוכנה לאישור.",
+    en: "Team preferences — what your team marked for next week. This is the input the AI uses before building a proposal. Different from «Preference queue»: this is raw input; the queue is a ready-made proposal awaiting approval.",
+  },
+  preferenceAiQueueNav: {
+    he: "תור אישור העדפות — אצוות AI שנוצרו אוטומטית מההעדפות של הצוות וממתינות לאישור המנהל. כאן רואים שורת בקשה לכל אצווה, לוחצים, סוקרים ומאשרים/דוחים.",
+    en: "Preference approval queue — AI batches built automatically from team preferences, waiting for manager approval. Each pending batch is a clickable row — open it, review and approve or reject.",
+  },
+  parking: {
+    he: "חניות — ניהול חניות קבועות ושיבוצים זמניים לפי יום ושעות. כשבעל החניה הקבוע לא במשרד אפשר לשבץ חלופי.",
+    en: "Parking — manage permanent spots and temporary reservations by day/hours. Seat alternates when the permanent holder is off-site.",
+  },
+  reports: {
+    he: "דוחות — סיכומי שיבוץ וחניה לטווח תאריכים: סינון, ייצוא CSV ושליחה במייל. שונה מ«לוח הבקרה»: דוחות הם פלט פורמלי לתקופה; הלוח הוא תצוגת מצב לרגע נתון.",
+    en: "Reports — schedule and parking summaries across date ranges: filter, export CSV, email. Different from «Dashboard»: reports are formal output for a period; the dashboard is real-time status.",
+  },
+  ai: {
+    he: "המלצות AI — שכבת ייעוץ פרואקטיבית: ה-AI סורק לוחות, חניות והעדפות וצף נקודות לתשומת לב («כיסוי חסר ביום שלישי», «יותר מדי בית באותו יום»). אינו משנה כלום אוטומטית. שונה מ«התראות»: ההתראות מציגות מה שכבר קרה (שיבוץ עודכן, חניה הוקצתה); כאן מקבלים תובנות לפעולה עתידית.",
+    en: "AI recommendations — proactive advisory layer: scans schedules, parking and preferences and surfaces issues («low office coverage Tuesday», «too many home on the same day»). Nothing is changed automatically. Different from «Notifications»: notifications show what already happened (assignment edited, parking allocated); here you get forward-looking insights.",
+  },
+  notifications: {
+    he: "התראות — היסטוריה ועדכונים שכבר התרחשו: שיבוץ נערך, הזמנת חדר ישיבות, אצווה ממתינה לאישור, וכו'. שונה מ«המלצות AI» שעוסקות במה כדאי לעשות, ומ«חוקי שיבוץ» שמגדירים מה מותר.",
+    en: "Notifications — timeline of events that already happened: assignment edited, room booked, batch awaiting approval, etc. Different from «AI recommendations» (what you should do) and from «Scheduling rules» (what is allowed).",
+  },
+  profile: {
+    he: "פרופיל — פרטי המשתמש שלך: שם, תמונה, פרטי קשר. שינויים כאן משפיעים על כל המקומות שבהם מופיע השם שלך.",
+    en: "Profile — your own user info: name, photo, contact details. Changes here propagate everywhere your name appears.",
+  },
+  settings: {
+    he: "הגדרות — מצב כהה/בהיר, שפה, והעדפות ממשק כלליות. לאדמין יש כאן גם הגדרות ארגוניות (משלוח מיילים, ימי תזכורת וכו').",
+    en: "Settings — light/dark mode, language, general UI preferences. Admins also get organization-level settings (mail, reminder cadence, etc.).",
+  },
+};
+
+/** Lead-in segments for the menu tour, localized. */
+const menuTourIntro: Record<AppLocale, HelpSegment[]> = {
+  he: [
+    {
+      text:
+        "זהו סיור קצר של התפריט הראשי. בכל שלב יוצג איזה פריט מוגדר לאיזה תפקיד, ומה ההבדל בינו לבין פריטים דומים (כמו המלצות AI / התראות / חוקי שיבוץ).",
+      highlight: "app-nav",
+    },
+  ],
+  en: [
+    {
+      text:
+        "This is a short tour of the main menu. Each step explains what an item does and how it differs from similar ones (e.g. AI recommendations vs notifications vs scheduling rules).",
+      highlight: "app-nav",
+    },
+  ],
+};
+
+/** Item that may live outside the visible nav list — defaults applied when role permits. */
+const menuTourOutro: Record<AppLocale, HelpSegment[]> = {
+  he: [
+    {
+      text:
+        "בנוסף לפריטי התפריט יש בכל מסך כפתורים צפים (FAB): התראות שלא נקראו, ימי הולדת, תובנות AI והעוזר החכם. עובד רגיל אינו רואה אותם.",
+    },
+  ],
+  en: [
+    {
+      text:
+        "Beyond the menu, each screen has floating buttons (FABs): unread notifications, birthdays, AI insights, and the smart assistant. Regular employees do not see them.",
+    },
+  ],
+};
+
+/**
+ * Build a menu tour for the given visible nav keys (in display order). The
+ * "key" matches the existing nav `key` field which is also used to set
+ * `data-help-target="nav-${key}"` on each ListItemButton.
+ */
+export function getMenuTourSegments(
+  locale: AppLocale,
+  visibleNavKeys: ReadonlyArray<string>,
+  _role: Role | null | undefined
+): HelpSegment[] {
+  const intro = menuTourIntro[locale] ?? menuTourIntro.he;
+  const outro = menuTourOutro[locale] ?? menuTourOutro.he;
+
+  const perItem: HelpSegment[] = [];
+  for (const key of visibleNavKeys) {
+    const exp = menuItemExplanations[key];
+    if (!exp) continue;
+    perItem.push({
+      text: locale === "en" ? exp.en : exp.he,
+      highlight: `nav-${key}`,
+    });
+  }
+
+  if (perItem.length === 0) return intro;
+  return [...intro, ...perItem, ...outro];
 }
 
 /** i18n key for screen title (matches nav). */
