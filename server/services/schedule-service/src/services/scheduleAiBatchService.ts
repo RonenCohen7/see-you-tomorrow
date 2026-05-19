@@ -118,22 +118,22 @@ export async function getLeanById(batchId: string) {
   return M.findById(batchId).lean();
 }
 
-export async function listPendingPreferencePipeline(departmentId: string, limit = 30) {
+export async function listPendingPreferencePipeline(departmentId: string | undefined, limit = 30) {
   const M = await model();
-  const docs = await M.find({
-    departmentId: new mongoose.Types.ObjectId(departmentId),
+  const filter: Record<string, unknown> = {
     creationSource: "preference_pipeline",
     status: "pending_manager",
-  })
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean();
+  };
+  if (departmentId) {
+    filter.departmentId = new mongoose.Types.ObjectId(departmentId);
+  }
+  const docs = await M.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
 
   return Promise.all(
     docs.map(async (raw) => {
       const publicBatch = toPublic(raw as import("@syt/shared").ScheduleAiBatchDoc & { _id: Types.ObjectId });
       const weekStartSunday = publicBatch.dateRange.from;
-      const submitted = await pref.listDeptWeek(departmentId, weekStartSunday);
+      const submitted = await pref.listDeptWeek(publicBatch.departmentId, weekStartSunday);
       const slots = buildSubmittedPreferenceSlotSet(submitted);
       return {
         ...publicBatch,

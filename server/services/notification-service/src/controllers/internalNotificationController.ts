@@ -191,6 +191,25 @@ const emailAttachmentPayload = z
     path: ["attachmentBase64"],
   });
 
+const passwordResetEmailPayload = z.object({
+  to: z.string().email(),
+  fullName: z.string().min(1).max(200),
+  resetUrl: z.string().url().max(2000),
+  locale: z.enum(["he", "en"]).optional().default("he"),
+});
+
+export async function passwordResetEmail(req: Request, res: Response) {
+  const parsed = passwordResetEmailPayload.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  await mailer.sendPasswordResetEmail({
+    to: parsed.data.to,
+    fullName: parsed.data.fullName,
+    resetUrl: parsed.data.resetUrl,
+    locale: parsed.data.locale,
+  });
+  res.status(204).end();
+}
+
 export async function emailAttachment(req: Request, res: Response) {
   const parsed = emailAttachmentPayload.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());

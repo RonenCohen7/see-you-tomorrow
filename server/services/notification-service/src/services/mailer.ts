@@ -51,6 +51,46 @@ export async function sendScheduleEmail(
   logger.info(`Email sent to ${to}`);
 }
 
+export async function sendPasswordResetEmail(params: {
+  to: string;
+  fullName: string;
+  resetUrl: string;
+  locale: "he" | "en";
+}) {
+  const transport = createTransport();
+  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
+  const isHe = params.locale === "he";
+  const subject = isHe ? "איפוס סיסמה — See You Tomorrow" : "Reset your password — See You Tomorrow";
+  const text = isHe
+    ? [
+        `שלום ${params.fullName},`,
+        "",
+        "קיבלנו בקשה לאיפוס הסיסמה לחשבון שלך.",
+        "לחץ על הקישור הבא (תוקף שעה) כדי לבחור סיסמה חדשה:",
+        "",
+        params.resetUrl,
+        "",
+        "אם לא ביקשת איפוס — התעלם ממייל זה.",
+        "",
+        "See You Tomorrow",
+      ].join("\n")
+    : [
+        `Hello ${params.fullName},`,
+        "",
+        "We received a request to reset your password.",
+        "Use this link (valid for one hour) to choose a new password:",
+        "",
+        params.resetUrl,
+        "",
+        "If you did not request this, you can ignore this email.",
+        "",
+        "See You Tomorrow",
+      ].join("\n");
+
+  await transport.sendMail({ from, to: params.to, subject, text });
+  logger.info(`Password reset email sent to ${params.to}`);
+}
+
 export async function sendMailWithAttachment(params: {
   to: string;
   subject: string;

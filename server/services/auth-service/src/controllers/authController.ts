@@ -2,12 +2,15 @@ import type { Response } from "express";
 import { AppError, logger } from "@syt/shared";
 import type { AuthRequest } from "@syt/shared";
 import {
+  forgotPasswordSchema,
   loginSchema,
   logoutSchema,
   refreshSchema,
   registerSchema,
+  resetPasswordSchema,
 } from "../validations/auth.js";
 import * as authService from "../services/authService.js";
+import * as passwordResetService from "../services/passwordResetService.js";
 import { shouldAllowRegistration } from "../services/bootstrap.js";
 
 export async function register(req: AuthRequest, res: Response) {
@@ -87,4 +90,20 @@ export async function me(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const profile = await authService.getProfile(req.user.id);
   res.json(profile);
+}
+
+export async function forgotPassword(req: AuthRequest, res: Response) {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+
+  await passwordResetService.requestPasswordReset(parsed.data.email, parsed.data.locale ?? "he");
+  res.json({ ok: true });
+}
+
+export async function resetPassword(req: AuthRequest, res: Response) {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+
+  await passwordResetService.resetPasswordWithToken(parsed.data.token, parsed.data.password);
+  res.json({ ok: true });
 }

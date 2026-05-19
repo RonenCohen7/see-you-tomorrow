@@ -18,3 +18,13 @@ export const refreshSchema = z.object({
 });
 
 export const logoutSchema = refreshSchema;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+  locale: z.enum(["he", "en"]).optional(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(16),
+  password: z.string().min(8),
+});

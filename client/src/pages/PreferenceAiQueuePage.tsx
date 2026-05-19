@@ -3,12 +3,10 @@ import {
   Box,
   Button,
   Card,
-  CardContent,
+  Chip,
   CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
+  Collapse,
+  IconButton,
   Snackbar,
   Stack,
   Table,
@@ -16,16 +14,20 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import { departmentsPickerUrl } from "../utils/referencePickerUrls";
 import type { Employee } from "../types/models";
-import { useAuth, useRole } from "../store/authContext";
+import { useRole } from "../store/authContext";
 import { preferenceAiQueueDisplayNotes } from "../utils/preferenceAiQueueDisplayNotes";
 
 type ProposedPipelineItem = {
@@ -52,12 +54,6 @@ export default function PreferenceAiQueuePage() {
   const theme = useTheme();
   const qc = useQueryClient();
   const role = useRole();
-  const { user } = useAuth();
-
-  const [deptId, setDeptId] = useState("");
-  useEffect(() => {
-    if (role === "manager" && user?.departmentId && !deptId) setDeptId(user.departmentId);
-  }, [role, user?.departmentId, deptId]);
 
   const deptsQ = useQuery({
     queryKey: ["departments-ai-queue"],
@@ -66,39 +62,23 @@ export default function PreferenceAiQueuePage() {
     enabled: role === "admin",
   });
 
+  const deptNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of deptsQ.data ?? []) m.set(d.id, d.name);
+    return m;
+  }, [deptsQ.data]);
+
   const batchQ = useQuery({
-    queryKey: ["ai-batches-pending-pipeline", deptId],
+    queryKey: ["ai-batches-pending-pipeline-all"],
     queryFn: async () =>
-      (
-        await api.get<{ items: AiBatchPublic[] }>("/api/schedules/ai-batches/pending-pipeline", {
-          params: { departmentId: deptId },
-        })
-      ).data.items,
-    enabled: !!deptId && deptId.length === 24,
+      (await api.get<{ items: AiBatchPublic[] }>("/api/schedules/ai-batches/pending-pipeline"))
+        .data.items,
+    enabled: role === "admin" || role === "manager",
+    refetchInterval: 30_000,
   });
-
-  const employeesQ = useQuery({
-    queryKey: ["preference-ai-queue-employees", deptId],
-    enabled: !!deptId && deptId.length === 24,
-    queryFn: async () => {
-      const limit = 100;
-      const all: Employee[] = [];
-      let page = 1;
-      while (true) {
-        const { data } = await api.get<{ items: Employee[]; total: number }>(
-          `/api/employees?page=${page}&limit=${limit}&departmentId=${encodeURIComponent(deptId)}`
-        );
-        all.push(...data.items);
-        if (all.length >= data.total || data.items.length === 0) break;
-        page += 1;
-      }
-      return all;
-    },
-  });
-
-  const empById = useMemo(() => new Map((employeesQ.data ?? []).map((e) => [e.id, e])), [employeesQ.data]);
 
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const approveMut = useMutation({
     mutationFn: async (batch: AiBatchPublic) => {
@@ -117,7 +97,8 @@ export default function PreferenceAiQueuePage() {
     },
     onSuccess: async () => {
       setToast({ ok: true, msg: t("success") });
-      await qc.invalidateQueries({ queryKey: ["ai-batches-pending-pipeline"] });
+      setExpandedId(null);
+      await qc.invalidateQueries({ queryKey: ["ai-batches-pending-pipeline-all"] });
       void qc.invalidateQueries({ queryKey: ["schedules-all"] });
       void qc.invalidateQueries({ queryKey: ["schedules-recent"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
@@ -132,23 +113,18 @@ export default function PreferenceAiQueuePage() {
     },
     onSuccess: async () => {
       setToast({ ok: true, msg: t("preferenceAiQueueRejected") });
-      await qc.invalidateQueries({ queryKey: ["ai-batches-pending-pipeline"] });
+      setExpandedId(null);
+      await qc.invalidateQueries({ queryKey: ["ai-batches-pending-pipeline-all"] });
     },
     onError: () => setToast({ ok: false, msg: t("error") }),
   });
-
-  const showDeptPick = role === "admin";
 
   const headerNote = useMemo(() => {
     if (role === "manager") return t("preferenceAiQueueManagerNote");
     return t("preferenceAiQueueAdminNote");
   }, [role, t]);
 
-  const legendSubmittedBg = alpha(
-    theme.palette.primary.main,
-    theme.palette.mode === "dark" ? 0.16 : 0.1
-  );
-  const legendAiFillBg = alpha(theme.palette.grey[500], theme.palette.mode === "dark" ? 0.12 : 0.07);
+  const items = batchQ.data ?? [];
 
   return (
     <Box sx={{ maxWidth: 960 }}>
@@ -159,150 +135,119 @@ export default function PreferenceAiQueuePage() {
         {headerNote}
       </Typography>
 
-      {showDeptPick && (
-        <FormControl sx={{ mb: 2, minWidth: 260 }} size="small">
-          <InputLabel id="dept-pick">{t("department")}</InputLabel>
-          <Select
-            labelId="dept-pick"
-            label={t("department")}
-            value={deptId}
-            onChange={(e) => setDeptId(e.target.value)}
-          >
-            {(deptsQ.data ?? []).map((d) => (
-              <MenuItem key={d.id} value={d.id}>
-                {d.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      )}
-
-      {!deptId && <Alert severity="info">{t("preferenceAiQueuePickDept")}</Alert>}
-
-      {deptId && batchQ.isLoading && (
+      {batchQ.isLoading && (
         <Stack alignItems="center" sx={{ py: 4 }}>
           <CircularProgress size={36} />
         </Stack>
       )}
 
-      {deptId && batchQ.data?.length === 0 && (
+      {!batchQ.isLoading && items.length === 0 && (
         <Alert severity="success">{t("preferenceAiQueueEmpty")}</Alert>
       )}
 
-      {batchQ.data?.map((batch) => (
-        <Card key={batch.id} variant="outlined" sx={{ mb: 2 }}>
-          <CardContent>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  {batch.dateRange.from} — {batch.dateRange.to}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Batch …{batch.id.slice(-8)} · {batch.proposedItems.length} {t("preferenceAiQueueRows")}
-                </Typography>
-                {!batch.locationId ? (
-                  <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
-                    {t("preferenceAiQueueMissingLocation")}
-                  </Alert>
-                ) : null}
-              </Box>
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="contained"
-                  color="success"
-                  size="small"
-                  disabled={
-                    approveMut.isPending ||
-                    rejectMut.isPending ||
-                    !batch.locationId ||
-                    batch.status !== "pending_manager"
+      {items.length > 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+          {t("preferenceAiQueueOpenCount", { count: items.length })}
+        </Typography>
+      )}
+
+      <Stack spacing={1}>
+        {items.map((batch) => {
+          const expanded = expandedId === batch.id;
+          const deptName = deptNameById.get(batch.departmentId);
+          const summary =
+            role === "admin" && deptName
+              ? t("preferenceAiQueueRequestRow", {
+                  dept: deptName,
+                  from: batch.dateRange.from,
+                  to: batch.dateRange.to,
+                })
+              : t("preferenceAiQueueRequestRowNoDept", {
+                  from: batch.dateRange.from,
+                  to: batch.dateRange.to,
+                });
+          const missingLocation = !batch.locationId;
+
+          return (
+            <Card key={batch.id} variant="outlined">
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{
+                  px: 2,
+                  py: 1.25,
+                  cursor: "pointer",
+                  bgcolor: expanded
+                    ? alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.12 : 0.06)
+                    : "transparent",
+                  "&:hover": {
+                    bgcolor: alpha(
+                      theme.palette.primary.main,
+                      theme.palette.mode === "dark" ? 0.16 : 0.08
+                    ),
+                  },
+                }}
+                role="button"
+                tabIndex={0}
+                onClick={() => setExpandedId((cur) => (cur === batch.id ? null : batch.id))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setExpandedId((cur) => (cur === batch.id ? null : batch.id));
                   }
-                  onClick={() => approveMut.mutate(batch)}
-                >
-                  {t("preferenceAiQueueApprove")}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="warning"
+                }}
+              >
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle1" fontWeight={700} noWrap>
+                    {summary}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="span">
+                    {batch.proposedItems.length} {t("preferenceAiQueueRows")} · …{batch.id.slice(-8)}
+                  </Typography>
+                </Box>
+                {missingLocation && (
+                  <Tooltip title={t("preferenceAiQueueMissingLocation") as string}>
+                    <WarningAmberIcon color="warning" fontSize="small" />
+                  </Tooltip>
+                )}
+                <Chip
                   size="small"
-                  disabled={approveMut.isPending || rejectMut.isPending || batch.status !== "pending_manager"}
-                  onClick={() => {
-                    if (window.confirm(t("preferenceAiQueueRejectConfirm"))) rejectMut.mutate(batch.id);
+                  color="warning"
+                  variant="outlined"
+                  label={
+                    batch.status === "pending_manager"
+                      ? t("preferenceAiQueueStatusPending")
+                      : t(batch.status)
+                  }
+                />
+                <IconButton
+                  size="small"
+                  aria-label={expanded ? t("preferenceAiQueueCollapseHint") : t("preferenceAiQueueExpandHint")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedId((cur) => (cur === batch.id ? null : batch.id));
                   }}
                 >
-                  {t("preferenceAiQueueReject")}
-                </Button>
+                  {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
               </Stack>
-            </Stack>
-            <Stack spacing={1} sx={{ mt: 2 }}>
-              <Typography variant="caption" fontWeight={700} color="text.secondary">
-                {t("preferenceAiQueueLegendTitle")}
-              </Typography>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                alignItems={{ sm: "center" }}
-                flexWrap="wrap"
-                useFlexGap
-              >
-                <Stack direction="row" spacing={1} alignItems="flex-start">
-                  <Box sx={{ width: 18, height: 18, borderRadius: 0.75, bgcolor: legendSubmittedBg, flexShrink: 0, mt: 0.15 }} />
-                  <Typography variant="caption" color="text.secondary">
-                    {t("preferenceAiQueueLegendSubmitted")}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" spacing={1} alignItems="flex-start">
-                  <Box sx={{ width: 18, height: 18, borderRadius: 0.75, bgcolor: legendAiFillBg, flexShrink: 0, mt: 0.15 }} />
-                  <Typography variant="caption" color="text.secondary">
-                    {t("preferenceAiQueueLegendAiFill")}
-                  </Typography>
-                </Stack>
-              </Stack>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                {t("preferenceAiQueueNotesExplainer")}
-              </Typography>
-            </Stack>
-            <Table size="small" sx={{ mt: 2 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t("reportsColWorkDate")}</TableCell>
-                  <TableCell>{t("fullName")}</TableCell>
-                  <TableCell>{t("notificationsStatusLabel")}</TableCell>
-                  <TableCell>{t("notes")}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {batch.proposedItems.slice(0, 12).map((p) => {
-                  const source = p.preferenceSource ?? "none";
-                  const rowBg = source === "employee" ? legendSubmittedBg : legendAiFillBg;
-                  const noteDisplayed = preferenceAiQueueDisplayNotes(p.reason, batch.model);
-                  return (
-                    <TableRow
-                      key={`${batch.id}-${p.date}-${p.employeeId}`}
-                      sx={{ bgcolor: rowBg }}
-                    >
-                      <TableCell>{p.date}</TableCell>
-                      <TableCell>
-                        {empById.get(p.employeeId)?.fullName?.trim() ||
-                          `…${p.employeeId.slice(-8)}`}
-                      </TableCell>
-                      <TableCell>{t(p.recommendedStatus)}</TableCell>
-                      <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word", maxWidth: 320 }}>
-                        {noteDisplayed}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            {batch.proposedItems.length > 12 ? (
-              <Typography variant="caption" color="text.secondary">
-                {t("preferenceAiQueueTruncate", { shown: 12, total: batch.proposedItems.length })}
-              </Typography>
-            ) : null}
-          </CardContent>
-        </Card>
-      ))}
+              <Collapse in={expanded} unmountOnExit>
+                <BatchDetails
+                  batch={batch}
+                  onApprove={() => approveMut.mutate(batch)}
+                  onReject={() => {
+                    if (window.confirm(t("preferenceAiQueueRejectConfirm")))
+                      rejectMut.mutate(batch.id);
+                  }}
+                  approving={approveMut.isPending}
+                  rejecting={rejectMut.isPending}
+                />
+              </Collapse>
+            </Card>
+          );
+        })}
+      </Stack>
 
       <Snackbar
         open={!!toast}
@@ -312,6 +257,179 @@ export default function PreferenceAiQueuePage() {
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         ContentProps={{ sx: toast?.ok ? { bgcolor: "success.dark" } : { bgcolor: "error.dark" } }}
       />
+    </Box>
+  );
+}
+
+type BatchDetailsProps = {
+  batch: AiBatchPublic;
+  onApprove: () => void;
+  onReject: () => void;
+  approving: boolean;
+  rejecting: boolean;
+};
+
+function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: BatchDetailsProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
+  const employeesQ = useQuery({
+    queryKey: ["preference-ai-queue-employees", batch.departmentId],
+    enabled: !!batch.departmentId && batch.departmentId.length === 24,
+    queryFn: async () => {
+      const limit = 100;
+      const all: Employee[] = [];
+      let page = 1;
+      while (true) {
+        const { data } = await api.get<{ items: Employee[]; total: number }>(
+          `/api/employees?page=${page}&limit=${limit}&departmentId=${encodeURIComponent(batch.departmentId)}`
+        );
+        all.push(...data.items);
+        if (all.length >= data.total || data.items.length === 0) break;
+        page += 1;
+      }
+      return all;
+    },
+  });
+
+  const empById = useMemo(
+    () => new Map((employeesQ.data ?? []).map((e) => [e.id, e])),
+    [employeesQ.data]
+  );
+
+  const legendSubmittedBg = alpha(
+    theme.palette.primary.main,
+    theme.palette.mode === "dark" ? 0.16 : 0.1
+  );
+  const legendAiFillBg = alpha(
+    theme.palette.grey[500],
+    theme.palette.mode === "dark" ? 0.12 : 0.07
+  );
+
+  return (
+    <Box sx={{ px: 2, py: 2, borderTop: 1, borderColor: "divider" }}>
+      {!batch.locationId && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {t("preferenceAiQueueMissingLocation")}
+        </Alert>
+      )}
+
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap" useFlexGap>
+        <Button
+          variant="contained"
+          color="success"
+          size="small"
+          disabled={
+            approving || rejecting || !batch.locationId || batch.status !== "pending_manager"
+          }
+          onClick={onApprove}
+        >
+          {t("preferenceAiQueueApprove")}
+        </Button>
+        <Button
+          variant="outlined"
+          color="warning"
+          size="small"
+          disabled={approving || rejecting || batch.status !== "pending_manager"}
+          onClick={onReject}
+        >
+          {t("preferenceAiQueueReject")}
+        </Button>
+      </Stack>
+
+      <Stack spacing={1} sx={{ mb: 1.5 }}>
+        <Typography variant="caption" fontWeight={700} color="text.secondary">
+          {t("preferenceAiQueueLegendTitle")}
+        </Typography>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          alignItems={{ sm: "center" }}
+          flexWrap="wrap"
+          useFlexGap
+        >
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Box
+              sx={{
+                width: 18,
+                height: 18,
+                borderRadius: 0.75,
+                bgcolor: legendSubmittedBg,
+                flexShrink: 0,
+                mt: 0.15,
+              }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {t("preferenceAiQueueLegendSubmitted")}
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Box
+              sx={{
+                width: 18,
+                height: 18,
+                borderRadius: 0.75,
+                bgcolor: legendAiFillBg,
+                flexShrink: 0,
+                mt: 0.15,
+              }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {t("preferenceAiQueueLegendAiFill")}
+            </Typography>
+          </Stack>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+          {t("preferenceAiQueueNotesExplainer")}
+        </Typography>
+      </Stack>
+
+      {employeesQ.isLoading ? (
+        <Stack alignItems="center" sx={{ py: 2 }}>
+          <CircularProgress size={24} />
+        </Stack>
+      ) : (
+        <>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>{t("reportsColWorkDate")}</TableCell>
+                <TableCell>{t("fullName")}</TableCell>
+                <TableCell>{t("notificationsStatusLabel")}</TableCell>
+                <TableCell>{t("notes")}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {batch.proposedItems.slice(0, 12).map((p) => {
+                const source = p.preferenceSource ?? "none";
+                const rowBg = source === "employee" ? legendSubmittedBg : legendAiFillBg;
+                const noteDisplayed = preferenceAiQueueDisplayNotes(p.reason, batch.model);
+                return (
+                  <TableRow
+                    key={`${batch.id}-${p.date}-${p.employeeId}`}
+                    sx={{ bgcolor: rowBg }}
+                  >
+                    <TableCell>{p.date}</TableCell>
+                    <TableCell>
+                      {empById.get(p.employeeId)?.fullName?.trim() ||
+                        `…${p.employeeId.slice(-8)}`}
+                    </TableCell>
+                    <TableCell>{t(p.recommendedStatus)}</TableCell>
+                    <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word", maxWidth: 320 }}>
+                      {noteDisplayed}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {batch.proposedItems.length > 12 ? (
+            <Typography variant="caption" color="text.secondary">
+              {t("preferenceAiQueueTruncate", { shown: 12, total: batch.proposedItems.length })}
+            </Typography>
+          ) : null}
+        </>
+      )}
     </Box>
   );
 }

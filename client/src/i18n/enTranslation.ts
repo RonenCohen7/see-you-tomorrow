@@ -569,9 +569,17 @@ export const enTranslation = {
   preferenceAiQueueTitle: "AI batches from preferences",
   preferenceAiQueueManagerNote:
     "Automation batches after submissions. Approve or reject — schedules publish only after approval.",
-  preferenceAiQueueAdminNote: "As admin pick a department. Approve applies all rows.",
+  preferenceAiQueueAdminNote:
+    "As admin all pending requests across departments appear here. Click a row to expand details and approve.",
   preferenceAiQueuePickDept: "Pick a department to see pending batches.",
   preferenceAiQueueEmpty: "No batches awaiting approval.",
+  preferenceAiQueueRequestRow: "Approval request · {{dept}} · {{from}}–{{to}}",
+  preferenceAiQueueRequestRowNoDept: "Approval request · {{from}}–{{to}}",
+  preferenceAiQueueExpandHint: "Click to view & approve",
+  preferenceAiQueueCollapseHint: "Hide details",
+  preferenceAiQueueFilterAll: "All departments",
+  preferenceAiQueueOpenCount: "{{count}} open requests",
+  preferenceAiQueueStatusPending: "Pending approval",
   preferenceAiQueueRows: "Recommendation rows",
   preferenceAiQueueApprove: "Approve & apply",
   preferenceAiQueueReject: "Reject",
@@ -611,6 +619,26 @@ export const enTranslation = {
   forgotPasswordTitle: "Forgot password",
   forgotPasswordInfo:
     "Email reset is not available yet. Contact your IT admin or system administrator.",
+  forgotPasswordIntro:
+    "Enter your account email. If it is registered, we will send a reset link (valid for one hour).",
+  forgotPasswordSubmit: "Send reset link",
+  forgotPasswordSending: "Sending reset link…",
+  forgotPasswordSent:
+    "If «{{email}}» is registered, we sent a password reset link.\nCheck spam too. The link expires in one hour.",
+  forgotPasswordDevMailhog:
+    "Development mode: email does not go to real Gmail. Open MailHog in your browser: http://localhost:8025 — the reset link is there.",
+  forgotPasswordSendError: "Could not send the email right now. Please try again shortly.",
+  resetPasswordTitle: "New password",
+  resetPasswordIntro: "Choose a new password (at least 8 characters).",
+  resetPasswordNew: "New password",
+  resetPasswordConfirm: "Confirm password",
+  resetPasswordSubmit: "Save password",
+  resetPasswordSaving: "Saving password…",
+  resetPasswordSuccess: "Password updated — redirecting to sign in…",
+  resetPasswordError: "Could not reset the password. The link may have expired — request a new one.",
+  resetPasswordMismatch: "Passwords do not match",
+  resetPasswordMissingToken: "Reset link is missing or invalid. Request a new link from Forgot password.",
+  resetPasswordLoginHint: "Your password was updated. Sign in with your new password.",
   backToLogin: "Back to sign in",
   registerSubtitle: "Create account",
   registerHint:

@@ -4,8 +4,8 @@ import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import { Box, Button, Chip, Container, Stack, Typography, alpha, useTheme } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+import AppBrandTitle from "../AppBrandTitle";
 import HomeProductScreenshot from "./HomeProductScreenshot";
-import { heroGradientTextSx, heroTitleSx } from "./landingTheme";
 
 export default function HomeHeroSection() {
   const { t } = useTranslation();
@@ -23,19 +23,7 @@ export default function HomeHeroSection() {
           }}
         >
           <Stack spacing={2.5} sx={{ textAlign: { xs: "center", lg: "start" }, order: { xs: 1, lg: 0 } }}>
-            <Typography
-              variant="overline"
-              color="primary"
-              sx={{ fontWeight: 800, letterSpacing: "0.12em", fontSize: "0.7rem" }}
-            >
-              {t("homeHeroBadge")}
-            </Typography>
-            <Typography component="h1" sx={heroTitleSx}>
-              {t("homeHeroTitleBefore")}{" "}
-              <Box component="span" sx={heroGradientTextSx}>
-                {t("homeHeroTitleHighlight")}
-              </Box>
-            </Typography>
+            <AppBrandTitle variant="hero" />
             <Typography
               variant="h6"
               color="text.secondary"

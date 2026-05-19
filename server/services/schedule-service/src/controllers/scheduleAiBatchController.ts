@@ -10,28 +10,28 @@ import * as notify from "../services/notificationClient.js";
 
 export async function listPendingPreferencePipeline(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  if (req.user.role === "employee") {
+    throw new AppError(403, "אין הרשאה", "FORBIDDEN");
+  }
+
   let departmentId =
     typeof req.query.departmentId === "string" ? req.query.departmentId.trim() : undefined;
 
   if (req.user.role === "manager") {
     const me = await empRemote.fetchEmployeeInternal(req.user.id);
     departmentId = me?.departmentId;
-  }
-
-  if (req.user.role === "employee") {
-    throw new AppError(403, "אין הרשאה", "FORBIDDEN");
-  }
-
-  if (!departmentId || !/^[a-f\d]{24}$/i.test(departmentId)) {
-    throw new AppError(400, "חסר departmentId תקף", "VALIDATION");
-  }
-
-  if (req.user.role === "manager") {
+    if (!departmentId || !/^[a-f\d]{24}$/i.test(departmentId)) {
+      throw new AppError(400, "חסר departmentId למשתמש זה", "VALIDATION");
+    }
     await authz.assertCanBulkWriteDepartmentSchedules({
       userId: req.user.id,
       role: req.user.role,
       departmentId,
     });
+  } else {
+    if (departmentId && !/^[a-f\d]{24}$/i.test(departmentId)) {
+      throw new AppError(400, "departmentId לא תקין", "VALIDATION");
+    }
   }
 
   const items = await batchSvc.listPendingPreferencePipeline(departmentId);

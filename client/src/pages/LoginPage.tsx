@@ -10,8 +10,9 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useState } from "react";
-import { Link as RouterLink, Navigate, useNavigate } from "react-router-dom";
+import { Link as RouterLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import AppBrandTitle from "../components/AppBrandTitle";
 import PublicHeader from "../components/PublicHeader";
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
@@ -20,6 +21,8 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const { login, user } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
+  const passwordResetDone = Boolean((location.state as { passwordResetDone?: boolean } | null)?.passwordResetDone);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -71,17 +74,23 @@ export default function LoginPage() {
         }}
       >
         <Paper sx={{ p: { xs: 2, sm: 4 } }}>
-          <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: "1.35rem", sm: "2.125rem" } }}>
+          <AppBrandTitle variant="compact" sx={{ mb: 2, justifyContent: "center" }} />
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 700 }}>
             {t("login")}
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 1 }}>
             {t("tagline")}
           </Typography>
-          <Typography variant="body2" color="primary" sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             {t("loginSameForRoles")}
           </Typography>
 
           <Box component="form" onSubmit={submit}>
+            {passwordResetDone && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                {t("resetPasswordLoginHint")}
+              </Alert>
+            )}
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}

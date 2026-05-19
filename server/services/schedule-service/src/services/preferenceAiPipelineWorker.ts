@@ -53,16 +53,25 @@ export async function enqueuePreferenceAiJob(departmentId: string, weekStartSund
   } catch {
     /* ignore */
   }
-  await queue.add(
-    "run",
-    { departmentId, weekStartSunday },
-    {
-      jobId,
-      delay: debounceMs(),
-      removeOnComplete: true,
-      removeOnFail: 25,
-    }
-  );
+  try {
+    await queue.add(
+      "run",
+      { departmentId, weekStartSunday },
+      {
+        jobId,
+        delay: debounceMs(),
+        removeOnComplete: true,
+        removeOnFail: 25,
+      }
+    );
+  } catch (err) {
+    /**
+     * Likely Redis is unreachable. Don't fail the user's submission — the cycle
+     * is already persisted with pipelineStatus="queued", and the worker
+     * recovery on startup will re-enqueue it when Redis is back.
+     */
+    logger.error("preference AI enqueue failed (will recover on worker start)", err);
+  }
 }
 
 async function callInternalRecommend(body: Record<string, unknown>) {
@@ -91,9 +100,41 @@ async function callInternalRecommend(body: Record<string, unknown>) {
   }>;
 }
 
+/**
+ * Re-enqueue cycles that are stuck pre-batch — typically because Redis was
+ * unreachable when an employee submitted preferences, or the worker died
+ * mid-run. Safe to call repeatedly: BullMQ deduplicates on jobId.
+ */
+async function recoverStuckPreBatchJobs(queue: Queue) {
+  try {
+    const stuck = await cycleSvc.listStuckPreBatchCycles();
+    if (stuck.length === 0) return;
+    logger.info(`preference AI worker recovery: re-enqueueing ${stuck.length} stuck cycle(s)`);
+    for (const c of stuck) {
+      try {
+        await cycleSvc.resetToQueued(c.departmentId, c.weekStartSunday);
+        const jobId = `${c.departmentId}|${c.weekStartSunday}`;
+        const existing = await queue.getJob(jobId);
+        if (existing) await existing.remove().catch(() => undefined);
+        await queue.add(
+          "run",
+          { departmentId: c.departmentId, weekStartSunday: c.weekStartSunday },
+          { jobId, delay: 0, removeOnComplete: true, removeOnFail: 25 }
+        );
+      } catch (err) {
+        logger.error("preference AI recovery: failed to enqueue", err);
+      }
+    }
+  } catch (err) {
+    logger.error("preference AI recovery scan failed", err);
+  }
+}
+
 export function startPreferenceAiPipelineWorker() {
   const connection = redisConnection();
   const queue = new Queue(QUEUE_NAME, { connection });
+
+  void recoverStuckPreBatchJobs(queue);
 
   const worker = new Worker(
     QUEUE_NAME,

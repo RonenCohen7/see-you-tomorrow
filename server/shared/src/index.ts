@@ -12,6 +12,7 @@ export * from "./models/notification.js";
 export * from "./models/organizationSettings.js";
 export * from "./models/parking.js";
 export * from "./models/refreshToken.js";
+export * from "./models/passwordResetToken.js";
 export * from "./models/schedule.js";
 export * from "./models/scheduleAiBatch.js";
 export * from "./models/schedulingRule.js";

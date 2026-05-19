@@ -136,6 +136,45 @@ export async function markAwaitingManager(
   await doc.save();
 }
 
+/**
+ * Find cycles stuck pre-batch — used by the worker on startup to re-enqueue jobs
+ * that were lost (e.g. Redis was down when the user submitted).
+ */
+export async function listStuckPreBatchCycles(limit = 100): Promise<
+  Array<{ departmentId: string; weekStartSunday: string; pipelineStatus: DepartmentPreferencePipelineStatus }>
+> {
+  const Cycle = await cycleModel();
+  const docs = await Cycle.find(
+    {
+      pipelineStatus: { $in: ["queued", "ai_running"] },
+      aiBatchId: { $exists: false },
+    },
+    { departmentId: 1, weekStartSunday: 1, pipelineStatus: 1 }
+  )
+    .sort({ updatedAt: 1 })
+    .limit(limit)
+    .lean();
+
+  return docs.map((d) => ({
+    departmentId: (d.departmentId as Types.ObjectId).toString(),
+    weekStartSunday: d.weekStartSunday as string,
+    pipelineStatus: d.pipelineStatus as DepartmentPreferencePipelineStatus,
+  }));
+}
+
+/** Force an ai_running cycle back to queued so the worker can pick it up again. */
+export async function resetToQueued(departmentId: string, weekStartSunday: string) {
+  const Cycle = await cycleModel();
+  await Cycle.updateOne(
+    {
+      departmentId: new mongoose.Types.ObjectId(departmentId),
+      weekStartSunday,
+      pipelineStatus: { $in: ["queued", "ai_running"] },
+    },
+    { $set: { pipelineStatus: "queued" as DepartmentPreferencePipelineStatus, lastError: undefined } }
+  );
+}
+
 export async function markAppliedForBatch(batchId: string) {
   const Cycle = await cycleModel();
   await Cycle.updateMany(
