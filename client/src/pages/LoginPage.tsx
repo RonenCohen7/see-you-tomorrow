@@ -178,6 +178,12 @@ export default function LoginPage() {
               {t("register")}
             </Link>
           </Typography>
+          <Typography sx={{ mt: 1 }} variant="body2" color="text.secondary">
+            {t("supportNeedHelp")}{" "}
+            <Link component={RouterLink} to="/support">
+              {t("publicNavSupport")}
+            </Link>
+          </Typography>
           <Typography sx={{ mt: 2 }} variant="body2">
             <Link component={RouterLink} to="/">
               {t("backHome")}

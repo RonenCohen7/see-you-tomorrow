@@ -19,6 +19,7 @@ import LoginCallbackPage from "./pages/LoginCallbackPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import SupportPage from "./pages/SupportPage";
 import DashboardPage from "./pages/DashboardPage";
 import CalendarPage from "./pages/CalendarPage";
 import CalendarFullMonthPage from "./pages/CalendarFullMonthPage";
@@ -65,6 +66,7 @@ export default function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/support" element={<SupportPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/login/callback" element={<LoginCallbackPage />} />
                 <Route path="/register" element={<RegisterPage />} />

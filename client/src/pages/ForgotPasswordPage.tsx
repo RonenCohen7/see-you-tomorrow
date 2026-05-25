@@ -150,6 +150,10 @@ export default function ForgotPasswordPage() {
             <Link component={RouterLink} to="/">
               {t("backHome")}
             </Link>
+            {" · "}
+            <Link component={RouterLink} to="/support">
+              {t("publicNavSupport")}
+            </Link>
           </Typography>
         </Paper>
       </Container>

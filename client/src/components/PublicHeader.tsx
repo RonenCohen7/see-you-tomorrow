@@ -128,6 +128,15 @@ export default function PublicHeader({ variant = "default" }: PublicHeaderProps)
         >
           <Button
             component={RouterLink}
+            to="/support"
+            color="inherit"
+            size="small"
+            sx={{ display: { xs: "none", md: "inline-flex" }, minWidth: 0, px: 1 }}
+          >
+            {t("publicNavSupport")}
+          </Button>
+          <Button
+            component={RouterLink}
             to="/about"
             color="inherit"
             size="small"

@@ -168,6 +168,12 @@ export default function RegisterPage() {
               {t("forgotPassword")}
             </Link>
           </Typography>
+          <Typography sx={{ mt: 1 }} variant="body2" color="text.secondary">
+            {t("supportNeedHelp")}{" "}
+            <Link component={RouterLink} to="/support">
+              {t("publicNavSupport")}
+            </Link>
+          </Typography>
         </Paper>
       </Container>
     </Box>

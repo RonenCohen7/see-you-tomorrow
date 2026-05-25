@@ -1,8 +1,17 @@
 import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@syt/shared/content/supportFaq": path.resolve(rootDir, "../server/shared/src/content/supportFaq.ts"),
+    },
+  },
   server: {
     port: 5173,
     /** Required for ngrok / LAN — `npm run dev -- --host` does not reach Vite (goes to concurrently). */

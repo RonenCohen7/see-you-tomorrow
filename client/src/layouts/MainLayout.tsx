@@ -18,6 +18,7 @@ import PolicyIcon from "@mui/icons-material/Policy";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
+import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Alert,
@@ -95,6 +96,7 @@ const allPaths: NavItem[] = [
   { to: "/notifications", key: "notifications", Icon: NotificationsListIcon },
   { to: "/profile", key: "profile", Icon: ProfileIcon },
   { to: "/settings", key: "settings", Icon: SettingsIcon },
+  { to: "/support", key: "supportNav", Icon: SupportAgentIcon },
 ];
 
 export default function MainLayout() {
