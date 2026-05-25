@@ -9,25 +9,38 @@ import {
   Link,
   CircularProgress,
 } from "@mui/material";
-import { useState } from "react";
-import { Link as RouterLink, Navigate, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PublicHeader from "../components/PublicHeader";
+import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import { useAuth } from "../store/authContext";
-import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
+import { isCentralLoginEnabled } from "../utils/tenantAuth";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
   const { register, user } = useAuth();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("invite") ?? "";
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [tenantSlug, setTenantSlug] = useState(searchParams.get("tenant") ?? "");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const onTurnstileChange = useCallback((t: string | null) => setTurnstileToken(t), []);
+
+  useEffect(() => {
+    const prefill = searchParams.get("email");
+    if (prefill) setEmail(prefill);
+  }, [searchParams]);
 
   if (user) {
     return <Navigate to={defaultLandingForRole(user.role)} replace />;
@@ -37,6 +50,11 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    if (hasTurnstileSiteKey() && !turnstileToken?.trim()) {
+      setError(t("turnstileRequired"));
+      setLoading(false);
+      return;
+    }
     try {
       const registered = await register({
         fullName,
@@ -44,10 +62,15 @@ export default function RegisterPage() {
         password,
         phone: phone || undefined,
         jobTitle: jobTitle || undefined,
+        turnstileToken,
+        inviteToken: inviteToken || undefined,
+        tenantSlug: tenantSlug.trim() || undefined,
       });
+      if (registered === "redirect") return;
       nav(defaultLandingForRole(registered?.role ?? null), { state: { justRegistered: true } });
     } catch (err: unknown) {
-      setError(apiErrorMessage(err, t("error")));
+      const retrySec = rateLimitRetrySecondsFromAxios(err);
+      setError(retrySec != null ? t("rateLimitRetryIn", { seconds: retrySec }) : apiErrorMessage(err, t("error")));
     } finally {
       setLoading(false);
     }
@@ -78,6 +101,11 @@ export default function RegisterPage() {
           </Typography>
 
           <Box component="form" onSubmit={submit}>
+            {inviteToken && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                {t("inviteRegisterHint")}
+              </Alert>
+            )}
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
@@ -114,6 +142,17 @@ export default function RegisterPage() {
             />
             <TextField fullWidth label={t("phone")} margin="normal" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <TextField fullWidth label={t("jobTitle")} margin="normal" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+            {(isCentralLoginEnabled() || inviteToken) && !inviteToken && (
+              <TextField
+                fullWidth
+                label={t("companySlug")}
+                margin="normal"
+                value={tenantSlug}
+                onChange={(e) => setTenantSlug(e.target.value)}
+                helperText={t("companySlugHelp")}
+              />
+            )}
+            <PublicTurnstileField onTokenChange={onTurnstileChange} />
             <Button fullWidth type="submit" variant="contained" sx={{ mt: 3 }} disabled={loading}>
               {loading ? <CircularProgress size={24} color="inherit" /> : t("register")}
             </Button>

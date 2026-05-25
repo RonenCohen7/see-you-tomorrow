@@ -57,6 +57,10 @@ const scriptsHe: Record<string, HelpSegment[]> = {
   "/schedules": [
     { text: "לוחות הזמנים הם רשימת כל השיבוצים: עובד, תאריך, סטטוס ושעות אופציונליות.", highlight: "schedules-info-banner" },
     { text: "מנהלים יכולים להוסיף משמרת, לערוך או למחוק. חיפוש עוזר למצוא עובד במהירות.", highlight: "schedules-toolbar-row" },
+    {
+      text: "צבע השורה נקבע אך ורק לפי הסטטוס שבעמודה «סטטוס» (משרד / בית / חופשה / מחלקה / לא עובד / סטטוס מותאם), ולא לפי ההערה — לכן אותה הערה יכולה להופיע בשורות בצבעים שונים כשהסטטוס שונה.",
+      highlight: "schedules-grid-host",
+    },
     { text: "לחיצה כפולה על שורת שיבוץ פותחת את דף הדוחות עם אותו עובד, תאריך וסטטוס.", highlight: "schedules-grid-host" },
     { text: "זה שימושי להפקת קובץ CSV או לשליחתו במייל.", highlight: "schedules-grid-host" },
   ],
@@ -139,6 +143,10 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   "/schedules": [
     { text: "Schedules lists every assignment — employee, date, status and optional hours.", highlight: "schedules-info-banner" },
     { text: "Managers add, edit or delete shifts; search finds employees quickly.", highlight: "schedules-toolbar-row" },
+    {
+      text: "Row color comes solely from the «Status» column (office / home / vacation / sick / off / custom), not from the comment — so the same note can appear on rows in different colors when their status differs.",
+      highlight: "schedules-grid-host",
+    },
     {
       text: "Double-click a row to open Reports prefilled with employee, date and status.",
       highlight: "schedules-grid-host",

@@ -1,8 +1,19 @@
-import { loadRootEnv } from "@syt/shared";
+import {
+  applySecurityMiddleware,
+  applyServerTimeouts,
+  DB_NAMES,
+  errorHandler,
+  getConnection,
+  getScheduleModel,
+  loadRootEnv,
+  logger,
+  mongoSanitizeMiddleware,
+  rejectPrototypePollution,
+} from "@syt/shared";
 loadRootEnv();
 import "express-async-errors";
 import express from "express";
-import { DB_NAMES, errorHandler, getConnection, getScheduleModel, logger } from "@syt/shared";
+import { createServer } from "http";
 
 import { scheduleRoutes } from "./routes/scheduleRoutes.js";
 import { internalRoutes } from "./routes/internalRoutes.js";
@@ -35,7 +46,10 @@ async function ensureSchemaMigrations() {
 }
 
 const app = express();
-app.use(express.json());
+applySecurityMiddleware(app);
+app.use(express.json({ limit: "1mb" }));
+app.use(rejectPrototypePollution);
+app.use(mongoSanitizeMiddleware);
 
 app.use("/api/schedules", scheduleRoutes);
 app.use("/internal", internalRoutes);
@@ -44,7 +58,9 @@ app.get("/health", (_req, res) => res.json({ ok: true, service: "schedule-servic
 
 app.use(errorHandler);
 
-app.listen(PORT, async () => {
+const server = createServer(app);
+applyServerTimeouts(server);
+server.listen(PORT, async () => {
   logger.info(`schedule-service listening on ${PORT}`);
   await ensureSchemaMigrations();
   try {

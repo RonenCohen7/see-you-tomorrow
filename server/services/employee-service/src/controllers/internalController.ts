@@ -28,6 +28,13 @@ export async function listIdsByRole(req: Request, res: Response) {
   res.json({ ids });
 }
 
+export async function roleByEmail(req: Request, res: Response) {
+  const email = typeof req.query.email === "string" ? req.query.email : "";
+  const out = await svc.internalRoleByEmail(email);
+  if (!out) return res.status(404).json({ error: "לא נמצא" });
+  res.json({ role: out.role });
+}
+
 export async function inactiveIdsPaged(req: Request, res: Response) {
   const qp = req.query as Record<string, string | undefined>;
   const pageRaw = qp.page ? Number(qp.page) : 1;

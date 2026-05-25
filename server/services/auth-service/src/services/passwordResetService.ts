@@ -30,12 +30,21 @@ export async function requestPasswordReset(email: string, locale: "he" | "en" = 
     return { ok: true as const };
   }
 
+  const authConn = await getConnection(DB_NAMES.auth);
+  const PasswordResetToken = getPasswordResetTokenModel(authConn);
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentCount = await PasswordResetToken.countDocuments({
+    userId: doc._id,
+    createdAt: { $gte: hourAgo },
+  });
+  if (recentCount >= 3) {
+    logger.warn("password reset per-email rate limit", { email: normalized });
+    return { ok: true as const };
+  }
+
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
-
-  const authConn = await getConnection(DB_NAMES.auth);
-  const PasswordResetToken = getPasswordResetTokenModel(authConn);
 
   await PasswordResetToken.deleteMany({ userId: doc._id, usedAt: { $exists: false } });
   await PasswordResetToken.create({

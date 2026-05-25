@@ -1,0 +1,27 @@
+# Caddy reverse proxy example — subdomain per tenant + central login
+# Replace example.com with your domain. TLS via Caddy automatic HTTPS.
+
+{
+	email admin@example.com
+}
+
+# Central login (optional) — routes auth to central gateway
+app.example.com {
+	reverse_proxy gateway-central:4000
+}
+
+# Per-tenant subdomain — render one block per customer or use wildcard + tenant router
+acme.example.com {
+	reverse_proxy gateway-acme:4000
+}
+
+beta.example.com {
+	reverse_proxy gateway-beta:4000
+}
+
+# Wildcard alternative (all tenants share port mapping via Docker labels / Traefik)
+# *.example.com {
+#   reverse_proxy @tenant {
+#     to {http.request.host}.gateway:4000
+#   }
+# }

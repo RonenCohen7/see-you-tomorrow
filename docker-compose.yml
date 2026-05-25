@@ -78,6 +78,7 @@ services:
       MONGO_URI: mongodb://mongo:27017
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      AUTH_SERVICE_URL: http://auth-service:4001
       SCHEDULE_SERVICE_URL: http://schedule-service:4005
       PORT: "4002"
     depends_on:

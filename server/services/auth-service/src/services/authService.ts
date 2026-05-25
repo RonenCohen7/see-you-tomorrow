@@ -12,6 +12,7 @@ import {
   signRefreshToken,
   AppError,
   type Role,
+  syncEmailMembership,
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
 
@@ -44,6 +45,15 @@ export async function registerEmployee(input: {
     role,
     isActive: true,
   });
+
+  const tenantSlug = process.env.TENANT_SLUG?.trim();
+  if (tenantSlug) {
+    try {
+      await syncEmailMembership({ email: doc.email, tenantSlug, isActive: true });
+    } catch {
+      /* platform DB optional in dev */
+    }
+  }
 
   const tokens = await issueTokensForUser(doc._id as Types.ObjectId, doc.email, doc.role);
   return { employee: toPublic(doc), ...tokens };

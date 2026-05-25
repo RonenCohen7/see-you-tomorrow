@@ -17,6 +17,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "seed": "npm run build -w @syt/shared && tsx server/scripts/seed.ts",
+    "provision:tenant": "npm run build -w @syt/shared && tsx server/scripts/provision-tenant.ts",
     "ensure:dev-user": "npm run build -w @syt/shared && tsx server/scripts/ensure-dev-login.ts",
     "docker:deps": "docker compose up -d mongo redis mailhog",
     "docker": "npm run docker:deps",

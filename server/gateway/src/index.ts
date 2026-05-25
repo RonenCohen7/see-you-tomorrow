@@ -1,20 +1,34 @@
-import { loadRootEnv } from "@syt/shared";
+import {
+  applySecurityMiddleware,
+  applyServerTimeouts,
+  errorHandler,
+  loadRootEnv,
+  logger,
+  mongoSanitizeMiddleware,
+  rejectPrototypePollution,
+} from "@syt/shared";
 loadRootEnv();
+import "express-async-errors";
 import cors from "cors";
 import express from "express";
 import { createServer } from "http";
+import type { NextFunction, Request, Response } from "express";
 import type { ServerResponse } from "http";
-import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
-import helmet from "helmet";
+import slowDown from "express-slow-down";
 import { createProxyMiddleware, fixRequestBody } from "http-proxy-middleware";
-import { logger } from "@syt/shared";
+import { isAdminOrManagerCached } from "./utils/loginRateLimitBypass.js";
+import { platformRoutes } from "./platformRoutes.js";
+import { centralAuthProxy, isCentralGatewayMode } from "./tenantResolver.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
+
+const CENTRAL = isCentralGatewayMode();
 
 logger.info("gateway starting", {
   PORT,
   NODE_ENV: process.env.NODE_ENV ?? "(unset)",
+  GATEWAY_MODE: CENTRAL ? "central" : "tenant",
   AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL ?? "http://localhost:4001",
   REPORT_SERVICE_URL: process.env.REPORT_SERVICE_URL ?? "http://localhost:4008",
 });
@@ -30,7 +44,6 @@ const REPORT_URL = process.env.REPORT_SERVICE_URL ?? "http://localhost:4008";
 
 const PROXY_BACKEND_DOWN_USER =
   "שירות המערכת אינו זמין זמנית. נסו שוב מאוחר יותר. אם הבעיה נמשכת, פנו למנהל המערכת או לתמיכה.";
-/** Shown only when NODE_ENV is not production — for developers fixing local stack */
 const PROXY_BACKEND_DOWN_DEV =
   "שירות ה־backend לא זמין בסביבת הפיתוח. בדרך כלל צריך להרים את סטאק השרתים ואת שירותי הנתונים (למשל דרך Docker Compose) לפי מדריך המפתחים.";
 
@@ -38,9 +51,148 @@ function proxyBackendUnavailableMessage(): string {
   return process.env.NODE_ENV === "production" ? PROXY_BACKEND_DOWN_USER : PROXY_BACKEND_DOWN_DEV;
 }
 
+type RequestWithSkip = Request & { skipPrivilegedAuthLimits?: boolean };
+
+function sendRateLimitJson(res: Response, windowMs: number): void {
+  const retryAfterSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+  res.setHeader("Retry-After", String(retryAfterSeconds));
+  res.status(429).json({
+    error: `יותר מדי בקשות. נסו שוב בעוד ${retryAfterSeconds} שניות.`,
+    code: "RATE_LIMIT",
+    retryAfterSeconds,
+  });
+}
+
+function rateLimitHandler(req: Request, res: Response, _next: NextFunction, options: { windowMs: number }): void {
+  void req;
+  sendRateLimitJson(res, options.windowMs);
+}
+
+const globalApiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 400,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler,
+});
+
+const loginSlowDown = slowDown({
+  windowMs: 15 * 60_000,
+  delayAfter: 8,
+  delayMs: (used) => Math.min(used * 120, 4000),
+  skip: (req) => (req as RequestWithSkip).skipPrivilegedAuthLimits === true && req.path === "/login",
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: (req) => (req as RequestWithSkip).skipPrivilegedAuthLimits === true && req.path === "/login",
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    return `login:${req.ip}:${email}`;
+  },
+  handler: rateLimitHandler,
+});
+
+const forgotSlowDown = slowDown({
+  windowMs: 60 * 60_000,
+  delayAfter: 4,
+  delayMs: (used) => Math.min(used * 200, 5000),
+  skip: (req) =>
+    (req as RequestWithSkip).skipPrivilegedAuthLimits === true && req.path === "/forgot-password",
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) =>
+    (req as RequestWithSkip).skipPrivilegedAuthLimits === true && req.path === "/forgot-password",
+  keyGenerator: (req) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    return `forgot:${req.ip}:${email}`;
+  },
+  handler: rateLimitHandler,
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `register:${req.ip}`,
+  handler: rateLimitHandler,
+});
+
+const resetPasswordLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `reset:${req.ip}`,
+  handler: rateLimitHandler,
+});
+
+function privilegedAuthPrelude(req: Request, res: Response, next: NextFunction): void {
+  void res;
+  const r = req as RequestWithSkip;
+  r.skipPrivilegedAuthLimits = false;
+  if (req.method !== "POST") {
+    next();
+    return;
+  }
+  const path = req.path || "/";
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!email || (path !== "/login" && path !== "/forgot-password")) {
+    next();
+    return;
+  }
+  void isAdminOrManagerCached(email)
+    .then((privileged) => {
+      r.skipPrivilegedAuthLimits = privileged;
+      next();
+    })
+    .catch(() => {
+      next();
+    });
+}
+
+function authRouteLimits(req: Request, res: Response, next: NextFunction): void {
+  if (req.method !== "POST") {
+    next();
+    return;
+  }
+  const path = req.path || "/";
+  if (path === "/login") {
+    loginSlowDown(req, res, () => {
+      loginLimiter(req, res, next);
+    });
+    return;
+  }
+  if (path === "/forgot-password") {
+    forgotSlowDown(req, res, () => {
+      forgotPasswordLimiter(req, res, next);
+    });
+    return;
+  }
+  if (path === "/register") {
+    registerLimiter(req, res, next);
+    return;
+  }
+  if (path === "/reset-password") {
+    resetPasswordLimiter(req, res, next);
+    return;
+  }
+  next();
+}
+
 const app = express();
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+applySecurityMiddleware(app);
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(",") ?? true,
@@ -48,24 +200,20 @@ app.use(
   })
 );
 
-app.use(
-  "/api/",
-  rateLimit({
-    windowMs: 60_000,
-    max: 400,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
+app.use((req, res, next) => {
+  if (!req.path.startsWith("/api/")) {
+    next();
+    return;
+  }
+  globalApiLimiter(req, res, next);
+});
 
-const jsonParser = express.json({ limit: "2mb" });
-const sanitize = mongoSanitize();
+const jsonParser = express.json({ limit: "1mb" });
 
-/**
- * Express strips the mount path from `req.url` before the proxy runs, so the upstream
- * would otherwise receive `/register` instead of `/api/auth/register` → 404 on every API call.
- */
 function mountHttp(mountPath: string, target: string) {
+  if (CENTRAL && mountPath !== "/api/auth") {
+    return;
+  }
   const proxy = createProxyMiddleware({
     target,
     changeOrigin: true,
@@ -88,7 +236,25 @@ function mountHttp(mountPath: string, target: string) {
     },
   });
 
-  app.use(mountPath, jsonParser, sanitize, proxy);
+  if (mountPath === "/api/auth") {
+    if (CENTRAL) {
+      const authChain = [
+        jsonParser,
+        mongoSanitizeMiddleware,
+        rejectPrototypePollution,
+        privilegedAuthPrelude,
+        authRouteLimits,
+      ] as const;
+      app.post("/api/auth/login", ...authChain, centralAuthProxy("/login"));
+      app.post("/api/auth/register", ...authChain, centralAuthProxy("/register"));
+      app.post("/api/auth/forgot-password", ...authChain, centralAuthProxy("/forgot-password"));
+      app.post("/api/auth/reset-password", ...authChain, centralAuthProxy("/reset-password"));
+      return;
+    }
+    app.use(mountPath, jsonParser, mongoSanitizeMiddleware, rejectPrototypePollution, privilegedAuthPrelude, authRouteLimits, proxy);
+    return;
+  }
+  app.use(mountPath, jsonParser, mongoSanitizeMiddleware, rejectPrototypePollution, proxy);
 }
 
 mountHttp("/api/auth", AUTH_URL);
@@ -102,6 +268,10 @@ mountHttp("/api/notifications", NOTIFICATION_URL);
 mountHttp("/api/ai", AI_URL);
 mountHttp("/api/reports", REPORT_URL);
 
+if (CENTRAL) {
+  app.use("/api/platform", platformRoutes);
+}
+
 const socketMw = createProxyMiddleware({
   target: NOTIFICATION_URL,
   changeOrigin: true,
@@ -109,9 +279,14 @@ const socketMw = createProxyMiddleware({
 });
 app.use("/socket.io", socketMw);
 
-app.get("/health", (_req, res) => res.json({ ok: true, service: "gateway" }));
+app.get("/health", (_req, res) =>
+  res.json({ ok: true, service: "gateway", mode: CENTRAL ? "central" : "tenant" })
+);
+
+app.use(errorHandler);
 
 const server = createServer(app);
+applyServerTimeouts(server);
 server.on("upgrade", socketMw.upgrade);
 
 server.listen(PORT, () => logger.info(`Gateway listening on ${PORT}`));

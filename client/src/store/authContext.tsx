@@ -9,21 +9,38 @@ import {
 } from "react";
 import api, { clearTokens, setTokens } from "../services/api";
 import type { Employee, Role } from "../types/models";
+import { redirectToTenantGateway, type TenantRedirectInfo } from "../utils/tenantAuth";
 
 type AuthState = {
   user: Employee | null;
   loading: boolean;
 };
 
+type LoginOptions = {
+  turnstileToken?: string | null;
+  tenantSlug?: string;
+  inviteToken?: string;
+};
+
+type AuthTokensResponse = {
+  accessToken: string;
+  refreshToken: string;
+  employee: Employee;
+  tenant?: TenantRedirectInfo;
+};
+
 type AuthCtx = AuthState & {
-  login: (email: string, password: string) => Promise<Employee>;
+  login: (email: string, password: string, options?: LoginOptions) => Promise<Employee | "redirect">;
   register: (input: {
     fullName: string;
     email: string;
     password: string;
     phone?: string;
     jobTitle?: string;
-  }) => Promise<Employee>;
+    turnstileToken?: string | null;
+    tenantSlug?: string;
+    inviteToken?: string;
+  }) => Promise<Employee | "redirect">;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -49,23 +66,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshMe();
   }, [refreshMe]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, options?: LoginOptions) => {
     clearTokens();
-    const { data } = await api.post<{ accessToken: string; refreshToken: string; employee: Employee }>(
-      "/api/auth/login",
-      { email, password }
-    );
+    const body: Record<string, string> = { email, password };
+    if (options?.turnstileToken) body.turnstileToken = options.turnstileToken;
+    if (options?.tenantSlug?.trim()) body.tenantSlug = options.tenantSlug.trim();
+    if (options?.inviteToken?.trim()) body.inviteToken = options.inviteToken.trim();
+    const { data } = await api.post<AuthTokensResponse>("/api/auth/login", body);
+    if (
+      data.tenant &&
+      redirectToTenantGateway(data.tenant, {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      })
+    ) {
+      return "redirect";
+    }
     setTokens(data.accessToken, data.refreshToken);
     setUser(data.employee);
     return data.employee;
   }, []);
 
   const register = useCallback(
-    async (input: { fullName: string; email: string; password: string; phone?: string; jobTitle?: string }) => {
-      const { data } = await api.post<{ accessToken: string; refreshToken: string; employee: Employee }>(
-        "/api/auth/register",
-        input
-      );
+    async (input: {
+      fullName: string;
+      email: string;
+      password: string;
+      phone?: string;
+      jobTitle?: string;
+      turnstileToken?: string | null;
+      tenantSlug?: string;
+      inviteToken?: string;
+    }) => {
+      const { turnstileToken, tenantSlug, inviteToken, ...rest } = input;
+      const body: Record<string, string> = { ...rest };
+      if (turnstileToken) body.turnstileToken = turnstileToken;
+      if (tenantSlug?.trim()) body.tenantSlug = tenantSlug.trim();
+      if (inviteToken?.trim()) body.inviteToken = inviteToken.trim();
+      const { data } = await api.post<AuthTokensResponse>("/api/auth/register", body);
+      if (
+        data.tenant &&
+        redirectToTenantGateway(data.tenant, {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        })
+      ) {
+        return "redirect";
+      }
       setTokens(data.accessToken, data.refreshToken);
       setUser(data.employee);
       return data.employee;

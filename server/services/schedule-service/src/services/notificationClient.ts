@@ -50,7 +50,7 @@ export async function notifyScheduleChange(payload: {
     });
     if (!res.ok) {
       const t = await res.text();
-      logger.warn("notification schedule-change failed", { status: res.status, body: t });
+      logger.warn("notification schedule-change failed", { status: res.status, body: t.slice(0, 200) });
     }
   } catch (e) {
     logger.warn("notifyScheduleChange error", e);
@@ -81,7 +81,7 @@ export async function notifyScheduleRangeChange(payload: {
     });
     if (!res.ok) {
       const t = await res.text();
-      logger.warn("notification schedule-range-change failed", { status: res.status, body: t });
+      logger.warn("notification schedule-range-change failed", { status: res.status, body: t.slice(0, 200) });
     }
   } catch (e) {
     logger.warn("notifyScheduleRangeChange error", e);
@@ -104,7 +104,7 @@ export async function notifyPreferenceSubmitted(payload: {
     });
     if (!res.ok) {
       const t = await res.text();
-      logger.warn("notification preference-submitted failed", { status: res.status, body: t });
+      logger.warn("notification preference-submitted failed", { status: res.status, body: t.slice(0, 200) });
     }
   } catch (e) {
     logger.warn("notifyPreferenceSubmitted error", e);

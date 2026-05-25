@@ -15,6 +15,7 @@ import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import PricingPage from "./pages/PricingPage";
 import LoginPage from "./pages/LoginPage";
+import LoginCallbackPage from "./pages/LoginCallbackPage";
 import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -65,6 +66,7 @@ export default function App() {
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/login/callback" element={<LoginCallbackPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />

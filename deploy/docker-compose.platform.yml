@@ -1,0 +1,68 @@
+# Central login gateway + shared infra (mongo, redis, traefik)
+# Tenant stacks connect via external network `syt_platform`.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - syt_platform
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - syt_platform
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - syt_platform
+
+  gateway-central:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/gateway/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      GATEWAY_MODE: central
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-localhost}
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      CORS_ORIGIN: ${CENTRAL_CORS_ORIGIN:-http://localhost:5173}
+      PORT: "4000"
+      EMPLOYEE_SERVICE_URL: http://localhost:4002
+    networks:
+      - syt_platform
+    depends_on:
+      - mongo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.central.rule=Host(`${CENTRAL_GATEWAY_HOST:-app.localhost}`)"
+      - "traefik.http.services.central.loadbalancer.server.port=4000"
+
+networks:
+  syt_platform:
+    name: syt_platform
+
+volumes:
+  mongo_data:

@@ -11,6 +11,8 @@ import {
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
 import { clearEmployeeFutureSchedulesInternal } from "./remoteSchedule.js";
+import { revokeUserAuthTokensInternal } from "./remoteAuth.js";
+import { syncTenantMembership } from "./tenantMembershipClient.js";
 
 export function toPublic(doc: EmployeeDoc) {
   return {
@@ -81,6 +83,7 @@ export async function createEmployee(input: {
     emergencyContact: input.emergencyContact,
     notes: input.notes,
   });
+  await syncTenantMembership(doc.email, doc.isActive);
   return toPublic(doc);
 }
 
@@ -246,8 +249,10 @@ export async function importEmployeesBulk(input: {
         if (mergeBulkRowIntoExisting(existingDoc, rowPayload)) {
           if (wasActiveBefore && existingDoc.isActive === false) {
             await clearEmployeeFutureSchedulesInternal(existingDoc._id.toString());
+            await revokeUserAuthTokensInternal(existingDoc._id.toString());
           }
           await existingDoc.save();
+          await syncTenantMembership(existingDoc.email, existingDoc.isActive);
           updatedExisting++;
         } else {
           unchangedExisting++;
@@ -291,8 +296,10 @@ export async function importEmployeesBulk(input: {
           if (mergeBulkRowIntoExisting(late, rowPayload)) {
             if (wasActiveBefore && late.isActive === false) {
               await clearEmployeeFutureSchedulesInternal(late._id.toString());
+              await revokeUserAuthTokensInternal(late._id.toString());
             }
             await late.save();
+            await syncTenantMembership(late.email, late.isActive);
             updatedExisting++;
           } else {
             unchangedExisting++;
@@ -352,6 +359,7 @@ export async function updateEmployee(
 
   if (deactivatedByInput) {
     await clearEmployeeFutureSchedulesInternal(id);
+    await revokeUserAuthTokensInternal(id);
   }
 
   if (input.email && input.email !== doc.email) {
@@ -376,6 +384,7 @@ export async function updateEmployee(
   if (input.password) doc.password = await bcrypt.hash(input.password, 12);
 
   await doc.save();
+  await syncTenantMembership(doc.email, doc.isActive);
   return toPublic(doc);
 }
 
@@ -387,6 +396,8 @@ export async function deleteEmployee(id: string) {
   if (wasActive) await clearEmployeeFutureSchedulesInternal(id);
   const doc = await Employee.findByIdAndUpdate(id, { isActive: false }, { new: true });
   if (!doc) throw new AppError(404, "עובד לא נמצא", "NOT_FOUND");
+  await syncTenantMembership(doc.email, false);
+  await revokeUserAuthTokensInternal(id);
   return toPublic(doc);
 }
 
@@ -505,6 +516,16 @@ export async function internalIdsByRole(role: Role): Promise<string[]> {
   const Employee = await getModel();
   const docs = await Employee.find({ role, isActive: true }).select("_id").lean();
   return docs.map((d) => d._id.toString());
+}
+
+/** Internal: role by email (gateway login rate-limit bypass). */
+export async function internalRoleByEmail(rawEmail: string): Promise<{ role: Role } | null> {
+  const email = rawEmail.trim().toLowerCase();
+  if (!email || email.length > 320) return null;
+  const Employee = await getModel();
+  const doc = await Employee.findOne({ email }).select("role").lean();
+  if (!doc?.role) return null;
+  return { role: doc.role as Role };
 }
 
 function isLeapYear(y: number): boolean {

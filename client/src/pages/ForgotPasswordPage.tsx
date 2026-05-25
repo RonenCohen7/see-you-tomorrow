@@ -9,38 +9,53 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PublicHeader from "../components/PublicHeader";
+import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import api from "../services/api";
-import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
+import { isCentralLoginEnabled } from "../utils/tenantAuth";
 
 type Step = "form" | "sent";
 
 export default function ForgotPasswordPage() {
   const { t, i18n } = useTranslation();
   const [email, setEmail] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
   const [step, setStep] = useState<Step>("form");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const onTurnstileChange = useCallback((t: string | null) => setTurnstileToken(t), []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setInfo(t("forgotPasswordSending"));
+    if (hasTurnstileSiteKey() && !turnstileToken?.trim()) {
+      setInfo(null);
+      setError(t("turnstileRequired"));
+      setLoading(false);
+      return;
+    }
     try {
       await api.post("/api/auth/forgot-password", {
         email: email.trim(),
         locale: i18n.language.startsWith("he") ? "he" : "en",
+        ...(tenantSlug.trim() ? { tenantSlug: tenantSlug.trim() } : {}),
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
       setStep("sent");
       setInfo(null);
     } catch (err: unknown) {
       setInfo(null);
-      setError(apiErrorMessage(err, t("forgotPasswordSendError")));
+      const retrySec = rateLimitRetrySecondsFromAxios(err);
+      setError(retrySec != null ? t("rateLimitRetryIn", { seconds: retrySec }) : apiErrorMessage(err, t("forgotPasswordSendError")));
     } finally {
       setLoading(false);
     }
@@ -90,6 +105,17 @@ export default function ForgotPasswordPage() {
                   autoComplete="email"
                   sx={{ mb: 2 }}
                 />
+                {isCentralLoginEnabled() && (
+                  <TextField
+                    fullWidth
+                    label={t("companySlug")}
+                    value={tenantSlug}
+                    onChange={(e) => setTenantSlug(e.target.value)}
+                    helperText={t("companySlugHelp")}
+                    sx={{ mb: 2 }}
+                  />
+                )}
+                <PublicTurnstileField onTokenChange={onTurnstileChange} />
                 <Button
                   type="submit"
                   variant="contained"

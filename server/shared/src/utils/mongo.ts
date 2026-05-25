@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 import { logger } from "./logger.js";
 
+/**
+ * NoSQL-injection protection lives in `express-mongo-sanitize` at the HTTP edge
+ * (strips `$`/`.` from body/query/params). Do NOT enable `mongoose.set("sanitizeFilter", true)`
+ * globally — it wraps any sub-object containing `$` keys (e.g. `{$gte, $lte}`, `{$in}`)
+ * with `{$eq}`, which breaks every range/`$in`/`$or` query with a CastError on Date/ObjectId paths.
+ */
+mongoose.set("strictQuery", true);
+
 const connections = new Map<string, mongoose.Connection>();
 
 /** Default targets MongoDB on the host (local dev). Docker Compose sets MONGO_URI to mongodb://mongo:27017. */

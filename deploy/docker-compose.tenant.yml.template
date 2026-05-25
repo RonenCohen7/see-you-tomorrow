@@ -1,0 +1,209 @@
+# Per-tenant stack — render with deploy/render-tenant-compose.sh
+# Placeholders: __TENANT_SLUG__, __TENANT_DB_PREFIX__, __TENANT_GATEWAY_HOST__
+
+services:
+  gateway-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/gateway/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      GATEWAY_MODE: tenant
+      TENANT_SLUG: __TENANT_SLUG__
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      CORS_ORIGIN: https://__TENANT_GATEWAY_HOST__
+      PUBLIC_APP_URL: https://__TENANT_GATEWAY_HOST__
+      PORT: "4000"
+      AUTH_SERVICE_URL: http://auth-__TENANT_SLUG__:4001
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      DEPARTMENT_SERVICE_URL: http://department-__TENANT_SLUG__:4003
+      LOCATION_SERVICE_URL: http://location-__TENANT_SLUG__:4004
+      SCHEDULE_SERVICE_URL: http://schedule-__TENANT_SLUG__:4005
+      NOTIFICATION_SERVICE_URL: http://notification-__TENANT_SLUG__:4006
+      AI_SERVICE_URL: http://ai-__TENANT_SLUG__:4007
+      REPORT_SERVICE_URL: http://report-__TENANT_SLUG__:4008
+    networks:
+      - syt_platform
+    depends_on:
+      - auth-__TENANT_SLUG__
+      - employee-__TENANT_SLUG__
+      - department-__TENANT_SLUG__
+      - location-__TENANT_SLUG__
+      - schedule-__TENANT_SLUG__
+      - notification-__TENANT_SLUG__
+      - ai-__TENANT_SLUG__
+      - report-__TENANT_SLUG__
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.__TENANT_SLUG__.rule=Host(`__TENANT_GATEWAY_HOST__`)"
+      - "traefik.http.services.__TENANT_SLUG__.loadbalancer.server.port=4000"
+
+  auth-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/auth-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_SLUG: __TENANT_SLUG__
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      NOTIFICATION_SERVICE_URL: http://notification-__TENANT_SLUG__:4006
+      CORS_ORIGIN: https://__TENANT_GATEWAY_HOST__
+      PORT: "4001"
+    networks:
+      - syt_platform
+
+  employee-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/employee-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_SLUG: __TENANT_SLUG__
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      AUTH_SERVICE_URL: http://auth-__TENANT_SLUG__:4001
+      SCHEDULE_SERVICE_URL: http://schedule-__TENANT_SLUG__:4005
+      PORT: "4002"
+    networks:
+      - syt_platform
+
+  department-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/department-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4003"
+    networks:
+      - syt_platform
+
+  location-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/location-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      SCHEDULE_SERVICE_URL: http://schedule-__TENANT_SLUG__:4005
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      PORT: "4004"
+    networks:
+      - syt_platform
+
+  schedule-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/schedule-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4005"
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-__TENANT_SLUG__:4007
+      NOTIFICATION_SERVICE_URL: http://notification-__TENANT_SLUG__:4006
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      DEPARTMENT_SERVICE_URL: http://department-__TENANT_SLUG__:4003
+      LOCATION_SERVICE_URL: http://location-__TENANT_SLUG__:4004
+    networks:
+      - syt_platform
+
+  notification-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/notification-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4006"
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_FROM: ${SMTP_FROM:-noreply@seeyoutomorrow.local}
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      DEPARTMENT_SERVICE_URL: http://department-__TENANT_SLUG__:4003
+      LOCATION_SERVICE_URL: http://location-__TENANT_SLUG__:4004
+      CORS_ORIGIN: https://__TENANT_GATEWAY_HOST__
+      PUBLIC_APP_URL: https://__TENANT_GATEWAY_HOST__
+    networks:
+      - syt_platform
+
+  ai-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/ai-recommendation-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      TENANT_DB_PREFIX: __TENANT_DB_PREFIX__
+      MONGO_URI: mongodb://mongo:27017
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4007"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      SCHEDULE_SERVICE_URL: http://schedule-__TENANT_SLUG__:4005
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      DEPARTMENT_SERVICE_URL: http://department-__TENANT_SLUG__:4003
+      LOCATION_SERVICE_URL: http://location-__TENANT_SLUG__:4004
+    networks:
+      - syt_platform
+
+  report-__TENANT_SLUG__:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: syt-backend:local
+    command: ["node", "server/services/report-service/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-internal-dev-secret}
+      PORT: "4008"
+      SCHEDULE_SERVICE_URL: http://schedule-__TENANT_SLUG__:4005
+      EMPLOYEE_SERVICE_URL: http://employee-__TENANT_SLUG__:4002
+      LOCATION_SERVICE_URL: http://location-__TENANT_SLUG__:4004
+      NOTIFICATION_SERVICE_URL: http://notification-__TENANT_SLUG__:4006
+    networks:
+      - syt_platform
+
+networks:
+  syt_platform:
+    external: true

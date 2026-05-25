@@ -12,6 +12,7 @@ import {
 import * as authService from "../services/authService.js";
 import * as passwordResetService from "../services/passwordResetService.js";
 import { shouldAllowRegistration } from "../services/bootstrap.js";
+import { assertTurnstileOk } from "../services/turnstile.js";
 
 export async function register(req: AuthRequest, res: Response) {
   const parsed = registerSchema.safeParse(req.body);
@@ -19,6 +20,8 @@ export async function register(req: AuthRequest, res: Response) {
     logger.warn("POST /api/auth/register validation failed", parsed.error.flatten());
     throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
   }
+
+  await assertTurnstileOk(parsed.data.turnstileToken, req);
 
   const email = parsed.data.email;
 
@@ -53,7 +56,9 @@ export async function register(req: AuthRequest, res: Response) {
   }
 
   try {
-    const result = await authService.registerEmployee(parsed.data);
+    const { turnstileToken: _tok, ...reg } = parsed.data;
+    void _tok;
+    const result = await authService.registerEmployee(reg);
     logger.info("POST /api/auth/register success", { email, role: result.employee.role });
     res.status(201).json(result);
   } catch (e) {
@@ -66,7 +71,11 @@ export async function login(req: AuthRequest, res: Response) {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
 
-  const result = await authService.login(parsed.data);
+  await assertTurnstileOk(parsed.data.turnstileToken, req);
+
+  const { turnstileToken: _tok, ...creds } = parsed.data;
+  void _tok;
+  const result = await authService.login(creds);
   res.json(result);
 }
 
@@ -95,6 +104,8 @@ export async function me(req: AuthRequest, res: Response) {
 export async function forgotPassword(req: AuthRequest, res: Response) {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+
+  await assertTurnstileOk(parsed.data.turnstileToken, req);
 
   await passwordResetService.requestPasswordReset(parsed.data.email, parsed.data.locale ?? "he");
   res.json({ ok: true });

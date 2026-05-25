@@ -8,6 +8,7 @@ r.use(requireInternalSecret);
 r.get("/employees/admins", ctrl.adminIds);
 r.get("/employees/inactive-ids", ctrl.inactiveIdsPaged);
 r.get("/employees/by-role/:role/ids", ctrl.listIdsByRole);
+r.get("/employees/by-email", ctrl.roleByEmail);
 r.get("/employees/:id", ctrl.getOne);
 r.get("/departments/:departmentId/employees", ctrl.byDepartment);
 

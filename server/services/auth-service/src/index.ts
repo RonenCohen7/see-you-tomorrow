@@ -1,10 +1,19 @@
-import { loadRootEnv } from "@syt/shared";
+import {
+  applySecurityMiddleware,
+  applyServerTimeouts,
+  errorHandler,
+  loadRootEnv,
+  logger,
+  mongoSanitizeMiddleware,
+  rejectPrototypePollution,
+} from "@syt/shared";
 loadRootEnv();
 import "express-async-errors";
 import express from "express";
-import { errorHandler, logger } from "@syt/shared";
+import { createServer } from "http";
 
 import { authRoutes } from "./routes/authRoutes.js";
+import { internalRoutes } from "./routes/internalRoutes.js";
 
 const PORT = Number(process.env.PORT ?? 4001);
 
@@ -22,12 +31,18 @@ logger.info("auth-service starting", {
 });
 
 const app = express();
-app.use(express.json());
+applySecurityMiddleware(app);
+app.use(express.json({ limit: "1mb" }));
+app.use(rejectPrototypePollution);
+app.use(mongoSanitizeMiddleware);
 
 app.use("/api/auth", authRoutes);
+app.use("/internal", internalRoutes);
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "auth-service" }));
 
 app.use(errorHandler);
 
-app.listen(PORT, () => logger.info(`auth-service listening on ${PORT}`));
+const server = createServer(app);
+applyServerTimeouts(server);
+server.listen(PORT, () => logger.info(`auth-service listening on ${PORT}`));

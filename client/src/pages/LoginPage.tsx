@@ -9,14 +9,16 @@ import {
   Link,
   CircularProgress,
 } from "@mui/material";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AppBrandTitle from "../components/AppBrandTitle";
 import PublicHeader from "../components/PublicHeader";
+import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import { useAuth } from "../store/authContext";
-import { apiErrorMessage } from "../utils/apiErrorMessage";
+import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
+import { isCentralLoginEnabled } from "../utils/tenantAuth";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -26,8 +28,12 @@ export default function LoginPage() {
   const passwordResetDone = Boolean((location.state as { passwordResetDone?: boolean } | null)?.passwordResetDone);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const onTurnstileChange = useCallback((t: string | null) => setTurnstileToken(t), []);
 
   if (user) {
     return <Navigate to={defaultLandingForRole(user.role)} replace />;
@@ -36,13 +42,23 @@ export default function LoginPage() {
   async function doLogin(emailToUse: string, passwordToUse: string) {
     setLoading(true);
     setError(null);
+    if (hasTurnstileSiteKey() && !turnstileToken?.trim()) {
+      setError(t("turnstileRequired"));
+      setLoading(false);
+      return;
+    }
     try {
       console.info("[login] POST /api/auth/login", { email: emailToUse });
-      const signedIn = await login(emailToUse, passwordToUse);
+      const signedIn = await login(emailToUse, passwordToUse, {
+        turnstileToken,
+        tenantSlug: tenantSlug.trim() || undefined,
+      });
+      if (signedIn === "redirect") return;
       nav(defaultLandingForRole(signedIn?.role ?? null));
     } catch (err: unknown) {
       console.error("[login] failed", err);
-      setError(apiErrorMessage(err, t("loginError")));
+      const retrySec = rateLimitRetrySecondsFromAxios(err);
+      setError(retrySec != null ? t("rateLimitRetryIn", { seconds: retrySec }) : apiErrorMessage(err, t("loginError")));
     } finally {
       setLoading(false);
     }
@@ -106,6 +122,17 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
             />
+            {isCentralLoginEnabled() && (
+              <TextField
+                fullWidth
+                label={t("companySlug")}
+                margin="normal"
+                value={tenantSlug}
+                onChange={(e) => setTenantSlug(e.target.value)}
+                placeholder={t("companySlugHint")}
+                helperText={t("companySlugHelp")}
+              />
+            )}
             <TextField
               fullWidth
               label={t("password")}
@@ -115,6 +142,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
             />
+            <PublicTurnstileField onTokenChange={onTurnstileChange} />
             <Box sx={{ mt: 0.5, textAlign: "start" }}>
               <Link component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
                 {t("forgotPassword")}

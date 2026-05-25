@@ -6,6 +6,18 @@ const MSG_TIMEOUT_USER =
 const MSG_NETWORK_USER =
   "לא ניתן להתחבר לשרת כרגע. בדקו את החיבור לאינטרנט, רעננו את העמוד או נסו מאוחר יותר. אם זה נמשך, פנו למנהל המערכת.";
 
+/** Seconds until retry when API returns `code: RATE_LIMIT` (gateway / auth). */
+export function rateLimitRetrySecondsFromAxios(err: unknown): number | undefined {
+  if (!axios.isAxiosError(err)) return undefined;
+  const data = err.response?.data;
+  if (!data || typeof data !== "object") return undefined;
+  const o = data as Record<string, unknown>;
+  if (o.code === "RATE_LIMIT" && typeof o.retryAfterSeconds === "number" && Number.isFinite(o.retryAfterSeconds)) {
+    return Math.max(1, Math.floor(o.retryAfterSeconds));
+  }
+  return undefined;
+}
+
 /** Pull a user-visible message from failed API calls (Express `{ error, code }` or network). */
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {

@@ -207,6 +207,10 @@ Then seed against the exposed Mongo port (`mongodb://localhost:27017`) using the
 - Schedule changes call the **notification service** internally to persist notifications, queue emails, and emit Socket.IO events (`schedule:updated`, `notification:new`, `dashboard:refresh`).  
 - AI recommendations **never auto-apply**; admins approve via `POST /api/ai/approve-recommendations`.
 
+## Documentation (Hebrew + English summaries)
+
+Full system documentation: [documents/README.md](documents/README.md)
+
 ## GitHub backup and change log
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to push updates and write commit messages. Release-style summaries live in [CHANGELOG.md](CHANGELOG.md).
