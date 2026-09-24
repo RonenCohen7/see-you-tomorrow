@@ -593,6 +593,9 @@ export const enTranslation = {
   preferenceAiQueueMissingLocation:
     "Department missing locationId on batch row — fix department location before approving.",
   preferenceAiQueueTruncate: "Showing first {{shown}} of {{total}} rows.",
+  preferenceAiQueueAllDates: "All days",
+  preferenceAiQueueSubmittedSection: "Submitted preferences — every day of the week",
+  preferenceAiQueueAllDaysSection: "All recommendations by day",
   preferenceAiQueueLegendTitle: "Legend:",
   preferenceAiQueueLegendSubmitted: "Employee set a preference for this slot in submitted doc.",
   preferenceAiQueueLegendAiFill: "No submitted preference — row filled by departmental AI recommendation.",

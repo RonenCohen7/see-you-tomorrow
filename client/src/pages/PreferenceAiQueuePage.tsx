@@ -22,13 +22,15 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import { departmentsPickerUrl } from "../utils/referencePickerUrls";
 import type { Employee } from "../types/models";
 import { useRole } from "../store/authContext";
 import { preferenceAiQueueDisplayNotes } from "../utils/preferenceAiQueueDisplayNotes";
+import { utcWeekdayShort } from "../utils/israeliWeek";
+import { appIntlLocale, type AppLocale } from "../locale/localeConstants";
 
 type ProposedPipelineItem = {
   date: string;
@@ -261,6 +263,31 @@ export default function PreferenceAiQueuePage() {
   );
 }
 
+function QueueItemRow({
+  item,
+  model,
+  employeeName,
+  rowBg,
+}: {
+  item: ProposedPipelineItem;
+  model?: string;
+  employeeName: string;
+  rowBg: string;
+}) {
+  const { t } = useTranslation();
+  const noteDisplayed = preferenceAiQueueDisplayNotes(item.reason, model);
+  return (
+    <TableRow sx={{ bgcolor: rowBg }}>
+      <TableCell>{item.date}</TableCell>
+      <TableCell>{employeeName}</TableCell>
+      <TableCell>{t(item.recommendedStatus)}</TableCell>
+      <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word", maxWidth: 320 }}>
+        {noteDisplayed}
+      </TableCell>
+    </TableRow>
+  );
+}
+
 type BatchDetailsProps = {
   batch: AiBatchPublic;
   onApprove: () => void;
@@ -270,8 +297,9 @@ type BatchDetailsProps = {
 };
 
 function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: BatchDetailsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
+  const intlTag = appIntlLocale(i18n.language as AppLocale);
 
   const employeesQ = useQuery({
     queryKey: ["preference-ai-queue-employees", batch.departmentId],
@@ -296,6 +324,42 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
     () => new Map((employeesQ.data ?? []).map((e) => [e.id, e])),
     [employeesQ.data]
   );
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const rowsByDate = useMemo(() => {
+    const groups = new Map<string, ProposedPipelineItem[]>();
+    for (const item of batch.proposedItems) {
+      const list = groups.get(item.date) ?? [];
+      list.push(item);
+      groups.set(item.date, list);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, rows]) => {
+        const sorted = [...rows].sort((a, b) => {
+          const aSubmitted = (a.preferenceSource ?? "none") === "employee" ? 0 : 1;
+          const bSubmitted = (b.preferenceSource ?? "none") === "employee" ? 0 : 1;
+          if (aSubmitted !== bSubmitted) return aSubmitted - bSubmitted;
+          const aName = empById.get(a.employeeId)?.fullName?.trim() ?? a.employeeId;
+          const bName = empById.get(b.employeeId)?.fullName?.trim() ?? b.employeeId;
+          return aName.localeCompare(bName, intlTag);
+        });
+        return { date, rows: sorted };
+      });
+  }, [batch.proposedItems, empById, intlTag]);
+
+  const submittedRows = useMemo(
+    () =>
+      rowsByDate.flatMap(({ rows }) =>
+        rows.filter((row) => (row.preferenceSource ?? "none") === "employee")
+      ),
+    [rowsByDate]
+  );
+
+  const visibleGroups = selectedDate
+    ? rowsByDate.filter((group) => group.date === selectedDate)
+    : rowsByDate;
 
   const legendSubmittedBg = alpha(
     theme.palette.primary.main,
@@ -389,46 +453,113 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
           <CircularProgress size={24} />
         </Stack>
       ) : (
-        <>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>{t("reportsColWorkDate")}</TableCell>
-                <TableCell>{t("fullName")}</TableCell>
-                <TableCell>{t("notificationsStatusLabel")}</TableCell>
-                <TableCell>{t("notes")}</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {batch.proposedItems.slice(0, 12).map((p) => {
-                const source = p.preferenceSource ?? "none";
-                const rowBg = source === "employee" ? legendSubmittedBg : legendAiFillBg;
-                const noteDisplayed = preferenceAiQueueDisplayNotes(p.reason, batch.model);
-                return (
-                  <TableRow
-                    key={`${batch.id}-${p.date}-${p.employeeId}`}
-                    sx={{ bgcolor: rowBg }}
-                  >
-                    <TableCell>{p.date}</TableCell>
-                    <TableCell>
-                      {empById.get(p.employeeId)?.fullName?.trim() ||
-                        `…${p.employeeId.slice(-8)}`}
-                    </TableCell>
-                    <TableCell>{t(p.recommendedStatus)}</TableCell>
-                    <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word", maxWidth: 320 }}>
-                      {noteDisplayed}
-                    </TableCell>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              label={t("preferenceAiQueueAllDates")}
+              color={selectedDate === null ? "primary" : "default"}
+              variant={selectedDate === null ? "filled" : "outlined"}
+              onClick={() => setSelectedDate(null)}
+            />
+            {rowsByDate.map(({ date, rows }) => {
+              const submitted = rows.filter((row) => (row.preferenceSource ?? "none") === "employee").length;
+              return (
+                <Chip
+                  key={date}
+                  size="small"
+                  label={`${utcWeekdayShort(date, intlTag)} ${date}${submitted ? ` · ${submitted}` : ""}`}
+                  color={selectedDate === date ? "primary" : "default"}
+                  variant={selectedDate === date ? "filled" : "outlined"}
+                  onClick={() => setSelectedDate(date)}
+                />
+              );
+            })}
+          </Stack>
+
+          {submittedRows.length > 0 && selectedDate === null && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                {t("preferenceAiQueueSubmittedSection")}
+              </Typography>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{t("reportsColWorkDate")}</TableCell>
+                    <TableCell>{t("fullName")}</TableCell>
+                    <TableCell>{t("notificationsStatusLabel")}</TableCell>
+                    <TableCell>{t("notes")}</TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          {batch.proposedItems.length > 12 ? (
-            <Typography variant="caption" color="text.secondary">
-              {t("preferenceAiQueueTruncate", { shown: 12, total: batch.proposedItems.length })}
+                </TableHead>
+                <TableBody>
+                  {submittedRows.map((p) => (
+                    <QueueItemRow
+                      key={`submitted-${batch.id}-${p.date}-${p.employeeId}`}
+                      item={p}
+                      model={batch.model}
+                      employeeName={
+                        empById.get(p.employeeId)?.fullName?.trim() || `…${p.employeeId.slice(-8)}`
+                      }
+                      rowBg={legendSubmittedBg}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              {t("preferenceAiQueueAllDaysSection")}
             </Typography>
-          ) : null}
-        </>
+            <Box sx={{ maxHeight: "70vh", overflow: "auto" }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>{t("reportsColWorkDate")}</TableCell>
+                    <TableCell>{t("fullName")}</TableCell>
+                    <TableCell>{t("notificationsStatusLabel")}</TableCell>
+                    <TableCell>{t("notes")}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {visibleGroups.map(({ date, rows }) => (
+                    <Fragment key={`${batch.id}-${date}`}>
+                      <TableRow>
+                        <TableCell
+                          colSpan={4}
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: "background.paper",
+                            borderBottom: 1,
+                            borderColor: "divider",
+                          }}
+                        >
+                          {date} · {utcWeekdayShort(date, intlTag)} · {rows.length}
+                        </TableCell>
+                      </TableRow>
+                      {rows.map((p) => {
+                        const source = p.preferenceSource ?? "none";
+                        return (
+                          <QueueItemRow
+                            key={`${batch.id}-${p.date}-${p.employeeId}`}
+                            item={p}
+                            model={batch.model}
+                            employeeName={
+                              empById.get(p.employeeId)?.fullName?.trim() ||
+                              `…${p.employeeId.slice(-8)}`
+                            }
+                            rowBg={source === "employee" ? legendSubmittedBg : legendAiFillBg}
+                          />
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        </Stack>
       )}
     </Box>
   );

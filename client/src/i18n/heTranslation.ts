@@ -588,6 +588,9 @@ export const heTranslation = {
   preferenceAiQueueMissingLocation:
     "למחלקה אין locationId בשורת האצווה — לתקן שיוך מיקום למחלקה לפני אישור.",
   preferenceAiQueueTruncate: "מוצגות {{shown}} שורות ראשונות מתוך {{total}}.",
+  preferenceAiQueueAllDates: "כל הימים",
+  preferenceAiQueueSubmittedSection: "העדפות שהוגשו — כל ימי השבוע",
+  preferenceAiQueueAllDaysSection: "כל ההמלצות לפי יום",
   preferenceAiQueueLegendTitle: "מקרא שורות:",
   preferenceAiQueueLegendSubmitted: "העובד הגדיר העדפת יום למשבצת זו במסמך מוגשר.",
   preferenceAiQueueLegendAiFill: "לא הוגדרה העדפת יום במסמך מוגשר למשבצת זו — השורה נכללת בהמלצת ה-AI לשבוע במסגרת המחלקה.",

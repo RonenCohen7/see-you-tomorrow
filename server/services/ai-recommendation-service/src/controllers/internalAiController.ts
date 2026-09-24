@@ -19,6 +19,7 @@ export async function internalRecommendSchedule(req: Request, res: Response) {
     actingUserId,
     enforceManagerDailyOfficeCoverage: false,
     allowFridaySaturdayOffice: false,
+    honorSubmittedPreferences: true,
   });
   res.json(result);
 }

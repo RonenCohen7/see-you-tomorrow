@@ -1,3 +1,7 @@
+import { isUtcFridayOrSaturday } from "../utils/weekendPolicyUtc.js";
+
+const SUBMITTED_PREFERENCE_STATUSES = new Set(["office", "home", "vacation", "off"]);
+
 /** Preference docs from schedule-service internal `/attendance-preferences/dept-range` (public-ish shape). */
 type PrefDocLike = {
   employeeId?: string;
@@ -41,6 +45,26 @@ export function preferenceLookupFromDocs(prefs: unknown[]): Map<string, string> 
     }
   }
   return m;
+}
+
+/**
+ * Days the employee submitted keep that status. The filler (mock or model) only covers days with no submission.
+ * Office on Friday/Saturday stays with the filler unless weekend office is explicitly allowed, so the batch is not rejected.
+ */
+export function applySubmittedPreferencesToRecommendations<
+  T extends { employeeId: string; date: string; recommendedStatus: string }
+>(
+  recommendations: T[],
+  prefLookup: Map<string, string>,
+  options?: { allowFridaySaturdayOffice?: boolean }
+): T[] {
+  const allowWeekendOffice = options?.allowFridaySaturdayOffice === true;
+  return recommendations.map((row) => {
+    const pref = prefLookup.get(`${row.employeeId}|${row.date}`);
+    if (!pref || pref === row.recommendedStatus || !SUBMITTED_PREFERENCE_STATUSES.has(pref)) return row;
+    if (pref === "office" && !allowWeekendOffice && isUtcFridayOrSaturday(row.date)) return row;
+    return { ...row, recommendedStatus: pref };
+  });
 }
 
 export function summarizePreferenceVsRecommendations(

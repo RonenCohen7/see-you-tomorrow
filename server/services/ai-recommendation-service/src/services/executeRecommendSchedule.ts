@@ -24,6 +24,10 @@ export type ExecuteRecommendOptions = {
    * When set, overrides `input.allowFridaySaturdayOffice` (internal pipeline forces `false`).
    */
   allowFridaySaturdayOffice?: boolean;
+  /**
+   * Preference pipeline: a submitted day (vacation, home, office, off) replaces the model/mock status.
+   */
+  honorSubmittedPreferences?: boolean;
 };
 
 export async function executeRecommend(
@@ -72,6 +76,7 @@ export async function executeRecommend(
   );
 
   const employees = employeesFull.map((e) => ({ id: e.id, fullName: e.fullName }));
+  const prefLookup = prefInsight.preferenceLookupFromDocs(employeePreferencesSubmitted);
 
   const result = await ai.generateRecommendationsPrompt({
     departmentId: input.departmentId,
@@ -86,8 +91,14 @@ export async function executeRecommend(
     policyAllowFridaySaturdayOffice: allowFridaySaturdayOffice,
   });
 
+  const recommendations = options.honorSubmittedPreferences
+    ? prefInsight.applySubmittedPreferencesToRecommendations(result.recommendations, prefLookup, {
+        allowFridaySaturdayOffice,
+      })
+    : result.recommendations;
+
   const validated = validation.validateScheduleRecommendations({
-    recommendations: result.recommendations,
+    recommendations,
     employees: employeesFull.map((e) => ({ id: e.id, role: e.role ?? "employee" })),
     rules: activeSchedulingRulesRaw as SchedulingRuleDoc[],
     assignmentLocationId: input.locationId,
@@ -96,14 +107,14 @@ export async function executeRecommend(
   });
 
   const preferenceContext = prefInsight.summarizeLoadedPreferences(employeePreferencesSubmitted);
-  const prefLookup = prefInsight.preferenceLookupFromDocs(employeePreferencesSubmitted);
   const preferenceVsRecommendation = prefInsight.summarizePreferenceVsRecommendations(
-    result.recommendations,
+    recommendations,
     prefLookup
   );
 
   return {
     ...result,
+    recommendations,
     validation: validated,
     preferenceContext,
     preferenceVsRecommendation,
