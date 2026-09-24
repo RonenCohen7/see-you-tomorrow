@@ -11,3 +11,7 @@ server/**/dist/
 .cache/
 coverage/
 *.tsbuildinfo
+
+# Local development files
+.cursor/
+r/
