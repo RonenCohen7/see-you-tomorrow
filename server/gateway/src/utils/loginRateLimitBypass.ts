@@ -6,9 +6,9 @@ function cacheSet(email: string, role: string) {
 }
 
 /** True if employee with this email is admin or manager (cached ~60s). Used to skip login/forgot rate limits. */
-export async function isAdminOrManagerCached(email: string): Promise<boolean> {
-  const key = email.trim().toLowerCase();
-  if (!key) return false;
+export async function isAdminOrManagerCached(email: string, tenantSlug?: string): Promise<boolean> {
+  const key = `${tenantSlug ?? ""}|${email.trim().toLowerCase()}`;
+  if (!email.trim()) return false;
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && now - hit.ts < TTL_MS) {
@@ -21,7 +21,10 @@ export async function isAdminOrManagerCached(email: string): Promise<boolean> {
 
   try {
     const res = await fetch(url, {
-      headers: { "x-internal-secret": secret },
+      headers: {
+        "x-internal-secret": secret,
+        ...(tenantSlug ? { "x-tenant-slug": tenantSlug } : {}),
+      },
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) {

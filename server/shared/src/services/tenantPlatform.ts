@@ -1,4 +1,5 @@
 import { PLATFORM_DB } from "../config/dbNames.js";
+import { getRequestTenantSlug, isSharedSaasMode, runWithTenant } from "../config/tenantContext.js";
 import { getConnection } from "../utils/mongo.js";
 import {
   getTenantEmailMembershipModel,
@@ -63,6 +64,38 @@ export async function getTenantBySlug(slug: string): Promise<TenantRegistryDoc |
   return TenantRegistry.findOne({ slug: slug.trim().toLowerCase(), status: "active" }).lean();
 }
 
+export async function deleteTenantBySlug(slug: string): Promise<void> {
+  const conn = await platformConn();
+  const TenantRegistry = getTenantRegistryModel(conn);
+  await TenantRegistry.deleteOne({ slug: slug.trim().toLowerCase() });
+}
+
+export async function findTenantBySlug(slug: string): Promise<TenantRegistryDoc | null> {
+  const conn = await platformConn();
+  const TenantRegistry = getTenantRegistryModel(conn);
+  return TenantRegistry.findOne({ slug: slug.trim().toLowerCase() }).lean();
+}
+
+export async function listActiveTenantSlugs(): Promise<string[]> {
+  const conn = await platformConn();
+  const TenantRegistry = getTenantRegistryModel(conn);
+  const rows = await TenantRegistry.find({ status: "active" }).select("slug").lean();
+  return rows.map((r) => r.slug);
+}
+
+/** Background jobs: one company at a time. Outside shared mode, a single ambient tenant (or the default databases). */
+export async function forEachActiveTenant(fn: (slug: string | null) => Promise<void>): Promise<void> {
+  if (!isSharedSaasMode()) {
+    const slug = process.env.TENANT_SLUG?.trim().toLowerCase() || null;
+    await runWithTenant(slug, () => fn(slug));
+    return;
+  }
+  const slugs = await listActiveTenantSlugs();
+  for (const slug of slugs) {
+    await runWithTenant(slug, () => fn(slug));
+  }
+}
+
 export async function findTenantsByEmailDomain(domain: string): Promise<TenantRegistryDoc[]> {
   const conn = await platformConn();
   const TenantRegistry = getTenantRegistryModel(conn);
@@ -76,7 +109,7 @@ export async function syncEmailMembership(input: {
   isActive: boolean;
 }): Promise<void> {
   const slug = process.env.TENANT_SLUG?.trim().toLowerCase();
-  const tenantSlug = (input.tenantSlug || slug || "").trim().toLowerCase();
+  const tenantSlug = (input.tenantSlug || getRequestTenantSlug() || slug || "").trim().toLowerCase();
   if (!tenantSlug) return;
 
   const conn = await platformConn();
@@ -90,7 +123,7 @@ export async function syncEmailMembership(input: {
 }
 
 export async function removeEmailMembership(email: string, tenantSlug?: string): Promise<void> {
-  const slug = (tenantSlug ?? process.env.TENANT_SLUG ?? "").trim().toLowerCase();
+  const slug = (tenantSlug ?? getRequestTenantSlug() ?? process.env.TENANT_SLUG ?? "").trim().toLowerCase();
   if (!slug) return;
   const conn = await platformConn();
   const Membership = getTenantEmailMembershipModel(conn);

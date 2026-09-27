@@ -3,6 +3,8 @@ import {
   Box,
   Button,
   Container,
+  ToggleButton,
+  ToggleButtonGroup,
   Paper,
   TextField,
   Typography,
@@ -17,11 +19,12 @@ import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicT
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
-import { isCentralLoginEnabled } from "../utils/tenantAuth";
+import { isSharedSaasEnabled } from "../utils/tenantAuth";
 
 export default function RegisterPage() {
   const { t } = useTranslation();
-  const { register, user } = useAuth();
+  const { register, registerOrganization, user } = useAuth();
+  const sharedSaas = isSharedSaasEnabled();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get("invite") ?? "";
@@ -31,6 +34,8 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [tenantSlug, setTenantSlug] = useState(searchParams.get("tenant") ?? "");
+  const [organizationName, setOrganizationName] = useState("");
+  const [mode, setMode] = useState<"create" | "join">(inviteToken ? "join" : "create");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,16 +61,28 @@ export default function RegisterPage() {
       return;
     }
     try {
-      const registered = await register({
-        fullName,
-        email,
-        password,
-        phone: phone || undefined,
-        jobTitle: jobTitle || undefined,
-        turnstileToken,
-        inviteToken: inviteToken || undefined,
-        tenantSlug: tenantSlug.trim() || undefined,
-      });
+      const joinExisting = !sharedSaas || mode === "join" || Boolean(inviteToken);
+      const registered = joinExisting
+        ? await register({
+            fullName,
+            email,
+            password,
+            phone: phone || undefined,
+            jobTitle: jobTitle || undefined,
+            turnstileToken,
+            inviteToken: inviteToken || undefined,
+            tenantSlug: tenantSlug.trim() || undefined,
+          })
+        : await registerOrganization({
+            organizationName,
+            slug: tenantSlug,
+            fullName,
+            email,
+            password,
+            phone: phone || undefined,
+            jobTitle: jobTitle || undefined,
+            turnstileToken,
+          });
       if (registered === "redirect") return;
       nav(defaultLandingForRole(registered?.role ?? null), { state: { justRegistered: true } });
     } catch (err: unknown) {
@@ -101,6 +118,25 @@ export default function RegisterPage() {
           </Typography>
 
           <Box component="form" onSubmit={submit}>
+            {sharedSaas && !inviteToken && (
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                value={mode}
+                onChange={(_e, value: "create" | "join" | null) => {
+                  if (value) setMode(value);
+                }}
+                sx={{ mb: 2 }}
+              >
+                <ToggleButton value="create">{t("saasCreateOrg")}</ToggleButton>
+                <ToggleButton value="join">{t("saasJoinOrg")}</ToggleButton>
+              </ToggleButtonGroup>
+            )}
+            {sharedSaas && mode === "create" && !inviteToken && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {t("registerOrgHint")}
+              </Typography>
+            )}
             {inviteToken && (
               <Alert severity="info" sx={{ mb: 2 }}>
                 {t("inviteRegisterHint")}
@@ -110,6 +146,16 @@ export default function RegisterPage() {
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
               </Alert>
+            )}
+            {sharedSaas && mode === "create" && !inviteToken && (
+              <TextField
+                fullWidth
+                required
+                label={t("organizationName")}
+                margin="normal"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+              />
             )}
             <TextField
               fullWidth
@@ -142,14 +188,15 @@ export default function RegisterPage() {
             />
             <TextField fullWidth label={t("phone")} margin="normal" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <TextField fullWidth label={t("jobTitle")} margin="normal" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-            {(isCentralLoginEnabled() || inviteToken) && !inviteToken && (
+            {sharedSaas && !inviteToken && (
               <TextField
                 fullWidth
-                label={t("companySlug")}
+                required
+                label={mode === "create" ? t("organizationSlug") : t("companySlug")}
                 margin="normal"
                 value={tenantSlug}
                 onChange={(e) => setTenantSlug(e.target.value)}
-                helperText={t("companySlugHelp")}
+                helperText={mode === "create" ? t("organizationSlugHelp") : t("companySlugHelp")}
               />
             )}
             <PublicTurnstileField onTokenChange={onTurnstileChange} />

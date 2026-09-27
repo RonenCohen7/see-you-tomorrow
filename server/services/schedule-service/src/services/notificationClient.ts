@@ -1,16 +1,12 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 
 const base = () => process.env.NOTIFICATION_SERVICE_URL ?? "http://localhost:4006";
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 async function post(path: string, body: Record<string, unknown>) {
   try {
     const res = await fetch(`${base()}${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-secret": secret(),
-      },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -42,10 +38,7 @@ export async function notifyScheduleChange(payload: {
   try {
     const res = await fetch(`${base()}/internal/notifications/schedule-change`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-secret": secret(),
-      },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -73,10 +66,7 @@ export async function notifyScheduleRangeChange(payload: {
   try {
     const res = await fetch(`${base()}/internal/notifications/schedule-range-change`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-secret": secret(),
-      },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -96,10 +86,7 @@ export async function notifyPreferenceSubmitted(payload: {
   try {
     const res = await fetch(`${base()}/internal/notifications/preference-submitted`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-secret": secret(),
-      },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {

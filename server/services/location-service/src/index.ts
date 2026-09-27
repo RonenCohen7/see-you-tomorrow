@@ -4,6 +4,7 @@ import {
   errorHandler,
   loadRootEnv,
   logger,
+  bindRequestTenant,
   mongoSanitizeMiddleware,
   rejectPrototypePollution,
 } from "@syt/shared";
@@ -25,6 +26,7 @@ applySecurityMiddleware(app);
 app.use(express.json({ limit: "2mb" }));
 app.use(rejectPrototypePollution);
 app.use(mongoSanitizeMiddleware);
+app.use(bindRequestTenant);
 
 app.use("/internal", internalRoutes);
 app.use("/api/locations", locationRoutes);

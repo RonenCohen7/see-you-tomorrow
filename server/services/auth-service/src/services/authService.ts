@@ -12,7 +12,14 @@ import {
   signRefreshToken,
   AppError,
   type Role,
+  deleteTenantBySlug,
+  findTenantBySlug,
+  getRequestTenantSlug,
+  isSharedSaasMode,
+  normalizeTenantSlug,
+  runWithTenant,
   syncEmailMembership,
+  upsertTenantRegistry,
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
 
@@ -46,7 +53,7 @@ export async function registerEmployee(input: {
     isActive: true,
   });
 
-  const tenantSlug = process.env.TENANT_SLUG?.trim();
+  const tenantSlug = getRequestTenantSlug() || process.env.TENANT_SLUG?.trim();
   if (tenantSlug) {
     try {
       await syncEmailMembership({ email: doc.email, tenantSlug, isActive: true });
@@ -73,13 +80,22 @@ export async function login(input: { email: string; password: string }) {
   return { employee: toPublic(doc), ...tokens };
 }
 
+function currentTenantSlug(): string | undefined {
+  return getRequestTenantSlug() || process.env.TENANT_SLUG?.trim().toLowerCase() || undefined;
+}
+
 async function issueTokensForUser(userId: Types.ObjectId, email: string, role: Role) {
+  const tenant = currentTenantSlug();
+  if (isSharedSaasMode() && !tenant) {
+    throw new AppError(400, "חסר זיהוי חברה", "TENANT_REQUIRED");
+  }
   const accessToken = signAccessToken({
     sub: userId.toString(),
     email,
     role,
+    tenant,
   });
-  const refreshRaw = signRefreshToken(userId.toString(), role, email);
+  const refreshRaw = signRefreshToken(userId.toString(), role, email, tenant);
   const tokenHash = hashRefresh(refreshRaw);
 
   const authConn = await getConnection(DB_NAMES.auth);
@@ -104,7 +120,7 @@ export async function logout(refreshToken: string) {
 }
 
 export async function refresh(refreshToken: string) {
-  let payload: { sub?: string; role?: Role; email?: string; typ?: string };
+  let payload: { sub?: string; role?: Role; email?: string; typ?: string; tenant?: string };
   try {
     payload = jwt.verify(refreshToken, getJwtSecret()) as typeof payload;
   } catch {
@@ -112,6 +128,11 @@ export async function refresh(refreshToken: string) {
   }
   if (payload.typ !== "refresh" || !payload.sub || !payload.email || !payload.role) {
     throw new AppError(401, "אסימון רענון לא תקין", "INVALID_REFRESH");
+  }
+  const ctx = currentTenantSlug();
+  const tokenTenant = typeof payload.tenant === "string" ? payload.tenant : undefined;
+  if (isSharedSaasMode() && (!tokenTenant || (ctx && tokenTenant !== ctx))) {
+    throw new AppError(401, "אסימון רענון לא שייך לחברה הזו", "INVALID_REFRESH");
   }
 
   const authConn = await getConnection(DB_NAMES.auth);
@@ -137,6 +158,85 @@ export async function getProfile(userId: string) {
   const doc = await Employee.findById(userId);
   if (!doc) throw new AppError(404, "משתמש לא נמצא", "NOT_FOUND");
   return toPublic(doc);
+}
+
+const PERSONAL_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "yahoo.com",
+  "icloud.com",
+  "me.com",
+  "walla.co.il",
+  "walla.com",
+]);
+
+export async function registerOrganization(input: {
+  organizationName: string;
+  slug: string;
+  fullName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  jobTitle?: string;
+}) {
+  if (!isSharedSaasMode()) {
+    throw new AppError(
+      400,
+      "הרשמת ארגון זמינה כשהשרת רץ במצב SaaS משותף (SAAS_MODE=shared).",
+      "SAAS_MODE_REQUIRED"
+    );
+  }
+
+  const slug = normalizeTenantSlug(input.slug);
+  if (!slug) {
+    throw new AppError(400, "קוד חברה לא תקין. השתמשו באותיות באנגלית, מספרים ומקף.", "INVALID_SLUG");
+  }
+
+  const taken = await findTenantBySlug(slug);
+  if (taken) throw new AppError(409, "קוד החברה כבר תפוס. בחרו קוד אחר.", "TENANT_EXISTS");
+
+  const email = input.email.trim().toLowerCase();
+  const domain = email.split("@")[1] ?? "";
+  const emailDomains = domain && !PERSONAL_EMAIL_DOMAINS.has(domain) ? [domain] : [];
+  const gatewayUrl = (
+    process.env.PUBLIC_APP_URL ??
+    process.env.CORS_ORIGIN?.split(",")[0] ??
+    "http://localhost:5173"
+  ).replace(/\/$/, "");
+  const authServiceUrl = process.env.AUTH_SERVICE_URL ?? "http://localhost:4001";
+  const name = input.organizationName.trim();
+
+  await upsertTenantRegistry({
+    slug,
+    name,
+    dbPrefix: slug,
+    emailDomains,
+    subdomain: slug,
+    authServiceUrl,
+    gatewayUrl,
+  });
+
+  try {
+    return await runWithTenant(slug, async () => {
+      const result = await registerEmployee({
+        fullName: input.fullName,
+        email,
+        password: input.password,
+        phone: input.phone,
+        jobTitle: input.jobTitle,
+      });
+      return {
+        ...result,
+        tenant: { slug, name, gatewayUrl, subdomain: slug },
+      };
+    });
+  } catch (e) {
+    await deleteTenantBySlug(slug).catch(() => undefined);
+    throw e;
+  }
 }
 
 function toPublic(doc: EmployeeDoc) {

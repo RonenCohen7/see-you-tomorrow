@@ -1,12 +1,10 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 
 const empBase = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002";
 const depBase = () => process.env.DEPARTMENT_SERVICE_URL ?? "http://localhost:4003";
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
-
 async function internal(path: string, base: () => string) {
   const res = await fetch(`${base()}${path}`, {
-    headers: { "x-internal-secret": secret() },
+    headers: internalServiceHeaders(),
   });
   if (!res.ok) {
     logger.warn(`internal ${path} failed`, res.status);

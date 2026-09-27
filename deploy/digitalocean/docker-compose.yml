@@ -1,0 +1,172 @@
+# Shared SaaS on one DigitalOcean droplet.
+# MongoDB and Redis stay on the private network. Only Caddy publishes 80/443.
+
+x-backend: &backend
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+  image: syt-backend:local
+  restart: unless-stopped
+  networks:
+    - syt
+  environment: &backend-env
+    NODE_ENV: production
+    SAAS_MODE: shared
+    MONGO_URI: mongodb://mongo:27017
+    REDIS_URL: redis://redis:6379
+    JWT_SECRET: ${JWT_SECRET}
+    INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET}
+    CORS_ORIGIN: ${PUBLIC_APP_URL}
+    PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+    AUTH_SERVICE_URL: http://auth-service:4001
+    EMPLOYEE_SERVICE_URL: http://employee-service:4002
+    DEPARTMENT_SERVICE_URL: http://department-service:4003
+    LOCATION_SERVICE_URL: http://location-service:4004
+    SCHEDULE_SERVICE_URL: http://schedule-service:4005
+    NOTIFICATION_SERVICE_URL: http://notification-service:4006
+    AI_SERVICE_URL: http://ai-service:4007
+    REPORT_SERVICE_URL: http://report-service:4008
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    SMTP_HOST: ${SMTP_HOST:-localhost}
+    SMTP_PORT: ${SMTP_PORT:-1025}
+    SMTP_SECURE: ${SMTP_SECURE:-false}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASS: ${SMTP_PASS:-}
+    SMTP_FROM: ${SMTP_FROM:-noreply@seeyoutomorrow.local}
+
+services:
+  caddy:
+    build:
+      context: ../..
+      dockerfile: deploy/digitalocean/Dockerfile.web
+      args:
+        VITE_SAAS_SHARED: "true"
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - gateway
+    restart: unless-stopped
+    networks:
+      - syt
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    networks:
+      - syt
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - syt
+
+  gateway:
+    <<: *backend
+    command: ["node", "server/gateway/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4000"
+    depends_on:
+      - mongo
+      - redis
+      - auth-service
+      - employee-service
+      - department-service
+      - location-service
+      - schedule-service
+      - notification-service
+      - ai-service
+      - report-service
+
+  auth-service:
+    <<: *backend
+    command: ["node", "server/services/auth-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4001"
+    depends_on:
+      - mongo
+
+  employee-service:
+    <<: *backend
+    command: ["node", "server/services/employee-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4002"
+    depends_on:
+      - mongo
+
+  department-service:
+    <<: *backend
+    command: ["node", "server/services/department-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4003"
+    depends_on:
+      - mongo
+
+  location-service:
+    <<: *backend
+    command: ["node", "server/services/location-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4004"
+    depends_on:
+      - mongo
+
+  schedule-service:
+    <<: *backend
+    command: ["node", "server/services/schedule-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4005"
+    depends_on:
+      - mongo
+      - redis
+
+  notification-service:
+    <<: *backend
+    command: ["node", "server/services/notification-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4006"
+      CORS_ORIGIN: ${PUBLIC_APP_URL}
+    depends_on:
+      - mongo
+      - redis
+
+  ai-service:
+    <<: *backend
+    command: ["node", "server/services/ai-recommendation-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4007"
+    depends_on:
+      - mongo
+
+  report-service:
+    <<: *backend
+    command: ["node", "server/services/report-service/dist/index.js"]
+    environment:
+      <<: *backend-env
+      PORT: "4008"
+    depends_on:
+      - mongo
+
+networks:
+  syt:
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:

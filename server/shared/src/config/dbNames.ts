@@ -1,6 +1,12 @@
-/** Normalize TENANT_DB_PREFIX to always end with `_` when set (e.g. `acme` → `acme_`). */
+import { getRequestTenantSlug } from "./tenantContext.js";
+
+/**
+ * Database prefix for the current request, else TENANT_DB_PREFIX.
+ * `acme` → `acme_`. Empty string means the legacy unprefixed databases.
+ */
 export function getTenantDbPrefix(): string {
-  const raw = process.env.TENANT_DB_PREFIX?.trim() ?? "";
+  const fromRequest = getRequestTenantSlug();
+  const raw = (fromRequest || process.env.TENANT_DB_PREFIX?.trim() || "").trim();
   if (!raw) return "";
   return raw.endsWith("_") ? raw : `${raw}_`;
 }
@@ -20,11 +26,9 @@ function resolveDbNames() {
 
 type DbNames = ReturnType<typeof resolveDbNames>;
 
-let cachedDbNames: DbNames | null = null;
-
+/** Resolved on each access so a shared process can serve a different company per request. */
 export function getDbNames(): DbNames {
-  if (!cachedDbNames) cachedDbNames = resolveDbNames();
-  return cachedDbNames;
+  return resolveDbNames();
 }
 
 /** MongoDB database names per bounded context (lazy — reads TENANT_DB_PREFIX on first access). */

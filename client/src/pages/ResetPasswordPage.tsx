@@ -20,6 +20,7 @@ export default function ResetPasswordPage() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
+  const tenantSlug = useMemo(() => searchParams.get("tenant")?.trim() ?? "", [searchParams]);
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -64,7 +65,11 @@ export default function ResetPasswordPage() {
     setError(null);
     setInfo(t("resetPasswordSaving"));
     try {
-      await api.post("/api/auth/reset-password", { token, password });
+      await api.post("/api/auth/reset-password", {
+        token,
+        password,
+        ...(tenantSlug ? { tenantSlug } : {}),
+      });
       setInfo(t("resetPasswordSuccess"));
       setDone(true);
     } catch (err: unknown) {

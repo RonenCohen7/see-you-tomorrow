@@ -18,7 +18,7 @@ import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicT
 import { useAuth } from "../store/authContext";
 import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
-import { isCentralLoginEnabled } from "../utils/tenantAuth";
+import { isSharedSaasEnabled } from "../utils/tenantAuth";
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -122,7 +122,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
             />
-            {isCentralLoginEnabled() && (
+            {isSharedSaasEnabled() && (
               <TextField
                 fullWidth
                 label={t("companySlug")}

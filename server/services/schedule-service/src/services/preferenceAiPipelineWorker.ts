@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import { logger } from "@syt/shared";
+import { forEachActiveTenant, getRequestTenantSlug, internalServiceHeaders, isSharedSaasMode, logger, runWithTenant } from "@syt/shared";
 import { israeliWeekDatesFromSundayUtc, utcDay } from "../utils/dateRange.js";
 import * as cycleSvc from "./departmentPreferenceCycleService.js";
 import * as batchSvc from "./scheduleAiBatchService.js";
@@ -46,7 +46,8 @@ function defaultAiConstraints() {
 export async function enqueuePreferenceAiJob(departmentId: string, weekStartSunday: string) {
   const connection = redisConnection();
   const queue = new Queue(QUEUE_NAME, { connection });
-  const jobId = `${departmentId}|${weekStartSunday}`;
+  const tenantSlug = getRequestTenantSlug() ?? "";
+  const jobId = `${tenantSlug}|${departmentId}|${weekStartSunday}`;
   try {
     const existing = await queue.getJob(jobId);
     if (existing) await existing.remove();
@@ -56,7 +57,7 @@ export async function enqueuePreferenceAiJob(departmentId: string, weekStartSund
   try {
     await queue.add(
       "run",
-      { departmentId, weekStartSunday },
+      { departmentId, weekStartSunday, tenantSlug: tenantSlug || undefined },
       {
         jobId,
         delay: debounceMs(),
@@ -76,10 +77,9 @@ export async function enqueuePreferenceAiJob(departmentId: string, weekStartSund
 
 async function callInternalRecommend(body: Record<string, unknown>) {
   const base = process.env.AI_SERVICE_URL ?? "http://localhost:4007";
-  const secret = process.env.INTERNAL_SERVICE_SECRET ?? "";
   const res = await fetch(`${base}/internal/recommend-schedule`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-internal-secret": secret },
+    headers: internalServiceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -113,12 +113,17 @@ async function recoverStuckPreBatchJobs(queue: Queue) {
     for (const c of stuck) {
       try {
         await cycleSvc.resetToQueued(c.departmentId, c.weekStartSunday);
-        const jobId = `${c.departmentId}|${c.weekStartSunday}`;
+        const tenantSlug = getRequestTenantSlug() ?? "";
+        const jobId = `${tenantSlug}|${c.departmentId}|${c.weekStartSunday}`;
         const existing = await queue.getJob(jobId);
         if (existing) await existing.remove().catch(() => undefined);
         await queue.add(
           "run",
-          { departmentId: c.departmentId, weekStartSunday: c.weekStartSunday },
+          {
+            departmentId: c.departmentId,
+            weekStartSunday: c.weekStartSunday,
+            tenantSlug: tenantSlug || undefined,
+          },
           { jobId, delay: 0, removeOnComplete: true, removeOnFail: 25 }
         );
       } catch (err) {
@@ -134,15 +139,24 @@ export function startPreferenceAiPipelineWorker() {
   const connection = redisConnection();
   const queue = new Queue(QUEUE_NAME, { connection });
 
-  void recoverStuckPreBatchJobs(queue);
+  void forEachActiveTenant(async () => {
+    await recoverStuckPreBatchJobs(queue);
+  });
 
   const worker = new Worker(
     QUEUE_NAME,
     async (job) => {
-      const { departmentId, weekStartSunday } = job.data as {
+      const data = job.data as {
         departmentId: string;
         weekStartSunday: string;
+        tenantSlug?: string;
       };
+      if (isSharedSaasMode() && !data.tenantSlug) {
+        logger.error("preference AI job missing tenant", { id: job.id });
+        return;
+      }
+      await runWithTenant(data.tenantSlug ?? null, async () => {
+      const { departmentId, weekStartSunday } = data;
 
       const doc = await cycleSvc.loadForUpdate(departmentId, weekStartSunday);
       if (!doc || doc.pipelineStatus !== "queued") {
@@ -264,6 +278,7 @@ export function startPreferenceAiPipelineWorker() {
         departmentId,
         weekStartSunday,
         batchId,
+      });
       });
     },
     { connection, concurrency: 2 }

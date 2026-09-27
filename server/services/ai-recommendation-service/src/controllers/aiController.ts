@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { AppError, type AuthRequest } from "@syt/shared";
+import { AppError, internalServiceHeaders, type AuthRequest } from "@syt/shared";
 import { approveSchema, recommendSchema, schedulingRuleDraftRequestSchema } from "../validations/ai.js";
 import { executeRecommend } from "../services/executeRecommendSchedule.js";
 import { interpretSchedulingRuleFromText } from "../services/schedulingRuleFromText.js";
@@ -7,7 +7,7 @@ import { interpretSchedulingRuleFromText } from "../services/schedulingRuleFromT
 async function fetchMyDepartment(userId: string): Promise<string | undefined> {
   const res = await fetch(
     `${process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002"}/internal/employees/${userId}`,
-    { headers: { "x-internal-secret": process.env.INTERNAL_SERVICE_SECRET ?? "" } }
+    { headers: internalServiceHeaders() }
   );
   if (!res.ok) return undefined;
   const body = (await res.json()) as { departmentId?: string };
@@ -105,10 +105,7 @@ export async function approveRecommendations(req: AuthRequest, res: Response) {
   const url = `${process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005"}/internal/schedules/apply-recommendations`;
   const resApply = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-internal-secret": process.env.INTERNAL_SERVICE_SECRET ?? "",
-    },
+    headers: internalServiceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       items,
       adminUserId: user.id,

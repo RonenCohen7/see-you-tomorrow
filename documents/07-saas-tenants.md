@@ -1,6 +1,20 @@
 # 07 — SaaS: חברות (Tenants)
 
-## עקרון
+## מצב מומלץ — שרת אחד, הרבה חברות (`SAAS_MODE=shared`)
+
+פריסה אחת (למשל DigitalOcean) משרתת את כל הלקוחות. כל בקשה נושאת את קוד החברה מתוך ה-JWT, והשירותים פותחים רק את מסדי `קוד_syt_*` של אותה חברה. לקוח לא יכול לקרוא נתונים של לקוח אחר: הכותרת `x-tenant-slug` מהדפדפן נזרקת, והשרת קובע את החברה מהאסימון או מרישום הארגון.
+
+הרשמה: «ארגון חדש» יוצר חברה + מנהל ראשון. «הצטרפות» מוסיפה משתמש לחברה קיימת לפי קוד.
+
+```env
+SAAS_MODE=shared
+VITE_SAAS_SHARED=true
+PUBLIC_APP_URL=https://app.example.com
+```
+
+פריסה: [`deploy/digitalocean/README.md`](../deploy/digitalocean/README.md).
+
+## עקרון (חלופה: סטאק נפרד לכל חברה)
 
 **חברה = subdomain + stack + env + DB prefix**
 

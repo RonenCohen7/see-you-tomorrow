@@ -8,16 +8,21 @@ export function getJwtSecret(): string {
   return s;
 }
 
-export function signAccessToken(payload: Pick<JwtPayload, "sub" | "email" | "role">): string {
+export function signAccessToken(payload: Pick<JwtPayload, "sub" | "email" | "role" | "tenant">): string {
   const expiresIn = (process.env.JWT_EXPIRES_IN ?? "15m") as NonNullable<SignOptions["expiresIn"]>;
-  return jwt.sign(payload, getJwtSecret(), { expiresIn });
+  const body = payload.tenant ? payload : { sub: payload.sub, email: payload.email, role: payload.role };
+  return jwt.sign(body, getJwtSecret(), { expiresIn });
 }
 
 export function verifyAccessToken(token: string): JwtPayload {
   return jwt.verify(token, getJwtSecret()) as JwtPayload;
 }
 
-export function signRefreshToken(userId: string, role: Role, email: string): string {
+export function signRefreshToken(userId: string, role: Role, email: string, tenant?: string): string {
   const expiresIn = (process.env.JWT_REFRESH_EXPIRES_IN ?? "7d") as NonNullable<SignOptions["expiresIn"]>;
-  return jwt.sign({ sub: userId, role, email, typ: "refresh" }, getJwtSecret(), { expiresIn });
+  return jwt.sign(
+    { sub: userId, role, email, typ: "refresh", ...(tenant ? { tenant } : {}) },
+    getJwtSecret(),
+    { expiresIn }
+  );
 }

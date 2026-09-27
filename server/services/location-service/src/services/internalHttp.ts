@@ -1,10 +1,8 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 
 const schedBase = () => process.env.SCHEDULE_SERVICE_URL ?? "http://127.0.0.1:4005";
 const empBase = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://127.0.0.1:4002";
 const notifyBase = () => process.env.NOTIFICATION_SERVICE_URL ?? "http://127.0.0.1:4006";
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
-
 export type MeetingNotifyPayload = {
   id: string;
   roomId: string;
@@ -30,7 +28,7 @@ export async function notifyMeetingInvite(
   try {
     const res = await fetch(`${notifyBase()}/internal/notifications/meeting-invite`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-secret": secret() },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         bookingId: booking.id,
         roomId: booking.roomId,
@@ -62,7 +60,7 @@ export async function scheduleOfficePresence(
   try {
     const res = await fetch(`${schedBase()}/internal/schedules/office-presence`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-secret": secret() },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ checks }),
     });
     if (!res.ok) {
@@ -82,7 +80,7 @@ export async function scheduleOfficePresence(
 export async function fetchEmployeeInternal(id: string) {
   try {
     const res = await fetch(`${empBase()}/internal/employees/${id}`, {
-      headers: { "x-internal-secret": secret() },
+      headers: internalServiceHeaders(),
     });
     if (!res.ok) return null;
     return (await res.json()) as {

@@ -1,10 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
+import { isSharedSaasMode } from "../config/tenantContext.js";
 import { AppError } from "../utils/errors.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 import type { Role } from "../types/roles.js";
 
 export interface AuthRequest extends Request {
-  user?: { id: string; email: string; role: Role };
+  user?: { id: string; email: string; role: Role; tenant?: string };
 }
 
 export function extractBearer(req: Request): string | null {
@@ -21,7 +22,10 @@ export function requireAuth(req: AuthRequest, _res: Response, next: NextFunction
     if (!payload.sub || !payload.role || !payload.email) {
       throw new AppError(401, "אסימון לא תקין", "INVALID_TOKEN");
     }
-    req.user = { id: payload.sub, email: payload.email, role: payload.role };
+    if (isSharedSaasMode() && !payload.tenant) {
+      throw new AppError(401, "ההתחברות ישנה. התחברו מחדש.", "TENANT_REQUIRED");
+    }
+    req.user = { id: payload.sub, email: payload.email, role: payload.role, tenant: payload.tenant };
     next();
   } catch {
     next(new AppError(401, "אסימון פג תוקף או לא תקין", "UNAUTHORIZED"));

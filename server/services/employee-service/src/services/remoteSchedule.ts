@@ -1,4 +1,4 @@
-import { AppError, logger } from "@syt/shared";
+import { AppError, internalServiceHeaders, logger } from "@syt/shared";
 
 /** Tell schedule-service to drop all shifts from UTC «today» forward (unless `since` override). Throws if cleanup fails — call before marking employee inactive. */
 export async function clearEmployeeFutureSchedulesInternal(
@@ -6,7 +6,6 @@ export async function clearEmployeeFutureSchedulesInternal(
   options?: { fromInclusive?: string }
 ): Promise<void> {
   const base = process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005";
-  const secret = process.env.INTERNAL_SERVICE_SECRET ?? "";
   const body =
     options?.fromInclusive !== undefined
       ? { employeeId, fromInclusive: options.fromInclusive }
@@ -14,10 +13,7 @@ export async function clearEmployeeFutureSchedulesInternal(
   try {
     const res = await fetch(`${base}/internal/schedules/clear-future-for-employee`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-secret": secret,
-      },
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
     if (!res.ok) {

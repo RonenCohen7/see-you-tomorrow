@@ -1,7 +1,5 @@
-import { AppError, logger } from "@syt/shared";
+import { AppError, internalServiceHeaders, logger } from "@syt/shared";
 import { notificationBase } from "../config/urls.js";
-
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 export async function sendAttachmentByEmail(params: {
   to: string;
@@ -13,10 +11,7 @@ export async function sendAttachmentByEmail(params: {
 }): Promise<void> {
   const res = await fetch(`${notificationBase()}/internal/notifications/email-attachment`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-internal-secret": secret(),
-    },
+    headers: internalServiceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       to: params.to,
       subject: params.subject,

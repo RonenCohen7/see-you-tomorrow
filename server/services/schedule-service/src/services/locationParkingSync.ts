@@ -1,8 +1,7 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 import * as rules from "./schedulingRuleService.js";
 
 const base = () => process.env.LOCATION_SERVICE_URL ?? "http://127.0.0.1:4004";
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 export type ScheduleParkingSyncRow = {
   employeeId: string;
@@ -17,7 +16,7 @@ async function syncManagerOfficeAutoParkingInternal(row: ScheduleParkingSyncRow)
 
   const res = await fetch(`${base()}/internal/parking/sync-manager-office-auto`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-internal-secret": secret() },
+    headers: internalServiceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       employeeId: row.employeeId,
       workDate: row.workDate,

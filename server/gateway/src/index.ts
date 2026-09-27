@@ -3,6 +3,7 @@ import {
   applyServerTimeouts,
   errorHandler,
   loadRootEnv,
+  isSharedSaasMode,
   logger,
   mongoSanitizeMiddleware,
   rejectPrototypePollution,
@@ -19,16 +20,18 @@ import slowDown from "express-slow-down";
 import { createProxyMiddleware, fixRequestBody } from "http-proxy-middleware";
 import { isAdminOrManagerCached } from "./utils/loginRateLimitBypass.js";
 import { platformRoutes } from "./platformRoutes.js";
+import { attachSharedTenant } from "./sharedTenant.js";
 import { centralAuthProxy, isCentralGatewayMode } from "./tenantResolver.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
-const CENTRAL = isCentralGatewayMode();
+const SHARED = isSharedSaasMode();
+const CENTRAL = isCentralGatewayMode() && !SHARED;
 
 logger.info("gateway starting", {
   PORT,
   NODE_ENV: process.env.NODE_ENV ?? "(unset)",
-  GATEWAY_MODE: CENTRAL ? "central" : "tenant",
+  GATEWAY_MODE: SHARED ? "shared" : CENTRAL ? "central" : "tenant",
   AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL ?? "http://localhost:4001",
   REPORT_SERVICE_URL: process.env.REPORT_SERVICE_URL ?? "http://localhost:4008",
 });
@@ -151,7 +154,9 @@ function privilegedAuthPrelude(req: Request, res: Response, next: NextFunction):
     next();
     return;
   }
-  void isAdminOrManagerCached(email)
+  const tenantHeader = req.headers["x-tenant-slug"];
+  const tenantSlug = typeof tenantHeader === "string" ? tenantHeader : undefined;
+  void isAdminOrManagerCached(email, tenantSlug)
     .then((privileged) => {
       r.skipPrivilegedAuthLimits = privileged;
       next();
@@ -179,7 +184,7 @@ function authRouteLimits(req: Request, res: Response, next: NextFunction): void 
     });
     return;
   }
-  if (path === "/register") {
+  if (path === "/register" || path === "/register-organization") {
     registerLimiter(req, res, next);
     return;
   }
@@ -251,10 +256,26 @@ function mountHttp(mountPath: string, target: string) {
       app.post("/api/auth/reset-password", ...authChain, centralAuthProxy("/reset-password"));
       return;
     }
-    app.use(mountPath, jsonParser, mongoSanitizeMiddleware, rejectPrototypePollution, privilegedAuthPrelude, authRouteLimits, proxy);
+    app.use(
+      mountPath,
+      jsonParser,
+      mongoSanitizeMiddleware,
+      rejectPrototypePollution,
+      attachSharedTenant,
+      privilegedAuthPrelude,
+      authRouteLimits,
+      proxy
+    );
     return;
   }
-  app.use(mountPath, jsonParser, mongoSanitizeMiddleware, rejectPrototypePollution, proxy);
+  app.use(
+    mountPath,
+    jsonParser,
+    mongoSanitizeMiddleware,
+    rejectPrototypePollution,
+    attachSharedTenant,
+    proxy
+  );
 }
 
 mountHttp("/api/auth", AUTH_URL);
@@ -268,7 +289,7 @@ mountHttp("/api/notifications", NOTIFICATION_URL);
 mountHttp("/api/ai", AI_URL);
 mountHttp("/api/reports", REPORT_URL);
 
-if (CENTRAL) {
+if (CENTRAL || SHARED) {
   app.use("/api/platform", platformRoutes);
 }
 
@@ -280,7 +301,11 @@ const socketMw = createProxyMiddleware({
 app.use("/socket.io", socketMw);
 
 app.get("/health", (_req, res) =>
-  res.json({ ok: true, service: "gateway", mode: CENTRAL ? "central" : "tenant" })
+  res.json({
+    ok: true,
+    service: "gateway",
+    mode: SHARED ? "shared" : CENTRAL ? "central" : "tenant",
+  })
 );
 
 app.use(errorHandler);

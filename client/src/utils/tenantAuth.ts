@@ -9,6 +9,11 @@ export function isCentralLoginEnabled(): boolean {
   return import.meta.env.VITE_CENTRAL_LOGIN === "true";
 }
 
+/** One app, many companies. Login and registration ask for a company code. */
+export function isSharedSaasEnabled(): boolean {
+  return import.meta.env.VITE_SAAS_SHARED === "true" || isCentralLoginEnabled();
+}
+
 /** Hand off tokens to tenant subdomain after central-gateway login. */
 export function redirectToTenantGateway(
   tenant: TenantRedirectInfo,

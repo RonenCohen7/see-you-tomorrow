@@ -7,6 +7,8 @@ import {
   getScheduleModel,
   loadRootEnv,
   logger,
+  bindRequestTenant,
+  forEachActiveTenant,
   mongoSanitizeMiddleware,
   rejectPrototypePollution,
 } from "@syt/shared";
@@ -50,6 +52,7 @@ applySecurityMiddleware(app);
 app.use(express.json({ limit: "1mb" }));
 app.use(rejectPrototypePollution);
 app.use(mongoSanitizeMiddleware);
+app.use(bindRequestTenant);
 
 app.use("/api/schedules", scheduleRoutes);
 app.use("/internal", internalRoutes);
@@ -62,7 +65,9 @@ const server = createServer(app);
 applyServerTimeouts(server);
 server.listen(PORT, async () => {
   logger.info(`schedule-service listening on ${PORT}`);
-  await ensureSchemaMigrations();
+  await forEachActiveTenant(async () => {
+    await ensureSchemaMigrations();
+  });
   try {
     startPreferenceAiPipelineWorker();
     logger.info("preference AI pipeline worker started");

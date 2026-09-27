@@ -1,7 +1,9 @@
 export * from "./content/supportFaq.js";
 export * from "./config/dbNames.js";
+export * from "./config/tenantContext.js";
 export * from "./events/socketEvents.js";
 export * from "./middleware/authJwt.js";
+export * from "./middleware/bindRequestTenant.js";
 export * from "./middleware/errorHandler.js";
 export * from "./middleware/internalAuth.js";
 export * from "./middleware/rbac.js";
@@ -28,6 +30,7 @@ export * from "./services/tenantPlatform.js";
 export * from "./types/jwt.js";
 export * from "./types/roles.js";
 export * from "./utils/errors.js";
+export * from "./utils/internalHeaders.js";
 export * from "./utils/jwt.js";
 export * from "./utils/loadEnv.js";
 export * from "./utils/logger.js";

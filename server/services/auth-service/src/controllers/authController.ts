@@ -6,6 +6,7 @@ import {
   loginSchema,
   logoutSchema,
   refreshSchema,
+  registerOrganizationSchema,
   registerSchema,
   resetPasswordSchema,
 } from "../validations/auth.js";
@@ -65,6 +66,22 @@ export async function register(req: AuthRequest, res: Response) {
     logger.error("POST /api/auth/register registerEmployee failed", e instanceof Error ? e : undefined);
     throw e;
   }
+}
+
+export async function registerOrganization(req: AuthRequest, res: Response) {
+  const parsed = registerOrganizationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  }
+  await assertTurnstileOk(parsed.data.turnstileToken, req);
+  const { turnstileToken: _tok, ...input } = parsed.data;
+  void _tok;
+  const result = await authService.registerOrganization(input);
+  logger.info("POST /api/auth/register-organization success", {
+    slug: result.tenant.slug,
+    email: result.employee.email,
+  });
+  res.status(201).json(result);
 }
 
 export async function login(req: AuthRequest, res: Response) {

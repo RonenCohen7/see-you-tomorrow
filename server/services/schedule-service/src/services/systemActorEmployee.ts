@@ -1,3 +1,5 @@
+import { internalServiceHeaders } from "@syt/shared";
+
 /** Employee id used as createdBy for automation (AI batch from preference pipeline). */
 
 const empBase = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002";
@@ -5,7 +7,7 @@ const empBase = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002
 async function fetchFirstAdminId(): Promise<string | undefined> {
   try {
     const res = await fetch(`${empBase()}/internal/employees/admins`, {
-      headers: { "x-internal-secret": process.env.INTERNAL_SERVICE_SECRET ?? "" },
+      headers: internalServiceHeaders(),
     });
     if (!res.ok) return undefined;
     const data = (await res.json()) as { ids?: string[] };

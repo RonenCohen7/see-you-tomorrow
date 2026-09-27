@@ -1,7 +1,5 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 import { notificationBase } from "../config/urls.js";
-
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 export async function sendPasswordResetEmail(params: {
   to: string;
@@ -11,10 +9,7 @@ export async function sendPasswordResetEmail(params: {
 }): Promise<void> {
   const res = await fetch(`${notificationBase()}/internal/notifications/password-reset-email`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-internal-secret": secret(),
-    },
+    headers: internalServiceHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(params),
   });
   if (!res.ok) {

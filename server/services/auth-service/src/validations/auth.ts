@@ -30,4 +30,16 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(16),
   password: z.string().min(8),
+  tenantSlug: z.string().optional(),
+});
+
+export const registerOrganizationSchema = z.object({
+  organizationName: z.string().min(2).max(80),
+  slug: z.string().min(2).max(40),
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
+  phone: z.string().optional(),
+  jobTitle: z.string().optional(),
+  turnstileToken: z.string().optional(),
 });

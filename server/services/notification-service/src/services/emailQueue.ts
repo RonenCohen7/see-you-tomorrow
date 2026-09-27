@@ -1,5 +1,5 @@
 import { Queue, Worker, type JobsOptions } from "bullmq";
-import { logger } from "@syt/shared";
+import { getRequestTenantSlug, isSharedSaasMode, logger, runWithTenant } from "@syt/shared";
 import * as mailer from "./mailer.js";
 import * as http from "../config/httpClients.js";
 
@@ -17,23 +17,27 @@ function redisConnection(): { host: string; port: number; password?: string } {
   }
 }
 
-export type EmailJob =
-  | {
-      notificationKind?: "schedule_update";
-      notificationId: string;
-      recipientId: string;
-      workDate: string;
-      /** Inclusive end when the notification spans multiple days */
-      workDateEnd?: string;
-      status: string;
-    }
-  | {
-      notificationKind: "meeting_invite";
-      notificationId: string;
-      recipientId: string;
-      meetingSubject: string;
-      meetingBody: string;
-    };
+type EmailJobBase = { tenantSlug?: string };
+
+export type EmailJob = EmailJobBase &
+  (
+    | {
+        notificationKind?: "schedule_update";
+        notificationId: string;
+        recipientId: string;
+        workDate: string;
+        /** Inclusive end when the notification spans multiple days */
+        workDateEnd?: string;
+        status: string;
+      }
+    | {
+        notificationKind: "meeting_invite";
+        notificationId: string;
+        recipientId: string;
+        meetingSubject: string;
+        meetingBody: string;
+      }
+  );
 
 let queue: Queue<EmailJob> | null = null;
 
@@ -53,8 +57,9 @@ export function enqueueEmailJobsBestEffort(jobs: { name: string; data: EmailJob;
   void (async () => {
     try {
       const q = getEmailQueue();
+      const tenantSlug = getRequestTenantSlug() ?? undefined;
       for (const j of jobs) {
-        await q.add(j.name, j.data, j.opts);
+        await q.add(j.name, tenantSlug ? { ...j.data, tenantSlug } : j.data, j.opts);
       }
     } catch (e) {
       logger.warn("email queue enqueue failed — is Redis running (docker compose)?", {
@@ -68,6 +73,11 @@ export function startEmailWorker() {
   const worker = new Worker<EmailJob>(
     "email-notifications",
     async (job) => {
+      if (isSharedSaasMode() && !job.data.tenantSlug) {
+        logger.warn("email job missing tenant; skipped", job.id);
+        return;
+      }
+      await runWithTenant(job.data.tenantSlug ?? null, async () => {
       const emp = await http.fetchEmployee(job.data.recipientId);
       if (!emp?.email) {
         logger.warn("No email for recipient", job.data.recipientId);
@@ -82,6 +92,7 @@ export function startEmailWorker() {
         workDate: job.data.workDate,
         workDateEnd: job.data.workDateEnd,
         status: job.data.status,
+      });
       });
     },
     {

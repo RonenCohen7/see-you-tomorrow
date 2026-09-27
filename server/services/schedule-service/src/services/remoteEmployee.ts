@@ -1,7 +1,6 @@
-import { logger } from "@syt/shared";
+import { internalServiceHeaders, logger } from "@syt/shared";
 
 const base = () => process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002";
-const secret = () => process.env.INTERNAL_SERVICE_SECRET ?? "";
 
 export type InternalEmployeeBrief = {
   id: string;
@@ -16,7 +15,7 @@ export type InternalEmployeeBrief = {
 export async function fetchEmployeeInternal(id: string) {
   try {
     const res = await fetch(`${base()}/internal/employees/${id}`, {
-      headers: { "x-internal-secret": secret() },
+      headers: internalServiceHeaders(),
     });
     if (!res.ok) return null;
     return (await res.json()) as {
@@ -36,7 +35,7 @@ export async function fetchEmployeeInternal(id: string) {
 export async function fetchEmployeesByDepartment(departmentId: string): Promise<InternalEmployeeBrief[]> {
   try {
     const res = await fetch(`${base()}/internal/departments/${departmentId}/employees`, {
-      headers: { "x-internal-secret": secret() },
+      headers: internalServiceHeaders(),
     });
     if (!res.ok) {
       logger.warn("fetchEmployeesByDepartment failed", { status: res.status, departmentId });
@@ -65,7 +64,7 @@ export async function fetchInactiveEmployeeIdsPage(
   try {
     const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
     const res = await fetch(`${base()}/internal/employees/inactive-ids?${qs}`, {
-      headers: { "x-internal-secret": secret() },
+      headers: internalServiceHeaders(),
     });
     if (!res.ok) {
       logger.warn("fetchInactiveEmployeeIdsPage failed", { status: res.status, page });

@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import { logger } from "@syt/shared";
+import { forEachActiveTenant, internalServiceHeaders, logger } from "@syt/shared";
 import * as prefs from "./notificationPersistence.js";
 
 function redisConnection(): { host: string; port: number; password?: string } {
@@ -30,8 +30,7 @@ async function fetchJson(url: string, init?: RequestInit) {
 async function runOnce(): Promise<number> {
   const schBase = process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005";
   const empBase = process.env.EMPLOYEE_SERVICE_URL ?? "http://localhost:4002";
-  const secret = process.env.INTERNAL_SERVICE_SECRET ?? "";
-  const hdr = { "x-internal-secret": secret };
+  const hdr = internalServiceHeaders();
 
   const env = (await fetchJson(`${schBase}/internal/reminders/preference-envelope`, {
     headers: hdr,
@@ -96,7 +95,9 @@ export function startPreferenceReminderWorker() {
     QUEUE,
     async () => {
       try {
-        await runOnce();
+        await forEachActiveTenant(async () => {
+          await runOnce();
+        });
       } catch (e) {
         logger.error("preference reminder job failed", e);
         throw e;

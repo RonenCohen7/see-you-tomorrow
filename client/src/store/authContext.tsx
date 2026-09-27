@@ -41,6 +41,16 @@ type AuthCtx = AuthState & {
     tenantSlug?: string;
     inviteToken?: string;
   }) => Promise<Employee | "redirect">;
+  registerOrganization: (input: {
+    organizationName: string;
+    slug: string;
+    fullName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    jobTitle?: string;
+    turnstileToken?: string | null;
+  }) => Promise<Employee | "redirect">;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -120,6 +130,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const registerOrganization = useCallback(
+    async (input: {
+      organizationName: string;
+      slug: string;
+      fullName: string;
+      email: string;
+      password: string;
+      phone?: string;
+      jobTitle?: string;
+      turnstileToken?: string | null;
+    }) => {
+      const { turnstileToken, ...rest } = input;
+      const body: Record<string, string> = { ...rest, slug: rest.slug.trim().toLowerCase() };
+      if (turnstileToken) body.turnstileToken = turnstileToken;
+      const { data } = await api.post<AuthTokensResponse>("/api/auth/register-organization", body);
+      if (
+        data.tenant &&
+        redirectToTenantGateway(data.tenant, {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+        })
+      ) {
+        return "redirect" as const;
+      }
+      setTokens(data.accessToken, data.refreshToken);
+      setUser(data.employee);
+      return data.employee;
+    },
+    []
+  );
+
   const logout = useCallback(async () => {
     const rt = localStorage.getItem("syt_refresh");
     try {
@@ -137,10 +178,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       register,
+      registerOrganization,
       logout,
       refreshMe,
     }),
-    [user, loading, login, register, logout, refreshMe]
+    [user, loading, login, register, registerOrganization, logout, refreshMe]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

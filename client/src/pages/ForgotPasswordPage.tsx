@@ -16,7 +16,7 @@ import PublicHeader from "../components/PublicHeader";
 import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import api from "../services/api";
 import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
-import { isCentralLoginEnabled } from "../utils/tenantAuth";
+import { isSharedSaasEnabled } from "../utils/tenantAuth";
 
 type Step = "form" | "sent";
 
@@ -105,7 +105,7 @@ export default function ForgotPasswordPage() {
                   autoComplete="email"
                   sx={{ mb: 2 }}
                 />
-                {isCentralLoginEnabled() && (
+                {isSharedSaasEnabled() && (
                   <TextField
                     fullWidth
                     label={t("companySlug")}

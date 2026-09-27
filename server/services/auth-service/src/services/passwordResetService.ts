@@ -5,6 +5,7 @@ import {
   AppError,
   DB_NAMES,
   getConnection,
+  getRequestTenantSlug,
   getEmployeeModel,
   getPasswordResetTokenModel,
   getRefreshTokenModel,
@@ -53,7 +54,9 @@ export async function requestPasswordReset(email: string, locale: "he" | "en" = 
     expiresAt,
   });
 
-  const resetUrl = `${publicAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const tenant = getRequestTenantSlug();
+  const tenantQs = tenant ? `&tenant=${encodeURIComponent(tenant)}` : "";
+  const resetUrl = `${publicAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}${tenantQs}`;
 
   try {
     await notificationClient.sendPasswordResetEmail({
