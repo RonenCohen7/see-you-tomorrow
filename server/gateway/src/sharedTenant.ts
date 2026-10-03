@@ -1,5 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import { AppError, getTenantBySlug, isSharedSaasMode, verifyAccessToken } from "@syt/shared";
+import {
+  AppError,
+  getTenantByInviteToken,
+  getTenantBySlug,
+  isSharedSaasMode,
+  verifyAccessToken,
+} from "@syt/shared";
 import { resolveAuthTenant } from "./tenantResolver.js";
 
 const AUTH_RESOLVE = new Set(["/login", "/register", "/forgot-password"]);
@@ -57,6 +63,26 @@ export function attachSharedTenant(req: Request, _res: Response, next: NextFunct
       return;
     }
     void getTenantBySlug(slug)
+      .then((tenant) => {
+        if (!tenant) {
+          next(new AppError(404, "החברה לא נמצאה", "TENANT_NOT_FOUND"));
+          return;
+        }
+        req.headers["x-tenant-slug"] = tenant.slug;
+        next();
+      })
+      .catch(next);
+    return;
+  }
+
+  if (req.method === "POST" && path === "/register-departments") {
+    const slug = typeof req.body?.tenantSlug === "string" ? req.body.tenantSlug.trim().toLowerCase() : "";
+    const invite = typeof req.body?.inviteToken === "string" ? req.body.inviteToken.trim() : "";
+    if (!slug && !invite) {
+      next(new AppError(400, "נדרש קוד חברה או קישור הזמנה", "TENANT_REQUIRED"));
+      return;
+    }
+    void (invite ? getTenantByInviteToken(invite) : getTenantBySlug(slug))
       .then((tenant) => {
         if (!tenant) {
           next(new AppError(404, "החברה לא נמצאה", "TENANT_NOT_FOUND"));

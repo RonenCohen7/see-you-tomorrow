@@ -47,6 +47,20 @@ async function ensureSchemaMigrations() {
   }
 }
 
+const STARTUP_RETRY_MS = 15_000;
+
+/** Mongo may still be starting (Docker); retry instead of crashing the process. */
+async function runStartupMigrations(): Promise<void> {
+  try {
+    await forEachActiveTenant(async () => {
+      await ensureSchemaMigrations();
+    });
+  } catch (e) {
+    logger.warn(`startup migrations failed (Mongo unavailable?), retrying in ${STARTUP_RETRY_MS / 1000}s`, e);
+    setTimeout(() => void runStartupMigrations(), STARTUP_RETRY_MS);
+  }
+}
+
 const app = express();
 applySecurityMiddleware(app);
 app.use(express.json({ limit: "1mb" }));
@@ -63,11 +77,9 @@ app.use(errorHandler);
 
 const server = createServer(app);
 applyServerTimeouts(server);
-server.listen(PORT, async () => {
+server.listen(PORT, () => {
   logger.info(`schedule-service listening on ${PORT}`);
-  await forEachActiveTenant(async () => {
-    await ensureSchemaMigrations();
-  });
+  void runStartupMigrations();
   try {
     startPreferenceAiPipelineWorker();
     logger.info("preference AI pipeline worker started");

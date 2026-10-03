@@ -6,6 +6,7 @@ import { createTheme, alpha } from "@mui/material/styles";
 export const statusColors = {
   office: "#0ea5e9",   // משרד — תכלת
   home: "#f97316",     // בית — כתום
+  client: "#8b5cf6",   // מחוץ למשרד – לקוח — סגול
   vacation: "#22c55e", // חופשה — ירוק
   sick: "#ef4444",     // מחלה — אדום-כתום
   off: "#94a3b8",      // לא עובד — אפור צונן
@@ -167,6 +168,11 @@ export function buildTheme(mode: "light" | "dark", direction: "rtl" | "ltr") {
         },
       },
       MuiTooltip: {
+        defaultProps: {
+          /** Touch devices: a regular tap shows the tooltip (default needs a 700ms long-press). */
+          enterTouchDelay: 0,
+          leaveTouchDelay: 3000,
+        },
         styleOverrides: {
           tooltip: {
             fontSize: 13,

@@ -1,10 +1,15 @@
 import OpenAI from "openai";
-import { SCHEDULING_RULE_TYPES } from "@syt/shared";
 import { z } from "zod";
 import { interpretClearInactiveFutureSchedulesMaintenance } from "./intentFromSchedulingInstructions.js";
 
+const AI_DRAFT_RULE_TYPES = [
+  "location_unavailable",
+  "min_managers_office_daily",
+  "manager_office_auto_parking",
+] as const;
+
 const OutSchema = z.object({
-  ruleType: z.enum(SCHEDULING_RULE_TYPES as unknown as [string, ...string[]]),
+  ruleType: z.enum(AI_DRAFT_RULE_TYPES),
   payload: z.record(z.unknown()),
   explanationHebrew: z.string(),
   explanationEn: z.string().optional(),

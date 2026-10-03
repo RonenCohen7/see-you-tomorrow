@@ -3,6 +3,11 @@ import { AppError } from "@syt/shared";
 import * as svc from "../services/locationService.js";
 import * as parking from "../services/parkingService.js";
 
+export async function listActive(_req: Request, res: Response) {
+  const items = await svc.listLocations({ isActive: true });
+  res.json({ items });
+}
+
 export async function getOne(req: Request, res: Response) {
   try {
     const item = await svc.getById(req.params.id);

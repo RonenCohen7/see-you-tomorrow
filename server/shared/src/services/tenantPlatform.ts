@@ -198,6 +198,19 @@ async function filterTenantsByActiveMembership(
   return filtered;
 }
 
+/** Tenant of an open (unused, unexpired) invite. Used before the invitee has typed an email. */
+export async function getTenantByInviteToken(token: string): Promise<TenantRegistryDoc | null> {
+  const conn = await platformConn();
+  const Invite = getTenantInviteModel(conn);
+  const invite = await Invite.findOne({
+    token: token.trim(),
+    usedAt: { $exists: false },
+    expiresAt: { $gt: new Date() },
+  }).lean();
+  if (!invite) return null;
+  return getTenantBySlug(invite.tenantSlug);
+}
+
 export async function markInviteUsed(token: string): Promise<void> {
   const conn = await platformConn();
   const Invite = getTenantInviteModel(conn);

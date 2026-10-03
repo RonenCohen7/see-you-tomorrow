@@ -4,13 +4,17 @@ import {
   AppError,
   DB_NAMES,
   getConnection,
+  getDepartmentModel,
   getEmployeeModel,
   isAppError,
   type MaritalStatus,
   type Role,
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
-import { clearEmployeeFutureSchedulesInternal } from "./remoteSchedule.js";
+import {
+  assignDepartmentToPreferencesInternal,
+  clearEmployeeFutureSchedulesInternal,
+} from "./remoteSchedule.js";
 import { revokeUserAuthTokensInternal } from "./remoteAuth.js";
 import { syncTenantMembership } from "./tenantMembershipClient.js";
 
@@ -37,6 +41,21 @@ export function toPublic(doc: EmployeeDoc) {
   };
 }
 
+/** Colleague-visible fields only — no contact, address, family or HR notes. */
+export function toDirectoryEntry(e: ReturnType<typeof toPublic>) {
+  return {
+    id: e.id,
+    fullName: e.fullName,
+    imageUrl: e.imageUrl,
+    jobTitle: e.jobTitle,
+    departmentId: e.departmentId,
+    locationId: e.locationId,
+    managerId: e.managerId,
+    role: e.role,
+    isActive: e.isActive,
+  };
+}
+
 async function getModel() {
   const conn = await getConnection(DB_NAMES.employees);
   return getEmployeeModel(conn);
@@ -55,8 +74,8 @@ export async function createEmployee(input: {
   role?: Role;
   isActive?: boolean;
   birthDate: string;
-  address: string;
-  maritalStatus: MaritalStatus;
+  address?: string;
+  maritalStatus?: MaritalStatus | "";
   emergencyContact?: string;
   notes?: string;
 }) {
@@ -78,8 +97,8 @@ export async function createEmployee(input: {
     role: input.role ?? "employee",
     isActive: input.isActive ?? true,
     birthDate: new Date(input.birthDate),
-    address: input.address,
-    maritalStatus: input.maritalStatus,
+    address: input.address || undefined,
+    maritalStatus: input.maritalStatus || undefined,
     emergencyContact: input.emergencyContact,
     notes: input.notes,
   });
@@ -110,7 +129,7 @@ function mergeBulkRowIntoExisting(doc: HydratedDocument<EmployeeDoc>, row: BulkE
     changed = true;
   }
 
-  const address = row.address.trim();
+  const address = row.address?.trim() ?? "";
   if (address && (doc.address?.trim() ?? "") !== address) {
     doc.address = address;
     changed = true;
@@ -122,7 +141,7 @@ function mergeBulkRowIntoExisting(doc: HydratedDocument<EmployeeDoc>, row: BulkE
     changed = true;
   }
 
-  if (doc.maritalStatus !== row.maritalStatus) {
+  if (row.maritalStatus && doc.maritalStatus !== row.maritalStatus) {
     doc.maritalStatus = row.maritalStatus;
     changed = true;
   }
@@ -356,6 +375,7 @@ export async function updateEmployee(
 
   const wasActive = doc.isActive === true;
   const deactivatedByInput = input.isActive === false && wasActive;
+  const departmentNewlySet = !doc.departmentId && Boolean(input.departmentId);
 
   if (deactivatedByInput) {
     await clearEmployeeFutureSchedulesInternal(id);
@@ -385,6 +405,9 @@ export async function updateEmployee(
 
   await doc.save();
   await syncTenantMembership(doc.email, doc.isActive);
+  if (departmentNewlySet && doc.isActive) {
+    await assignDepartmentToPreferencesInternal(id, String(input.departmentId));
+  }
   return toPublic(doc);
 }
 
@@ -410,6 +433,23 @@ export async function getById(id: string) {
 
 export async function getMe(id: string) {
   return getById(id);
+}
+
+/** Employees without a department pick one themselves; moving between departments stays with admins. */
+export async function selfAssignDepartment(id: string, departmentId: string) {
+  const Employee = await getModel();
+  const doc = await Employee.findById(id);
+  if (!doc) throw new AppError(404, "עובד לא נמצא", "NOT_FOUND");
+  if (doc.departmentId) {
+    throw new AppError(409, "כבר משויך/ת למחלקה. לשינוי מחלקה פנו למנהל המערכת.", "DEPARTMENT_ALREADY_SET");
+  }
+  const Department = getDepartmentModel(await getConnection(DB_NAMES.departments));
+  const dept = await Department.findOne({ _id: departmentId, isActive: true }).select("_id").lean();
+  if (!dept) throw new AppError(400, "המחלקה שנבחרה לא קיימת או אינה פעילה", "DEPARTMENT_INVALID");
+  doc.departmentId = dept._id;
+  await doc.save();
+  await assignDepartmentToPreferencesInternal(id, dept._id.toString());
+  return toPublic(doc);
 }
 
 export async function listEmployees(

@@ -29,14 +29,18 @@ export const createEmployeeSchema = z.object({
   role: z.enum(["admin", "manager", "employee"]).optional(),
   isActive: z.boolean().optional(),
   birthDate: isoDate,
-  address: z.string().min(1, "דרוש כתובת מגורים"),
-  maritalStatus: z.enum(MARITAL_STATUSES),
+  address: z.string().optional(),
+  maritalStatus: z.enum(MARITAL_STATUSES).or(z.literal("")).optional(),
   emergencyContact: z.string().optional(),
   notes: z.string().optional(),
 });
 
 export const updateEmployeeSchema = createEmployeeSchema.partial().extend({
   password: z.string().min(8).optional(),
+});
+
+export const selfAssignDepartmentSchema = z.object({
+  departmentId: objectId,
 });
 
 export const listQuerySchema = z.object({
@@ -47,6 +51,8 @@ export const listQuerySchema = z.object({
   locationId: objectId.optional(),
   role: z.enum(["admin", "manager", "employee"]).optional(),
   isActive: z.coerce.boolean().optional(),
+  /** Company-wide directory (calendar names); non-admins get basic fields only. */
+  scope: z.enum(["company"]).optional(),
 });
 
 export const bulkImportRowSchema = createEmployeeSchema.omit({ password: true });

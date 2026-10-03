@@ -9,6 +9,7 @@ import DepartmentsIcon from "@mui/icons-material/Apartment";
 import LocationsIcon from "@mui/icons-material/Place";
 import SchedulesIcon from "@mui/icons-material/EventNote";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import AIIcon from "@mui/icons-material/AutoAwesome";
 import NotificationsListIcon from "@mui/icons-material/NotificationsActive";
@@ -20,6 +21,8 @@ import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import LogoutIcon from "@mui/icons-material/Logout";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import WidgetsOutlinedIcon from "@mui/icons-material/WidgetsOutlined";
 import {
   Alert,
   AppBar,
@@ -38,6 +41,7 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  alpha,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -54,6 +58,8 @@ import { NotificationsAttentionFab } from "../components/NotificationsAttentionF
 import { VirtualAssistantWidget } from "../components/VirtualAssistantWidget";
 import LanguageToggle from "../components/LanguageToggle";
 import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
+import { DepartmentSelfAssignDialog } from "../components/DepartmentSelfAssignDialog";
+import { FLOATING_BUTTONS_HIDDEN_KEY, useLocalStorageFlag } from "../hooks/useLocalStorageFlag";
 import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
 
 export type SystemBroadcastClientPayload = {
@@ -83,6 +89,7 @@ const allPaths: NavItem[] = [
   { to: "/calendar", key: "calendar", Icon: CalendarIcon },
   { to: "/meeting-rooms", key: "meetingRooms", Icon: MeetingRoomIcon },
   { to: "/preferences", key: "attendancePrefs", Icon: PlaylistAddCheckIcon },
+  { to: "/my-parking", key: "myParkingNav", Icon: DirectionsCarIcon },
   { to: "/employees", key: "employees", Icon: EmployeesIcon },
   { to: "/departments", key: "departments", Icon: DepartmentsIcon },
   { to: "/locations", key: "locations", Icon: LocationsIcon },
@@ -107,6 +114,7 @@ export default function MainLayout() {
   const permanentDrawerW = !mobile && compactDesktop ? WIDTH_COMPACT : WIDTH;
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [screenHelpOpen, setScreenHelpOpen] = React.useState(false);
+  const [floatingHidden, setFloatingHidden] = useLocalStorageFlag(FLOATING_BUTTONS_HIDDEN_KEY);
   const loc = useLocation();
   const navigate = useNavigate();
   const role = useRole();
@@ -165,7 +173,7 @@ export default function MainLayout() {
   });
 
   const nav = allPaths.filter((p) => {
-    if (p.to === "/preferences") return role === "employee";
+    if (p.to === "/preferences") return role === "employee" || role === "manager";
     if (p.to === "/preference-ai-queue") return role === "admin" || role === "manager";
     if (p.to === "/team-preferences") return role === "admin" || role === "manager";
     if (adminOnlyNav.includes(p.to)) return role === "admin";
@@ -460,6 +468,7 @@ export default function MainLayout() {
         </Box>
       </Box>
       </Box>
+      <DepartmentSelfAssignDialog />
       {user && !isEmployee ? (
         <>
           <ScreenHelpOverlay
@@ -485,13 +494,55 @@ export default function MainLayout() {
               "& > *": { pointerEvents: "auto" },
             }}
           >
-            <VirtualAssistantWidget
-              role={role ?? "employee"}
-              onOpenScreenHelp={() => setScreenHelpOpen(true)}
-            />
-            <AiInsightFab socket={socket} />
-            <BirthdayFab socket={socket} />
-            <NotificationsAttentionFab socket={socket} />
+            {floatingHidden ? (
+              <Tooltip title={t("floatingButtonsShow")} placement={theme.direction === "rtl" ? "right" : "left"} arrow>
+                <IconButton
+                  size="small"
+                  aria-label={t("floatingButtonsShow")}
+                  onClick={() => setFloatingHidden(false)}
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    bgcolor: (th) => alpha(th.palette.background.paper, 0.85),
+                    border: 1,
+                    borderColor: "divider",
+                    boxShadow: 2,
+                    opacity: 0.8,
+                    "&:hover": { opacity: 1, bgcolor: "background.paper" },
+                  }}
+                >
+                  <WidgetsOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <>
+                <VirtualAssistantWidget
+                  role={role ?? "employee"}
+                  onOpenScreenHelp={() => setScreenHelpOpen(true)}
+                />
+                <AiInsightFab socket={socket} />
+                <BirthdayFab socket={socket} />
+                <NotificationsAttentionFab socket={socket} />
+                <Tooltip title={t("floatingButtonsHide")} placement={theme.direction === "rtl" ? "right" : "left"} arrow>
+                  <IconButton
+                    size="small"
+                    aria-label={t("floatingButtonsHide")}
+                    onClick={() => setFloatingHidden(true)}
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      bgcolor: (th) => alpha(th.palette.background.paper, 0.9),
+                      border: 1,
+                      borderColor: "divider",
+                      boxShadow: 1,
+                      "&:hover": { bgcolor: "background.paper" },
+                    }}
+                  >
+                    <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
           </Box>
         </>
       ) : null}

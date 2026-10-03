@@ -4,6 +4,7 @@ import * as ctrl from "../controllers/internalLocationController.js";
 
 const r = Router();
 r.use(requireInternalSecret);
+r.get("/locations", ctrl.listActive);
 r.get("/locations/:id", ctrl.getOne);
 r.post("/parking/sync-manager-office-auto", ctrl.syncManagerOfficeAutoParking);
 

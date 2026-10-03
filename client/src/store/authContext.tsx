@@ -37,6 +37,7 @@ type AuthCtx = AuthState & {
     password: string;
     phone?: string;
     jobTitle?: string;
+    departmentId?: string;
     turnstileToken?: string | null;
     tenantSlug?: string;
     inviteToken?: string;
@@ -104,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string;
       phone?: string;
       jobTitle?: string;
+      departmentId?: string;
       turnstileToken?: string | null;
       tenantSlug?: string;
       inviteToken?: string;

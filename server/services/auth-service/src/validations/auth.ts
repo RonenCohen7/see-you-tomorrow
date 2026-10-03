@@ -5,7 +5,11 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   phone: z.string().optional(),
-  jobTitle: z.string().optional(),
+  jobTitle: z.string().trim().min(1, "דרוש תפקיד"),
+  departmentId: z
+    .string()
+    .regex(/^[a-f0-9]{24}$/i)
+    .optional(),
   turnstileToken: z.string().optional(),
 });
 

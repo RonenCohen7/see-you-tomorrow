@@ -22,8 +22,9 @@ import {
 const BUILTIN_TITLE_HE = {
   office: "משרד",
   home: "בית",
+  client: "מחוץ למשרד – לקוח",
   vacation: "חופשה",
-  sick: "מחלה",
+  sick: "חופשת מחלה",
   off: "לא עובדים",
 } as const;
 

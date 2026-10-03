@@ -1,13 +1,20 @@
 import { getRequestTenantSlug } from "./tenantContext.js";
 
 /**
+ * Company code for the original databases (`syt_employees`, not `syt_syt_*`).
+ * Other codes are prefixes: `88` → `88_syt_employees`.
+ */
+export const UNPREFIXED_TENANT_SLUG = "syt";
+
+/**
  * Database prefix for the current request, else TENANT_DB_PREFIX.
- * `acme` → `acme_`. Empty string means the legacy unprefixed databases.
+ * `acme` → `acme_`. Empty string and `syt` mean the legacy unprefixed databases.
  */
 export function getTenantDbPrefix(): string {
   const fromRequest = getRequestTenantSlug();
+  if (fromRequest === UNPREFIXED_TENANT_SLUG) return "";
   const raw = (fromRequest || process.env.TENANT_DB_PREFIX?.trim() || "").trim();
-  if (!raw) return "";
+  if (!raw || raw === UNPREFIXED_TENANT_SLUG) return "";
   return raw.endsWith("_") ? raw : `${raw}_`;
 }
 

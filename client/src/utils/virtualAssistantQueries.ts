@@ -7,6 +7,8 @@ function scheduleStatusLabel(status: string, t: TFunction): string {
       return t("assistantStatusOffice");
     case "home":
       return t("assistantStatusHome");
+    case "client":
+      return t("client");
     case "vacation":
       return t("assistantStatusVacation");
     case "sick":
@@ -48,7 +50,7 @@ function uniqueEmployeesByStatus(items: Schedule[], status?: string): number {
   return set.size;
 }
 
-export type BuiltinScheduleStatus = "office" | "home" | "vacation" | "sick" | "off";
+export type BuiltinScheduleStatus = "office" | "home" | "client" | "vacation" | "sick" | "off";
 
 export async function queryCountEmployeesByScheduleStatus(opts: {
   client: AxiosInstance;
@@ -87,7 +89,7 @@ export async function queryCountEmployeesByScheduleStatus(opts: {
     })}\n${scopeSuffix(tm)}`;
   }
 
-  const builtinOrder: BuiltinScheduleStatus[] = ["office", "home", "vacation", "sick", "off"];
+  const builtinOrder: BuiltinScheduleStatus[] = ["office", "home", "client", "vacation", "sick", "off"];
   const byBuiltin = new Map<BuiltinScheduleStatus, Set<string>>();
   for (const b of builtinOrder) byBuiltin.set(b, new Set());
   let custom = new Set<string>();

@@ -38,7 +38,7 @@ function addUtcDaysIso(iso: string, delta: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-type PrefDay = { workDate: string; preference?: "office" | "home" | "vacation" | "off" };
+type PrefDay = { workDate: string; preference?: "office" | "home" | "client" | "vacation" | "sick" | "off" };
 
 type DeptPreferenceRow = {
   id: string;

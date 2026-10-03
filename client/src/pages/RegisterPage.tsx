@@ -10,6 +10,7 @@ import {
   Typography,
   Link,
   CircularProgress,
+  MenuItem,
 } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
 import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from "react-router-dom";
@@ -20,6 +21,9 @@ import { useAuth } from "../store/authContext";
 import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
 import { isSharedSaasEnabled } from "../utils/tenantAuth";
+import api from "../services/api";
+
+type RegisterDepartment = { id: string; name: string };
 
 export default function RegisterPage() {
   const { t } = useTranslation();
@@ -39,13 +43,54 @@ export default function RegisterPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<RegisterDepartment[]>([]);
+  const [departmentsStatus, setDepartmentsStatus] = useState<"idle" | "loading" | "ok" | "notFound">("idle");
+  const departmentsLoading = departmentsStatus === "loading";
+  const [departmentId, setDepartmentId] = useState("");
 
   const onTurnstileChange = useCallback((t: string | null) => setTurnstileToken(t), []);
+  const joinExisting = !sharedSaas || mode === "join" || Boolean(inviteToken);
+  const slugForLookup = tenantSlug.trim().toLowerCase();
 
   useEffect(() => {
     const prefill = searchParams.get("email");
     if (prefill) setEmail(prefill);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!joinExisting || (sharedSaas && !inviteToken && !slugForLookup)) {
+      setDepartments([]);
+      setDepartmentsStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setDepartmentsStatus("loading");
+    const timer = window.setTimeout(() => {
+      const body: Record<string, string> = {};
+      if (inviteToken) body.inviteToken = inviteToken;
+      else if (slugForLookup) body.tenantSlug = slugForLookup;
+      api
+        .post<{ items: RegisterDepartment[] }>("/api/auth/register-departments", body)
+        .then(({ data }) => {
+          if (cancelled) return;
+          setDepartments(data.items ?? []);
+          setDepartmentsStatus("ok");
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setDepartments([]);
+          setDepartmentsStatus("notFound");
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [joinExisting, sharedSaas, inviteToken, slugForLookup]);
+
+  useEffect(() => {
+    if (departmentId && !departments.some((d) => d.id === departmentId)) setDepartmentId("");
+  }, [departments, departmentId]);
 
   if (user) {
     return <Navigate to={defaultLandingForRole(user.role)} replace />;
@@ -60,8 +105,12 @@ export default function RegisterPage() {
       setLoading(false);
       return;
     }
+    if (joinExisting && departments.length > 0 && !departmentId) {
+      setError(t("registerDepartmentRequired"));
+      setLoading(false);
+      return;
+    }
     try {
-      const joinExisting = !sharedSaas || mode === "join" || Boolean(inviteToken);
       const registered = joinExisting
         ? await register({
             fullName,
@@ -69,6 +118,7 @@ export default function RegisterPage() {
             password,
             phone: phone || undefined,
             jobTitle: jobTitle || undefined,
+            departmentId: departmentId || undefined,
             turnstileToken,
             inviteToken: inviteToken || undefined,
             tenantSlug: tenantSlug.trim() || undefined,
@@ -157,6 +207,17 @@ export default function RegisterPage() {
                 onChange={(e) => setOrganizationName(e.target.value)}
               />
             )}
+            {sharedSaas && !inviteToken && (
+              <TextField
+                fullWidth
+                required
+                label={mode === "create" ? t("organizationSlug") : t("companySlug")}
+                margin="normal"
+                value={tenantSlug}
+                onChange={(e) => setTenantSlug(e.target.value)}
+                helperText={mode === "create" ? t("organizationSlugHelp") : t("companySlugHelp")}
+              />
+            )}
             <TextField
               fullWidth
               required
@@ -187,17 +248,43 @@ export default function RegisterPage() {
               helperText={t("passwordHint")}
             />
             <TextField fullWidth label={t("phone")} margin="normal" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            <TextField fullWidth label={t("jobTitle")} margin="normal" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
-            {sharedSaas && !inviteToken && (
+            <TextField
+              fullWidth
+              required={joinExisting}
+              label={t("jobTitle")}
+              margin="normal"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+            />
+            {joinExisting && (
               <TextField
+                select
                 fullWidth
-                required
-                label={mode === "create" ? t("organizationSlug") : t("companySlug")}
+                required={departmentsStatus !== "ok" || departments.length > 0}
+                label={t("registerDepartment")}
                 margin="normal"
-                value={tenantSlug}
-                onChange={(e) => setTenantSlug(e.target.value)}
-                helperText={mode === "create" ? t("organizationSlugHelp") : t("companySlugHelp")}
-              />
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                disabled={departmentsStatus !== "ok" || departments.length === 0}
+                error={departmentsStatus === "notFound"}
+                helperText={
+                  departmentsStatus === "idle"
+                    ? t("registerDepartmentNeedCompany")
+                    : departmentsStatus === "loading"
+                      ? t("registerDepartmentsLoading")
+                      : departmentsStatus === "notFound"
+                        ? t("registerDepartmentCompanyNotFound")
+                        : departments.length === 0
+                          ? t("registerDepartmentNoneInOrg")
+                          : t("registerDepartmentHelp")
+                }
+              >
+                {departments.map((d) => (
+                  <MenuItem key={d.id} value={d.id}>
+                    {d.name}
+                  </MenuItem>
+                ))}
+              </TextField>
             )}
             <PublicTurnstileField onTokenChange={onTurnstileChange} />
             <Button fullWidth type="submit" variant="contained" sx={{ mt: 3 }} disabled={loading}>

@@ -68,6 +68,11 @@ export async function register(req: AuthRequest, res: Response) {
   }
 }
 
+export async function registerDepartments(_req: AuthRequest, res: Response) {
+  const items = await authService.listRegistrationDepartments();
+  res.json({ items });
+}
+
 export async function registerOrganization(req: AuthRequest, res: Response) {
   const parsed = registerOrganizationSchema.safeParse(req.body);
   if (!parsed.success) {

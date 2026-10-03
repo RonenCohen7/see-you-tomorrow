@@ -6,8 +6,6 @@ export const EMPLOYEE_REQUIRED_FIELD_KEYS = [
   "email",
   "birthDate",
   "phone",
-  "address",
-  "maritalStatus",
   "jobTitle",
   "departmentId",
 ] as const;
@@ -28,8 +26,6 @@ export function employeeMissingRequiredFields(emp: Employee): EmployeeRequiredFi
   if (!emp.email?.trim()) miss.push("email");
   if (!emp.birthDate?.trim()) miss.push("birthDate");
   if (!emp.phone?.trim()) miss.push("phone");
-  if (!emp.address?.trim()) miss.push("address");
-  if (!emp.maritalStatus) miss.push("maritalStatus");
   if (!emp.jobTitle?.trim()) miss.push("jobTitle");
   if (!oidLike(emp.departmentId)) miss.push("departmentId");
   return miss;

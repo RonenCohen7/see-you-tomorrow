@@ -62,6 +62,7 @@ function groupCalendarDayRoster(
   const builtins: Record<StatusKey, Schedule[]> = {
     office: [],
     home: [],
+    client: [],
     vacation: [],
     sick: [],
     off: [],
@@ -94,6 +95,7 @@ export function CalendarDayEditorDialog({
   loading,
   employeeMap,
   employees,
+  editableEmployeeIds,
   canWrite,
   birthdaysOnDate,
   parkingOnDate,
@@ -110,6 +112,8 @@ export function CalendarDayEditorDialog({
   loading: boolean;
   employeeMap: Map<string, Employee>;
   employees: Employee[];
+  /** When set, only these employees' rows show edit/delete (roster still shows everyone). */
+  editableEmployeeIds?: Set<string>;
   canWrite: boolean;
   birthdaysOnDate: { employeeId: string; fullName: string }[];
   parkingOnDate: { spotLabel: string; guestName: string; hoursLabel: string }[];
@@ -144,6 +148,9 @@ export function CalendarDayEditorDialog({
     const d = new Date(date);
     return weekdayLabelsFull[d.getDay()] ?? "";
   }, [date, weekdayLabelsFull]);
+
+  const canEditRow = (employeeId: string) =>
+    canWrite && (!editableEmployeeIds || editableEmployeeIds.has(employeeId));
 
   const selectableEmployees = useMemo(
     () => (editor?.id ? employees : employees.filter((e) => e.isActive !== false)),
@@ -630,7 +637,7 @@ export function CalendarDayEditorDialog({
                                 {s.note}
                               </Typography>
                             )}
-                            {canWrite && (
+                            {canEditRow(s.employeeId) && (
                               <Stack direction="row" spacing={0.5} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
                                 <Tooltip
                                   title={inactiveFutureBadge ? t("calEditorInactiveShiftBlocked") : t("edit")}
@@ -759,7 +766,7 @@ export function CalendarDayEditorDialog({
                                 {s.note}
                               </Typography>
                             ) : null}
-                            {canWrite && (
+                            {canEditRow(s.employeeId) && (
                               <Stack direction="row" spacing={0.5} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
                                 <Tooltip
                                   title={inactiveFutureBadge ? t("calEditorInactiveShiftBlocked") : t("edit")}

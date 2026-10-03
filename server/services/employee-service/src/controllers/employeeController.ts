@@ -4,6 +4,7 @@ import {
   bulkImportEmployeesSchema,
   createEmployeeSchema,
   listQuerySchema,
+  selfAssignDepartmentSchema,
   updateEmployeeSchema,
 } from "../validations/employee.js";
 import * as svc from "../services/employeeService.js";
@@ -12,6 +13,13 @@ export async function list(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new AppError(400, "שאילתה לא תקינה", "VALIDATION", parsed.error.flatten());
+
+  const { scope: view, ...query } = parsed.data;
+  if (view === "company") {
+    const result = await svc.listEmployees(query);
+    if (req.user.role === "admin") return res.json(result);
+    return res.json({ ...result, items: result.items.map(svc.toDirectoryEntry) });
+  }
 
   let scope: { role: typeof req.user.role; userId: string; departmentId?: string } | undefined;
   if (req.user.role === "employee") {
@@ -24,7 +32,7 @@ export async function list(req: AuthRequest, res: Response) {
     scope = undefined;
   }
 
-  const result = await svc.listEmployees(parsed.data, scope);
+  const result = await svc.listEmployees(query, scope);
   res.json(result);
 }
 
@@ -46,6 +54,14 @@ export async function getOne(req: AuthRequest, res: Response) {
 export async function getMe(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const e = await svc.getMe(req.user.id);
+  res.json(e);
+}
+
+export async function selfAssignDepartment(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const parsed = selfAssignDepartmentSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const e = await svc.selfAssignDepartment(req.user.id, parsed.data.departmentId);
   res.json(e);
 }
 

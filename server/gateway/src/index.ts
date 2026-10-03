@@ -140,6 +140,15 @@ const resetPasswordLimiter = rateLimit({
   handler: rateLimitHandler,
 });
 
+const registerDepartmentsLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `register-departments:${req.ip}`,
+  handler: rateLimitHandler,
+});
+
 function privilegedAuthPrelude(req: Request, res: Response, next: NextFunction): void {
   void res;
   const r = req as RequestWithSkip;
@@ -186,6 +195,10 @@ function authRouteLimits(req: Request, res: Response, next: NextFunction): void 
   }
   if (path === "/register" || path === "/register-organization") {
     registerLimiter(req, res, next);
+    return;
+  }
+  if (path === "/register-departments") {
+    registerDepartmentsLimiter(req, res, next);
     return;
   }
   if (path === "/reset-password") {

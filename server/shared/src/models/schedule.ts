@@ -1,7 +1,8 @@
 import type { Connection, Model } from "mongoose";
 import { Schema } from "mongoose";
 
-export const SCHEDULE_STATUSES = ["office", "home", "vacation", "sick", "off"] as const;
+/** `client` = working outside the office at a customer site (does not take an office seat). */
+export const SCHEDULE_STATUSES = ["office", "home", "client", "vacation", "sick", "off"] as const;
 export type ScheduleStatus = (typeof SCHEDULE_STATUSES)[number];
 
 /** Stored value for organization-defined statuses: `custom:` + hex id from OrganizationSettings.customScheduleStatuses. */

@@ -1,8 +1,8 @@
 import type { Connection, Model } from "mongoose";
 import { Schema } from "mongoose";
 
-/** What an employee may request ahead of AI scheduling (not typically "sick"). */
-export const ATTENDANCE_PREFERENCE_STATUSES = ["office", "home", "vacation", "off"] as const;
+/** What an employee may request ahead of AI scheduling. */
+export const ATTENDANCE_PREFERENCE_STATUSES = ["office", "home", "client", "vacation", "sick", "off"] as const;
 export type AttendancePreferenceStatus = (typeof ATTENDANCE_PREFERENCE_STATUSES)[number];
 
 export interface PreferenceDayEntry {

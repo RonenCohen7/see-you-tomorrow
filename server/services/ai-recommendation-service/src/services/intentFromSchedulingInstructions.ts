@@ -39,6 +39,7 @@ export function interpretClearInactiveFutureSchedulesMaintenance(
     n.includes(normalize("יומן")) ||
     n.includes(normalize("לוח זמנים")) ||
     n.includes(normalize("לוחות זמנים")) ||
+    n.includes(normalize("רשומות שיבוץ")) ||
     n.includes(normalize("שיבוצ")) ||
     n.includes(normalize("משמר")) ||
     n.includes("calendar") ||

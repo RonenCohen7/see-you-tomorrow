@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { SCHEDULE_STATUSES } from "@syt/shared";
 
 type Tool = Anthropic.Tool;
 import {
@@ -14,7 +15,7 @@ import {
 } from "./assistantApiClient.js";
 import { interpretSchedulingRuleFromText } from "./schedulingRuleFromText.js";
 
-const BUILTIN_STATUSES = ["office", "home", "vacation", "sick", "off"] as const;
+const BUILTIN_STATUSES = SCHEDULE_STATUSES;
 
 function uniqueByStatus(items: ScheduleRow[]) {
   const map = new Map<string, Set<string>>();

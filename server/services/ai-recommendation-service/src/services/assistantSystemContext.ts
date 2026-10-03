@@ -6,7 +6,7 @@ const SCREEN_SUMMARIES_HE: Record<string, string> = {
   "/employees": "עובדים — כרטיסים, תפקיד, מחלקה, מיקום.",
   "/departments": "מחלקות — מבנה ארגוני.",
   "/locations": "מיקומים — אתרים, קיבולת, חניות.",
-  "/schedules": "לוחות זמנים — שיבוצים לפי עובד/תאריך/סטטוס.",
+  "/schedules": "רשומות שיבוץ — שיבוצים לפי עובד/תאריך/סטטוס.",
   "/parking": "חניות — הקצאות לפי יום.",
   "/reports": "דוחות — ייצוא לפי טווח וסטטוס.",
   "/ai": "המלצות AI — הצעות בלבד; אישור אצל מנהלים.",
@@ -42,14 +42,14 @@ const SCREEN_SUMMARIES_EN: Record<string, string> = {
 
 const ROLE_ACCESS_HE = `
 תפקידים: admin (הכל), manager (מחלקה + לוחות/חניה/AI/דוחות), employee (יומן, העדפות אישיות, פרופיל).
-סטטוסי שיבוץ מובנים: office, home, vacation, sick, off; וגם custom:<id> מהארגון.
+סטטוסי שיבוץ מובנים: office, home, client (מחוץ למשרד – אצל לקוח), vacation, sick (חופשת מחלה), off; וגם custom:<id> מהארגון.
 תאריכים: YYYY-MM-DD; «היום»/«מחר»/«אתמול» מותרים בשאילתה — השתמש בכלים עם תאריך מפורש.
 אל תמציא מספרים — רק מכלי הנתונים. הנתונים מסוננים לפי הרשאות המשתמש.
 `;
 
 const ROLE_ACCESS_EN = `
 Roles: admin (all), manager (department scope + schedules/parking/AI/reports), employee (calendar, own prefs, profile).
-Built-in schedule statuses: office, home, vacation, sick, off; plus custom:<id> from org settings.
+Built-in schedule statuses: office, home, client (out of office at a customer site), vacation, sick (sick leave), off; plus custom:<id> from org settings.
 Dates: use YYYY-MM-DD in tools; interpret today/tomorrow/yesterday from user text.
 Never invent counts — only from data tools. Data respects the user's JWT permissions.
 `;

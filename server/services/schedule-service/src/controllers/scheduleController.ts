@@ -24,6 +24,11 @@ import * as orgSettings from "../services/orgSettingsService.js";
 import * as svc from "../services/scheduleService.js";
 import * as empRemote from "../services/remoteEmployee.js";
 
+/** `?scope=company`: read-only calendar view of the whole company, regardless of role. */
+function isCompanyView(req: AuthRequest): boolean {
+  return req.query.scope === "company";
+}
+
 export async function getOrgSettings(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const s = await orgSettings.getOrgSchedulesFull();
@@ -70,25 +75,27 @@ export async function list(req: AuthRequest, res: Response) {
   const parsed = listQuerySchema.safeParse(req.query);
   if (!parsed.success) throw new AppError(400, "שאילתה לא תקינה", "VALIDATION", parsed.error.flatten());
 
-  let employeeId = parsed.data.employeeId;
-  let departmentId = parsed.data.departmentId;
+  const { scope, ...filters } = parsed.data;
+  const companyView = scope === "company";
+  let employeeId = filters.employeeId;
+  let departmentId = filters.departmentId;
 
-  if (req.user.role === "employee") {
+  if (!companyView && req.user.role === "employee") {
     employeeId = req.user.id;
     departmentId = undefined;
-  } else if (req.user.role === "manager") {
+  } else if (!companyView && req.user.role === "manager") {
     const me = await empRemote.fetchEmployeeInternal(req.user.id);
     departmentId = me?.departmentId;
     employeeId = undefined;
   }
 
   let items = await svc.listSchedules({
-    ...parsed.data,
+    ...filters,
     employeeId,
     departmentId,
   });
 
-  if (req.user.role !== "admin") {
+  if (!companyView && req.user.role !== "admin") {
     items = (await authz.filterSchedulesForUser(req.user.id, req.user.role, items)) as typeof items;
   }
 
@@ -103,7 +110,7 @@ export async function day(req: AuthRequest, res: Response) {
     role: req.user.role,
   });
   let items = await svc.dayView(date);
-  if (req.user.role !== "admin") {
+  if (req.user.role !== "admin" && !isCompanyView(req)) {
     items = (await authz.filterSchedulesForUser(req.user.id, req.user.role, items)) as typeof items;
   }
   res.json({ date, items });
@@ -114,7 +121,7 @@ export async function month(req: AuthRequest, res: Response) {
   await authz.assertCanReadSchedule({ userId: req.user.id, role: req.user.role });
   const summary = await svc.monthSummary(req.params.month);
 
-  if (req.user.role === "admin") {
+  if (req.user.role === "admin" || isCompanyView(req)) {
     return res.json(summary);
   }
 
@@ -130,6 +137,7 @@ export async function month(req: AuthRequest, res: Response) {
     {
       office: number;
       home: number;
+      client: number;
       vacation: number;
       sick: number;
       off: number;
@@ -142,6 +150,7 @@ export async function month(req: AuthRequest, res: Response) {
     const bucket = dayMap.get(k) ?? {
       office: 0,
       home: 0,
+      client: 0,
       vacation: 0,
       sick: 0,
       off: 0,
@@ -170,7 +179,7 @@ export async function week(req: AuthRequest, res: Response) {
   await authz.assertCanReadSchedule({ userId: req.user.id, role: req.user.role });
   const data = await svc.weekView(req.params.date);
   let schedules = data.schedules;
-  if (req.user.role !== "admin") {
+  if (req.user.role !== "admin" && !isCompanyView(req)) {
     schedules = (await authz.filterSchedulesForUser(req.user.id, req.user.role, schedules)) as typeof schedules;
   }
   res.json({ ...data, schedules });

@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { SvgIconProps } from "@mui/material";
 import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
 import HomeIcon from "@mui/icons-material/Home";
+import HandshakeIcon from "@mui/icons-material/Handshake";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import SickIcon from "@mui/icons-material/Sick";
 import EventBusyIcon from "@mui/icons-material/EventBusy";
@@ -15,11 +16,12 @@ export type StatusMeta = {
   presenceI18nKey: string;
 };
 
-export const STATUS_ORDER: StatusKey[] = ["office", "home", "vacation", "sick", "off"];
+export const STATUS_ORDER: StatusKey[] = ["office", "home", "client", "vacation", "sick", "off"];
 
 export const statusMeta: Record<StatusKey, StatusMeta> = {
   office: { key: "office", color: statusColors.office, Icon: BusinessCenterIcon, i18nKey: "office", presenceI18nKey: "atOffice" },
   home: { key: "home", color: statusColors.home, Icon: HomeIcon, i18nKey: "home", presenceI18nKey: "atHome" },
+  client: { key: "client", color: statusColors.client, Icon: HandshakeIcon, i18nKey: "client", presenceI18nKey: "atClient" },
   vacation: { key: "vacation", color: statusColors.vacation, Icon: BeachAccessIcon, i18nKey: "vacation", presenceI18nKey: "onVacation" },
   sick: { key: "sick", color: statusColors.sick, Icon: SickIcon, i18nKey: "sick", presenceI18nKey: "onSick" },
   off: { key: "off", color: statusColors.off, Icon: EventBusyIcon, i18nKey: "off", presenceI18nKey: "onOff" },

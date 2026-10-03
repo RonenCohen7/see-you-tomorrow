@@ -3,12 +3,14 @@ import {
   getConnection,
   getScheduleAiBatchModel,
   type ScheduleAiBatchCreationSource,
+  type ScheduleAiBatchException,
   type ScheduleAiBatchItem,
   type ScheduleAiBatchStatus,
 } from "@syt/shared";
 import type { Types } from "mongoose";
 import mongoose from "mongoose";
 import * as pref from "./attendancePreferenceService.js";
+import { defaultAiConstraints, findPipelineExceptions } from "./pipelineExceptions.js";
 
 function toPublic(
   doc: import("@syt/shared").ScheduleAiBatchDoc & { _id: Types.ObjectId }
@@ -25,6 +27,8 @@ function toPublic(
     confidence: doc.confidence,
     model: doc.model,
     validationNotes: doc.validationNotes,
+    exceptions: doc.exceptions ?? [],
+    autoApproved: doc.autoApproved === true,
     creationSource: doc.creationSource,
     preferenceCycleId: doc.preferenceCycleId?.toString(),
     createdAt: doc.createdAt,
@@ -59,6 +63,7 @@ export async function createBatch(input: {
   confidence?: number;
   model?: string;
   validationNotes?: string[];
+  exceptions?: ScheduleAiBatchException[];
   creationSource?: ScheduleAiBatchCreationSource;
   preferenceCycleId?: string;
 }) {
@@ -76,6 +81,7 @@ export async function createBatch(input: {
     confidence: input.confidence,
     model: input.model,
     validationNotes: input.validationNotes,
+    ...(input.exceptions ? { exceptions: input.exceptions } : {}),
     ...(input.creationSource ? { creationSource: input.creationSource } : {}),
     ...(input.preferenceCycleId
       ? { preferenceCycleId: new mongoose.Types.ObjectId(input.preferenceCycleId) }
@@ -84,7 +90,7 @@ export async function createBatch(input: {
   return doc._id.toString();
 }
 
-export async function approveBatch(batchId: string, approvedBy: string) {
+export async function approveBatch(batchId: string, approvedBy: string, options?: { autoApproved?: boolean }) {
   const M = await model();
   await M.updateOne(
     { _id: new mongoose.Types.ObjectId(batchId) },
@@ -92,6 +98,7 @@ export async function approveBatch(batchId: string, approvedBy: string) {
       $set: {
         status: "approved",
         approvedBy: new mongoose.Types.ObjectId(approvedBy),
+        ...(options?.autoApproved ? { autoApproved: true } : {}),
         updatedAt: new Date(),
       },
     }
@@ -135,8 +142,18 @@ export async function listPendingPreferencePipeline(departmentId: string | undef
       const weekStartSunday = publicBatch.dateRange.from;
       const submitted = await pref.listDeptWeek(publicBatch.departmentId, weekStartSunday);
       const slots = buildSubmittedPreferenceSlotSet(submitted);
+      const constraints = defaultAiConstraints();
+      const exceptions =
+        raw.exceptions ??
+        findPipelineExceptions({
+          items: publicBatch.proposedItems,
+          submitted,
+          minOfficePerDay: constraints.minOfficeEmployeesPerDay,
+          maxOfficeCapacity: constraints.maxOfficeCapacity,
+        });
       return {
         ...publicBatch,
+        exceptions,
         proposedItems: publicBatch.proposedItems.map((p: ScheduleAiBatchItem) => ({
           ...p,
           preferenceSource: slots.has(`${p.employeeId}|${p.date}`) ? ("employee" as const) : ("none" as const),

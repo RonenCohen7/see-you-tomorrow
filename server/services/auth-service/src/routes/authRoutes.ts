@@ -5,6 +5,7 @@ import * as ctrl from "../controllers/authController.js";
 const r = Router();
 
 r.post("/register", ctrl.register);
+r.post("/register-departments", ctrl.registerDepartments);
 r.post("/register-organization", ctrl.registerOrganization);
 r.post("/login", ctrl.login);
 r.post("/logout", ctrl.logout);

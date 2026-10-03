@@ -135,6 +135,20 @@ export async function upsertMine(input: {
   return toPublic(doc.toObject() as AttendancePreferenceDoc & { _id: Types.ObjectId });
 }
 
+/** Upcoming weeks saved before the employee had a department. Returns the submitted weeks that were updated. */
+export async function assignDepartmentToUpcoming(employeeId: string, departmentId: string): Promise<string[]> {
+  const M = await model();
+  const fromWeek = earliestAllowedPreferenceWeekSunday(0);
+  const filter = {
+    employeeId: new mongoose.Types.ObjectId(employeeId),
+    weekStartSunday: { $gte: fromWeek },
+    $or: [{ departmentId: { $exists: false } }, { departmentId: null }],
+  };
+  const submitted = await M.find({ ...filter, status: "submitted" }).select("weekStartSunday").lean();
+  await M.updateMany(filter, { $set: { departmentId: new mongoose.Types.ObjectId(departmentId) } });
+  return submitted.map((d) => d.weekStartSunday);
+}
+
 export async function getMissingSubmissionEmployeeIds(weekStartSunday: string, candidateEmployeeIds: string[]) {
   if (candidateEmployeeIds.length === 0) return [];
   const M = await model();

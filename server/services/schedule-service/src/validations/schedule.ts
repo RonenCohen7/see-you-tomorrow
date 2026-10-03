@@ -141,6 +141,8 @@ export const listQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   forecast: z.enum(["true", "false"]).optional(),
+  /** Read-only company-wide view (calendar): every employee sees everyone's attendance. */
+  scope: z.enum(["company"]).optional(),
 });
 
 export const applyRecommendationsSchema = z.object({

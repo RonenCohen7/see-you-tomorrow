@@ -158,19 +158,16 @@ function requiredOutlinedFieldSx(theme: Theme, satisfied: boolean): SxProps<Them
   };
 }
 
+/** Editing (e.g. deactivating) must work for self-registered employees who never filled HR fields. */
 function isEmployeeFormComplete(form: FormState, isEdit: boolean): boolean {
-  const oidDept = /^[a-f\d]{24}$/i.test(form.departmentId.trim());
-  const passOk = isEdit || form.password.trim().length >= 8;
+  if (!form.fullName.trim() || !form.email.trim()) return false;
+  if (isEdit) return true;
   return (
-    !!form.fullName.trim() &&
-    !!form.email.trim() &&
     !!form.birthDate &&
     !!form.phone.trim() &&
-    !!form.address.trim() &&
-    !!form.maritalStatus &&
     !!form.jobTitle.trim() &&
-    oidDept &&
-    passOk
+    /^[a-f\d]{24}$/i.test(form.departmentId.trim()) &&
+    form.password.trim().length >= 8
   );
 }
 
@@ -257,8 +254,8 @@ function bulkImportRowsToCsvRows(rows: BulkImportEmployeePayload[]): Record<stri
     email: r.email,
     birthDate: r.birthDate,
     phone: r.phone,
-    address: r.address,
-    maritalStatus: r.maritalStatus,
+    address: r.address ?? "",
+    maritalStatus: r.maritalStatus ?? "",
     jobTitle: r.jobTitle,
     departmentId: r.departmentId,
     role: r.role ?? "",
@@ -466,14 +463,14 @@ export default function EmployeesPage() {
       const payload: Record<string, unknown> = {
         fullName: form.fullName.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim(),
+        phone: form.phone.trim() || undefined,
         imageUrl: form.imageUrl || undefined,
-        jobTitle: form.jobTitle.trim(),
-        departmentId: form.departmentId.trim(),
+        jobTitle: form.jobTitle.trim() || undefined,
+        departmentId: form.departmentId.trim() || undefined,
         locationId: form.locationId.trim() || undefined,
         role: form.role,
         isActive: form.isActive,
-        birthDate: form.birthDate,
+        birthDate: form.birthDate || undefined,
         address: form.address.trim(),
         maritalStatus: form.maritalStatus,
         emergencyContact: form.emergencyContact.trim() || undefined,
@@ -2238,32 +2235,27 @@ function EmployeeFormDialog({
             sx={requiredOutlinedFieldSx(theme, !!form.fullName.trim())}
           />
           <TextField
-            required
+            required={!editingId}
             label={t("birthDate")}
             type="date"
             InputLabelProps={{ shrink: true }}
             value={form.birthDate}
             onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-            sx={requiredOutlinedFieldSx(theme, !!form.birthDate.trim())}
+            sx={editingId ? undefined : requiredOutlinedFieldSx(theme, !!form.birthDate.trim())}
           />
           <TextField
-            required
             label={t("address")}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
-            sx={{ gridColumn: { sm: "1 / span 2" }, ...requiredOutlinedFieldSx(theme, !!form.address.trim()) }}
+            sx={{ gridColumn: { sm: "1 / span 2" } }}
           />
           <TextField
-            required
             select
             label={t("maritalStatus")}
             value={form.maritalStatus}
             onChange={(e) => setForm({ ...form, maritalStatus: e.target.value as MaritalStatus | "" })}
-            sx={requiredOutlinedFieldSx(theme, Boolean(form.maritalStatus))}
           >
-            <MenuItem value="" disabled>
-              {t("selectMaritalPlaceholder")}
-            </MenuItem>
+            <MenuItem value="">{t("selectMaritalPlaceholder")}</MenuItem>
             {MARITAL_STATUSES.map((s) => (
               <MenuItem key={s} value={s}>
                 {t(`ms.${s}`)}
@@ -2292,11 +2284,11 @@ function EmployeeFormDialog({
             sx={requiredOutlinedFieldSx(theme, looseEmailOk(form.email))}
           />
           <TextField
-            required
+            required={!editingId}
             label={t("phone")}
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            sx={requiredOutlinedFieldSx(theme, !!form.phone.trim())}
+            sx={editingId ? undefined : requiredOutlinedFieldSx(theme, !!form.phone.trim())}
           />
           <TextField
             label={editingId ? `${t("password")} (השאר ריק כדי לא לשנות)` : t("password")}
@@ -2320,11 +2312,11 @@ function EmployeeFormDialog({
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))" }, gap: 2, mt: 1 }}>
           <TextField
-            required
+            required={!editingId}
             label={t("jobTitle")}
             value={form.jobTitle}
             onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
-            sx={requiredOutlinedFieldSx(theme, !!form.jobTitle.trim())}
+            sx={editingId ? undefined : requiredOutlinedFieldSx(theme, !!form.jobTitle.trim())}
           />
           <TextField
             select
@@ -2344,12 +2336,12 @@ function EmployeeFormDialog({
             <MenuItem value="employee">{t("role.employee")}</MenuItem>
           </TextField>
           <TextField
-            required
+            required={!editingId}
             select
             label={t("department")}
             value={form.departmentId}
             onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-            sx={requiredOutlinedFieldSx(theme, /^[a-f\d]{24}$/i.test(form.departmentId.trim()))}
+            sx={editingId ? undefined : requiredOutlinedFieldSx(theme, /^[a-f\d]{24}$/i.test(form.departmentId.trim()))}
           >
             <MenuItem value="" disabled>
               {t("selectDepartmentPlaceholder")}

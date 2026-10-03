@@ -36,7 +36,11 @@ import api from "../services/api";
 import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 
-export type RuleType = "location_unavailable" | "min_managers_office_daily" | "manager_office_auto_parking";
+export type RuleType =
+  | "location_unavailable"
+  | "min_managers_office_daily"
+  | "manager_office_auto_parking"
+  | "organization_policy";
 
 export type SchedulingRuleDto = {
   id: string;
@@ -68,6 +72,7 @@ export type SchedulingRuleProposalDto = {
 };
 
 const RULE_TYPE_ORDER: RuleType[] = [
+  "organization_policy",
   "location_unavailable",
   "min_managers_office_daily",
   "manager_office_auto_parking",
@@ -107,12 +112,17 @@ function formatRulePayload(rule: SchedulingRuleDto, locationNameById: Map<string
   if (rule.ruleType === "manager_office_auto_parking") {
     return "";
   }
+  if (rule.ruleType === "organization_policy") {
+    const text = rule.payload.text;
+    return typeof text === "string" ? text.trim() : "";
+  }
   return "";
 }
 
 function chipLabel(ruleType: SchedulingRuleDto["ruleType"], tfn: (key: string) => string): string {
   if (ruleType === "location_unavailable") return tfn("schedulingRulesRuleType_location_unavailable");
   if (ruleType === "min_managers_office_daily") return tfn("schedulingRulesRuleType_min_managers_office_daily");
+  if (ruleType === "organization_policy") return tfn("schedulingRulesRuleType_organization_policy");
   return tfn("schedulingRulesRuleType_manager_office_auto_parking");
 }
 
@@ -122,6 +132,7 @@ function typeIntroKey(ruleType: RuleType): string {
 
 function impactChipLabels(ruleType: RuleType, tfn: (key: string) => string): string[] {
   if (ruleType === "manager_office_auto_parking") return [tfn("schedulingRulesImpactParking")];
+  if (ruleType === "organization_policy") return [tfn("schedulingRulesImpactPolicy")];
   return [tfn("schedulingRulesImpactAi")];
 }
 
@@ -139,6 +150,7 @@ export default function SchedulingRulesPage() {
   const [rlFrom, setRlFrom] = React.useState("");
   const [rlTo, setRlTo] = React.useState("");
   const [rlNote, setRlNote] = React.useState("");
+  const [policyText, setPolicyText] = React.useState("");
   const [mmValue, setMmValue] = React.useState<number>(1);
   const [wizText, setWizText] = React.useState("");
   const [wizDraft, setWizDraft] = React.useState<SchedulingRuleAiDraft | null>(null);
@@ -272,6 +284,20 @@ export default function SchedulingRulesPage() {
     onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
   });
 
+  const createPolicyMut = useMutation({
+    mutationFn: async () =>
+      api.post("/api/schedules/scheduling-rules", {
+        ruleType: "organization_policy",
+        payload: { text: policyText.trim() },
+      }),
+    onSuccess: async () => {
+      setPolicyText("");
+      await qc.invalidateQueries({ queryKey: ["scheduling-rules"] });
+      setToast({ ok: true, msg: t("success") });
+    },
+    onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
+  });
+
   const createLocRuleMut = useMutation({
     mutationFn: async () =>
       api.post("/api/schedules/scheduling-rules", {
@@ -388,6 +414,32 @@ export default function SchedulingRulesPage() {
       <Alert severity="info" sx={{ mb: 2 }}>
         {t("schedulingRulesManualSaveNote")}
       </Alert>
+
+      <Card variant="outlined" sx={{ mb: 3, p: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          {t("schedulingRulesPolicyTitle")}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          {t("schedulingRulesPolicyHint")}
+        </Typography>
+        <TextField
+          placeholder={t("schedulingRulesPolicyPlaceholder")}
+          value={policyText}
+          onChange={(e) => setPolicyText(e.target.value)}
+          fullWidth
+          multiline
+          minRows={3}
+          inputProps={{ maxLength: 500 }}
+        />
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          disabled={policyText.trim().length < 3 || createPolicyMut.isPending}
+          onClick={() => createPolicyMut.mutate()}
+        >
+          {t("schedulingRulesPolicySave")}
+        </Button>
+      </Card>
 
       <Typography variant="h6" gutterBottom>
         {t("schedulingRulesPendingTitle")}

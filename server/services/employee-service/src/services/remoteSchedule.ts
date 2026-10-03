@@ -1,5 +1,22 @@
 import { AppError, internalServiceHeaders, logger } from "@syt/shared";
 
+/** Best effort: preferences saved before the employee had a department get it now, and submitted weeks enter the AI pipeline. */
+export async function assignDepartmentToPreferencesInternal(employeeId: string, departmentId: string): Promise<void> {
+  const base = process.env.SCHEDULE_SERVICE_URL ?? "http://localhost:4005";
+  try {
+    const res = await fetch(`${base}/internal/attendance-preferences/assign-department`, {
+      method: "POST",
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ employeeId, departmentId }),
+    });
+    if (!res.ok) {
+      logger.warn("assignDepartmentToPreferencesInternal failed", { employeeId, status: res.status });
+    }
+  } catch (e) {
+    logger.warn("assignDepartmentToPreferencesInternal error", { employeeId, e });
+  }
+}
+
 /** Tell schedule-service to drop all shifts from UTC «today» forward (unless `since` override). Throws if cleanup fails — call before marking employee inactive. */
 export async function clearEmployeeFutureSchedulesInternal(
   employeeId: string,

@@ -18,6 +18,20 @@ export interface ScheduleAiBatchItem {
   reason?: string;
 }
 
+/** Why a preference-pipeline batch was held for a manager instead of being applied automatically. */
+export type ScheduleAiBatchExceptionKind = "preference_overridden" | "office_shortfall" | "office_over_capacity";
+
+export interface ScheduleAiBatchException {
+  kind: ScheduleAiBatchExceptionKind;
+  date?: string;
+  employeeId?: string;
+  requestedStatus?: string;
+  assignedStatus?: string;
+  officeCount?: number;
+  required?: number;
+  capacity?: number;
+}
+
 export interface ScheduleAiBatchDoc {
   _id: import("mongoose").Types.ObjectId;
   departmentId: import("mongoose").Types.ObjectId;
@@ -32,9 +46,29 @@ export interface ScheduleAiBatchDoc {
   confidence?: number;
   model?: string;
   validationNotes?: string[];
+  exceptions?: ScheduleAiBatchException[];
+  autoApproved?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const exceptionSchema = new Schema<ScheduleAiBatchException>(
+  {
+    kind: {
+      type: String,
+      required: true,
+      enum: ["preference_overridden", "office_shortfall", "office_over_capacity"],
+    },
+    date: { type: String },
+    employeeId: { type: String },
+    requestedStatus: { type: String },
+    assignedStatus: { type: String },
+    officeCount: { type: Number },
+    required: { type: Number },
+    capacity: { type: Number },
+  },
+  { _id: false }
+);
 
 const itemSchema = new Schema<ScheduleAiBatchItem>(
   {
@@ -67,6 +101,8 @@ const scheduleAiBatchSchema = new Schema<ScheduleAiBatchDoc>(
     confidence: { type: Number },
     model: { type: String },
     validationNotes: [{ type: String }],
+    exceptions: { type: [exceptionSchema], default: undefined },
+    autoApproved: { type: Boolean },
   },
   { timestamps: true }
 );

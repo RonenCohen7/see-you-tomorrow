@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import {
   DB_NAMES,
   getConnection,
+  getDepartmentModel,
   getEmployeeModel,
   getRefreshTokenModel,
   getJwtSecret,
@@ -27,12 +28,41 @@ function hashRefresh(raw: string) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
+async function departmentModel() {
+  return getDepartmentModel(await getConnection(DB_NAMES.departments));
+}
+
+/** Public picker for the registration form (names only). */
+export async function listRegistrationDepartments() {
+  const Department = await departmentModel();
+  const rows = await Department.find({ isActive: true }).select("name").sort({ name: 1 }).lean();
+  return rows.map((d) => ({ id: d._id.toString(), name: d.name }));
+}
+
+/** Joining employees must pick an existing active department whenever the company has any. */
+async function resolveRegistrationDepartment(
+  departmentId: string | undefined,
+  role: Role
+): Promise<Types.ObjectId | undefined> {
+  const Department = await departmentModel();
+  if (departmentId) {
+    const dept = await Department.findOne({ _id: departmentId, isActive: true }).select("_id").lean();
+    if (!dept) throw new AppError(400, "המחלקה שנבחרה לא קיימת או אינה פעילה", "DEPARTMENT_INVALID");
+    return dept._id;
+  }
+  if (role !== "admin" && (await Department.exists({ isActive: true }))) {
+    throw new AppError(400, "יש לבחור מחלקה", "DEPARTMENT_REQUIRED");
+  }
+  return undefined;
+}
+
 export async function registerEmployee(input: {
   fullName: string;
   email: string;
   password: string;
   phone?: string;
   jobTitle?: string;
+  departmentId?: string;
 }) {
   const empConn = await getConnection(DB_NAMES.employees);
   const Employee = getEmployeeModel(empConn);
@@ -42,6 +72,8 @@ export async function registerEmployee(input: {
   const exists = await Employee.findOne({ email: input.email.toLowerCase() });
   if (exists) throw new AppError(409, "כתובת האימייל כבר רשומה", "EMAIL_EXISTS");
 
+  const departmentId = await resolveRegistrationDepartment(input.departmentId, role);
+
   const hashed = await bcrypt.hash(input.password, 12);
   const doc = await Employee.create({
     fullName: input.fullName,
@@ -49,6 +81,7 @@ export async function registerEmployee(input: {
     password: hashed,
     phone: input.phone,
     jobTitle: input.jobTitle,
+    departmentId,
     role,
     isActive: true,
   });

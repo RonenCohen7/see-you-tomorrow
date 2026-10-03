@@ -13,8 +13,8 @@ export type BulkImportEmployeePayload = {
   role?: "admin" | "manager" | "employee";
   isActive?: boolean;
   birthDate: string;
-  address: string;
-  maritalStatus: MaritalStatus;
+  address?: string;
+  maritalStatus?: MaritalStatus;
   emergencyContact?: string;
   notes?: string;
 };
@@ -385,7 +385,6 @@ export function parseEmployeesCsv(text: string, maritalStatuses: readonly Marita
     const jobTitle = (rec.jobTitle ?? "").trim();
     if (!jobTitle) rowIssues.push({ row: rowNum, code: "MISSING_REQUIRED_FIELD", field: "jobTitle" });
     const address = (rec.address ?? "").trim();
-    if (!address) rowIssues.push({ row: rowNum, code: "MISSING_REQUIRED_FIELD", field: "address" });
 
     const birthRaw = (rec.birthDate ?? "").trim();
     let birthIso: string | undefined;
@@ -407,8 +406,7 @@ export function parseEmployeesCsv(text: string, maritalStatuses: readonly Marita
 
     const maritalRaw = (rec.maritalStatus ?? "").trim();
     let maritalOut: MaritalStatus | undefined;
-    if (!maritalRaw) rowIssues.push({ row: rowNum, code: "MISSING_REQUIRED_FIELD", field: "maritalStatus" });
-    else {
+    if (maritalRaw) {
       const msParsed = normalizeMarital(maritalRaw, maritalSet, rowNum, adaptations);
       if (msParsed === "__invalid__") {
         issues.push({ row: rowNum, code: "INVALID_MARITAL" });
@@ -468,8 +466,8 @@ export function parseEmployeesCsv(text: string, maritalStatuses: readonly Marita
       jobTitle,
       departmentId: deptRaw,
       birthDate: birthIso as string,
-      address,
-      maritalStatus: maritalOut as MaritalStatus,
+      ...(address ? { address } : {}),
+      ...(maritalOut ? { maritalStatus: maritalOut } : {}),
       ...(notes ? { notes } : {}),
       ...(ec ? { emergencyContact: ec } : {}),
       ...(roleParsed && roleParsed !== "__invalid__" ? { role: roleParsed as "admin" | "manager" | "employee" } : {}),

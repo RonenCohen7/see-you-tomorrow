@@ -2,6 +2,7 @@ import { Avatar, Box, Button, Card, CardContent, Typography } from "@mui/materia
 import { useAuth } from "../store/authContext";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { ParkingClaimPanel } from "../components/ParkingClaimPanel";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -40,6 +41,17 @@ export default function ProfilePage() {
             </Typography>
             <Typography variant="caption">{user.role}</Typography>
           </Box>
+        </CardContent>
+      </Card>
+      <Card sx={{ mt: 2 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            {t("myParkingTitle")}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t("myParkingSubtitle")}
+          </Typography>
+          <ParkingClaimPanel />
         </CardContent>
       </Card>
       <Button

@@ -323,7 +323,7 @@ export async function monthSummary(monthYm: string) {
   };
   const rows = await Schedule.aggregate<AggRow>(pipeline);
   const days = rows.map((r) => {
-    const counts: Record<string, number> = { office: 0, home: 0, vacation: 0, sick: 0, off: 0, custom: 0 };
+    const counts: Record<string, number> = { office: 0, home: 0, client: 0, vacation: 0, sick: 0, off: 0, custom: 0 };
     for (const s of r.byStatus) {
       if (isBuiltinScheduleStatus(s.status)) {
         counts[s.status] += s.count;
@@ -335,6 +335,7 @@ export async function monthSummary(monthYm: string) {
       _id: string;
       office: number;
       home: number;
+      client: number;
       vacation: number;
       sick: number;
       off: number;
@@ -391,7 +392,14 @@ export async function upsertBulkInternal(
     source?: ScheduleSource;
     aiBatchId?: string;
   }>,
-  options?: { skipNotifications?: boolean }
+  options?: {
+    skipNotifications?: boolean;
+    /**
+     * Each item decides the whole day: other-status rows for that employee+day are removed.
+     * An AI item never overrides a day that already has a manual entry.
+     */
+    replaceDay?: boolean;
+  }
 ) {
   const todayUtc = new Date().toISOString().slice(0, 10);
   const uniqEmp = [...new Set(items.filter((i) => i.workDate >= todayUtc).map((i) => i.employeeId))];
@@ -400,6 +408,12 @@ export async function upsertBulkInternal(
   for (const item of items) {
     const Schedule = await model();
     const workDate = utcDay(item.workDate);
+    if (options?.replaceDay) {
+      if (item.source === "ai" && (await Schedule.exists({ employeeId: item.employeeId, workDate, source: "manual" }))) {
+        continue;
+      }
+      await Schedule.deleteMany({ employeeId: item.employeeId, workDate, status: { $ne: item.status } });
+    }
     // Match an existing entry with the same employee+day+status (so split segments stay separate)
     const existing = await Schedule.findOne({
       employeeId: item.employeeId,

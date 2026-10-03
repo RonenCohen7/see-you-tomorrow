@@ -6,6 +6,7 @@ import { appIntlLocale } from "../locale/localeConstants";
 import { useLocale } from "../locale/LocaleContext";
 import { findManagerOfficeCoverageGaps } from "../utils/aiSmartAlerts";
 import { utcWeekdayShort } from "../utils/israeliWeek";
+import { MANAGER_GAP_HINTS_HIDDEN_KEY, useLocalStorageFlag } from "../hooks/useLocalStorageFlag";
 
 type Props = {
   employees: Employee[];
@@ -19,13 +20,16 @@ export function ManagerOfficeCoverageBanner({ employees, schedules, weekDays, re
   const { t } = useTranslation();
   const { locale } = useLocale();
   const intlTag = appIntlLocale(locale);
-  if (!ready || employees.length === 0) return null;
+  const [hidden, setHidden] = useLocalStorageFlag(MANAGER_GAP_HINTS_HIDDEN_KEY);
+  if (hidden || !ready || employees.length === 0) return null;
   const gaps = findManagerOfficeCoverageGaps(employees, schedules, weekDays);
   if (gaps.length === 0) return null;
   const labels = gaps.map((d) => `${d} (${utcWeekdayShort(d, intlTag)})`).join(" · ");
   return (
     <Alert
       severity="error"
+      onClose={() => setHidden(true)}
+      slotProps={{ closeButton: { title: t("managerGapHintsHide") } }}
       sx={{
         mb: 2,
         minWidth: 0,
@@ -43,9 +47,14 @@ export function ManagerOfficeCoverageBanner({ employees, schedules, weekDays, re
         <Typography variant="body2" component="div">
           {t("aiManagerOfficeCoverageDetail", { dates: labels })}
         </Typography>
-        <Button size="small" variant="contained" color="inherit" component={RouterLink} to="/schedules">
-          {t("managerOfficeCoverageGoSchedules")}
-        </Button>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button size="small" variant="contained" color="inherit" component={RouterLink} to="/schedules">
+            {t("managerOfficeCoverageGoSchedules")}
+          </Button>
+          <Button size="small" color="inherit" onClick={() => setHidden(true)}>
+            {t("managerGapHintsHide")}
+          </Button>
+        </Stack>
       </Stack>
     </Alert>
   );

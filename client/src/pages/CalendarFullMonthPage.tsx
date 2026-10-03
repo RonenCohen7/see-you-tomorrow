@@ -25,6 +25,7 @@ import type { Employee, Schedule } from "../types/models";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
+import { useCompanyCalendarEmployees } from "../hooks/useCompanyCalendarEmployees";
 import type { ParkingReservationPublic, ParkingSpotPublic } from "../utils/parkingSmartAlerts";
 import type { MeetingBookingPublic } from "../types/meeting";
 import { dayHasLeaderOffice, leaderOfficeNamesForDay } from "../utils/aiSmartAlerts";
@@ -33,6 +34,7 @@ import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import { CalendarDayEditorDialog } from "./CalendarDayEditorDialog";
 import { MonthDayCell } from "./MonthDayCell";
 import type { DayAgg } from "./calendarConstants";
+import { MANAGER_GAP_HINTS_HIDDEN_KEY, useLocalStorageFlag } from "../hooks/useLocalStorageFlag";
 
 function calendarStatusInlineMax(isXs: boolean) {
   return isXs ? 2 : 3;
@@ -51,6 +53,7 @@ export default function CalendarFullMonthPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const canWrite = role === "admin" || role === "manager";
+  const [gapHintsHidden, setGapHintsHidden] = useLocalStorageFlag(MANAGER_GAP_HINTS_HIDDEN_KEY);
   const today = todayIsoLocal();
   const [openDay, setOpenDay] = useState<string | null>(null);
   const { socket } = useSocket(user?.id);
@@ -146,39 +149,17 @@ export default function CalendarFullMonthPage() {
 
   const monthQ = useQuery({
     queryKey: ["calendar-month", month],
-    queryFn: async () => (await api.get<{ days: DayAgg[] }>(`/api/schedules/month/${month}`)).data,
+    queryFn: async () => (await api.get<{ days: DayAgg[] }>(`/api/schedules/month/${month}?scope=company`)).data,
   });
 
   const dayDetail = useQuery({
     queryKey: ["calendar-day", openDay],
     queryFn: async () =>
-      openDay ? (await api.get<{ items: Schedule[] }>(`/api/schedules/day/${openDay}`)).data : null,
+      openDay ? (await api.get<{ items: Schedule[] }>(`/api/schedules/day/${openDay}?scope=company`)).data : null,
     enabled: !!openDay,
   });
 
-  const employeesQ = useQuery({
-    queryKey: ["employees-for-calendar"],
-    queryFn: async () => {
-      const all: Employee[] = [];
-      let page = 1;
-      while (true) {
-        const { data } = await api.get<{ items: Employee[]; total: number }>(
-          `/api/employees?page=${page}&limit=100`
-        );
-        all.push(...data.items);
-        if (all.length >= data.total || data.items.length === 0) break;
-        page += 1;
-      }
-      return all;
-    },
-    enabled: !!user,
-  });
-
-  const employeeMap = useMemo(() => {
-    const m = new Map<string, Employee>();
-    for (const e of employeesQ.data ?? []) m.set(e.id, e);
-    return m;
-  }, [employeesQ.data]);
+  const { employeesQ, employeeMap, managedEmployees, editableEmployeeIds } = useCompanyCalendarEmployees();
 
   type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
 
@@ -212,7 +193,7 @@ export default function CalendarFullMonthPage() {
   });
 
   const monthLeaderCoverageByIso = useMemo(() => {
-    const emp = employeesQ.data ?? [];
+    const emp = managedEmployees;
     const sched = managerMonthSchedulesQ.data ?? [];
     const ready = canWrite && !employeesQ.isLoading && !managerMonthSchedulesQ.isLoading;
     const m = new Map<string, { missing: boolean; names: string[] }>();
@@ -231,7 +212,7 @@ export default function CalendarFullMonthPage() {
   }, [
     canWrite,
     employeesQ.isLoading,
-    employeesQ.data,
+    managedEmployees,
     managerMonthSchedulesQ.isLoading,
     managerMonthSchedulesQ.data,
     month,
@@ -376,19 +357,30 @@ export default function CalendarFullMonthPage() {
           );
         })}
         {canWrite ? (
-          <Tooltip title={t("calendarManagerGapLegend")} arrow>
+          <Tooltip
+            title={`${t("calendarManagerGapLegend")} — ${t(gapHintsHidden ? "managerGapHintsShow" : "managerGapHintsHide")}`}
+            arrow
+          >
             <Box
-              component="span"
+              component="button"
+              type="button"
+              aria-pressed={!gapHintsHidden}
+              aria-label={t(gapHintsHidden ? "managerGapHintsShow" : "managerGapHintsHide")}
+              onClick={() => setGapHintsHidden(!gapHintsHidden)}
               sx={{
                 width: 26,
                 height: 26,
+                p: 0,
+                cursor: "pointer",
                 borderRadius: "50%",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                bgcolor: alpha(theme.palette.error.main, 0.14),
-                color: "error.main",
-                border: `1.5px solid ${alpha(theme.palette.error.main, 0.45)}`,
+                bgcolor: gapHintsHidden ? "transparent" : alpha(theme.palette.error.main, 0.14),
+                color: gapHintsHidden ? "text.disabled" : "error.main",
+                border: `1.5px ${gapHintsHidden ? "dashed" : "solid"} ${
+                  gapHintsHidden ? theme.palette.text.disabled : alpha(theme.palette.error.main, 0.45)
+                }`,
               }}
             >
               <SupervisorAccountIcon sx={{ fontSize: 14 }} />
@@ -483,7 +475,7 @@ export default function CalendarFullMonthPage() {
                   {row.map((cell, ci) => {
                     if (!cell) return <Box key={ci} />;
                     const cov = monthLeaderCoverageByIso.get(cell.iso);
-                    const leaderOfficeMissing = cov?.missing ?? false;
+                    const leaderOfficeMissing = !gapHintsHidden && (cov?.missing ?? false);
                     const leaderNamesToday = cov?.names ?? [];
                     return (
                       <MonthDayCell
@@ -515,7 +507,8 @@ export default function CalendarFullMonthPage() {
         items={dayDetail.data?.items ?? []}
         loading={dayDetail.isLoading}
         employeeMap={employeeMap}
-        employees={employeesQ.data ?? []}
+        employees={managedEmployees}
+        editableEmployeeIds={editableEmployeeIds}
         canWrite={canWrite}
         birthdaysOnDate={openDay ? (birthdaysByIso.get(openDay) ?? []) : []}
         parkingOnDate={openDay ? (parkingByIso.get(openDay) ?? []) : []}

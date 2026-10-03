@@ -3,6 +3,7 @@ import CakeOutlinedIcon from "@mui/icons-material/CakeOutlined";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
 import MeetingRoomIcon from "@mui/icons-material/MeetingRoom";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import type { TFunction } from "i18next";
 import { STATUS_ORDER, statusMeta } from "../utils/statusMeta";
 import type { StatusKey } from "../theme/theme";
@@ -281,10 +282,18 @@ export function MonthDayCell({
         </Typography>
       )}
       {leaderOfficeMissing ? (
+        <Tooltip title={t("calendarDayNoManagerOffice")} arrow>
+          <SupervisorAccountIcon
+            aria-label={t("calendarDayNoManagerOffice")}
+            sx={{ display: { xs: "block", sm: "none" }, mt: 0.25, fontSize: 16, color: "error.main" }}
+          />
+        </Tooltip>
+      ) : null}
+      {leaderOfficeMissing ? (
         <Typography
           variant="caption"
           sx={{
-            display: "block",
+            display: { xs: "none", sm: "block" },
             mt: 0.25,
             fontSize: compact ? "0.52rem" : { xs: "0.58rem", sm: "0.62rem" },
             fontWeight: 700,

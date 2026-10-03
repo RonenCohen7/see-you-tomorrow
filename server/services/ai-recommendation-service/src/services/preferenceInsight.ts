@@ -1,6 +1,7 @@
+import { ATTENDANCE_PREFERENCE_STATUSES } from "@syt/shared";
 import { isUtcFridayOrSaturday } from "../utils/weekendPolicyUtc.js";
 
-const SUBMITTED_PREFERENCE_STATUSES = new Set(["office", "home", "vacation", "off"]);
+const SUBMITTED_PREFERENCE_STATUSES = new Set<string>(ATTENDANCE_PREFERENCE_STATUSES);
 
 /** Preference docs from schedule-service internal `/attendance-preferences/dept-range` (public-ish shape). */
 type PrefDocLike = {

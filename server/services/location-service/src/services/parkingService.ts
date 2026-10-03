@@ -281,6 +281,115 @@ export async function deleteReservation(
   return { ok: true };
 }
 
+function todayIsraelIso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+}
+
+export type ParkingDayState = "free" | "owner_reserved" | "taken";
+
+/**
+ * Every active spot for one day: a manager-owned spot is held for its owner only on days the owner is
+ * scheduled in the office; otherwise it is free for anyone to claim.
+ */
+export async function listDayAvailability(workDateIso: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDateIso)) throw new AppError(400, "תאריך לא תקין", "VALIDATION");
+  const workDate = utcDay(workDateIso);
+
+  const ParkingSpot = await spotModel();
+  const Reservation = await resModel();
+  const Location = await locModel();
+  const spots = (await ParkingSpot.find({ isActive: true })
+    .sort({ locationId: 1, sortOrder: 1, label: 1 })
+    .lean()) as unknown as ParkingSpotDoc[];
+  const reservations = (await Reservation.find({ workDate }).lean()) as unknown as ParkingReservationDoc[];
+  const locs = await Location.find({ _id: { $in: [...new Set(spots.map((s) => s.locationId.toString()))] } })
+    .select("name")
+    .lean();
+  const locNameById = new Map(locs.map((l) => [l._id.toString(), (l as unknown as LocationDoc).name]));
+
+  const ownerIds = [...new Set(spots.map((s) => s.assignedEmployeeId?.toString()).filter(Boolean))] as string[];
+  const ownerInOffice = new Map<string, boolean>();
+  try {
+    const presence = await internalHttp.scheduleOfficePresence(
+      ownerIds.map((employeeId) => ({ employeeId, workDate: workDateIso }))
+    );
+    for (const p of presence) ownerInOffice.set(p.employeeId, p.hasOffice);
+  } catch {
+    for (const id of ownerIds) ownerInOffice.set(id, true);
+  }
+
+  const resBySpot = new Map(reservations.map((r) => [r.spotId.toString(), r]));
+  const personIds = new Set<string>(ownerIds);
+  for (const r of reservations) personIds.add(r.employeeId.toString());
+  const nameEntries = await Promise.all(
+    [...personIds].map(async (id) => [id, (await internalHttp.fetchEmployeeInternal(id))?.fullName ?? ""] as const)
+  );
+  const nameById = new Map(nameEntries);
+
+  return spots.map((s) => {
+    const spotId = s._id.toString();
+    const ownerId = s.assignedEmployeeId?.toString();
+    const res = resBySpot.get(spotId);
+    const ownerHere = ownerId ? ownerInOffice.get(ownerId) === true : false;
+    const state: ParkingDayState = res ? "taken" : ownerHere ? "owner_reserved" : "free";
+    return {
+      spotId,
+      label: s.label,
+      locationId: s.locationId.toString(),
+      locationName: locNameById.get(s.locationId.toString()) ?? "",
+      ownerId,
+      ownerName: ownerId ? nameById.get(ownerId) ?? "" : undefined,
+      ownerInOffice: ownerHere,
+      state,
+      reservation: res
+        ? {
+            id: res._id.toString(),
+            employeeId: res.employeeId.toString(),
+            employeeName: nameById.get(res.employeeId.toString()) ?? "",
+            selfClaimed: res.createdBy?.toString() === res.employeeId.toString(),
+            auto: res.note === AUTO_MANAGER_OFFICE_RESERVATION_NOTE,
+          }
+        : undefined,
+    };
+  });
+}
+
+/** An employee marks «I took this spot» for themselves — today or a future day, one spot per day. */
+export async function claimSpot(input: {
+  spotId: string;
+  workDate: string;
+  userId: string;
+  role: "admin" | "manager" | "employee";
+}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.workDate)) throw new AppError(400, "תאריך לא תקין", "VALIDATION");
+  if (input.workDate < todayIsraelIso()) {
+    throw new AppError(400, "לא ניתן לתפוס חנייה בתאריך שעבר", "PAST_DATE");
+  }
+
+  const ParkingSpot = await spotModel();
+  const spot = await ParkingSpot.findById(input.spotId).lean();
+  if (!spot || !(spot as unknown as ParkingSpotDoc).isActive) throw new AppError(404, "חניה לא נמצאת", "NOT_FOUND");
+  if ((spot as unknown as ParkingSpotDoc).assignedEmployeeId?.toString() === input.userId) {
+    throw new AppError(400, "זו החנייה הקבועה שלך — אין צורך לתפוס אותה", "OWN_SPOT");
+  }
+
+  const Reservation = await resModel();
+  const mine = await Reservation.findOne({
+    employeeId: new mongoose.Types.ObjectId(input.userId),
+    workDate: utcDay(input.workDate),
+  }).lean();
+  if (mine) throw new AppError(409, "כבר תפסת חנייה ביום זה — שחרר אותה קודם", "ALREADY_HAS_SPOT");
+
+  return createReservation({
+    spotId: input.spotId,
+    employeeId: input.userId,
+    workDate: input.workDate,
+    createdBy: input.userId,
+    actorRole: input.role,
+    actorUserId: input.userId,
+  });
+}
+
 export async function releaseAutoManagerOfficeReservationsForDay(employeeId: string, workDateIso: string) {
   const Reservation = await resModel();
   await Reservation.deleteMany({

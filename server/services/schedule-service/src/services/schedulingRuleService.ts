@@ -123,4 +123,11 @@ export function validateRulePayload(ruleType: SchedulingRuleType, payload: Recor
       throw new AppError(400, "סוג חוק זה לא מקבל פרמטרים ב-payload", "VALIDATION");
     }
   }
+  if (ruleType === "organization_policy") {
+    const text = payload.text;
+    if (typeof text !== "string" || text.trim().length < 3 || text.trim().length > 500) {
+      throw new AppError(400, "נוסח החוק חייב להיות בין 3 ל-500 תווים", "VALIDATION");
+    }
+    payload.text = text.trim();
+  }
 }

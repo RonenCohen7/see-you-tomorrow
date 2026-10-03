@@ -5,6 +5,7 @@ export type RuleImpactTag = "ai_validation" | "parking_on_save";
 
 export function describeRuleImpact(ruleType: SchedulingRuleType): RuleImpactTag[] {
   if (ruleType === "manager_office_auto_parking") return ["parking_on_save"];
+  if (ruleType === "organization_policy") return [];
   return ["ai_validation"];
 }
 
@@ -40,6 +41,10 @@ export function summarizeRule(
       ? "Auto-assign guest parking when a manager/admin is set to office with a location"
       : "הקצאת חנייה אוטומטית כשמנהל/אדמין במשרד עם מיקום";
   }
+  if (rule.ruleType === "organization_policy") {
+    const text = rule.payload.text;
+    return typeof text === "string" ? text.trim() : "";
+  }
   return rule.ruleType;
 }
 
@@ -56,6 +61,10 @@ export function ruleTypeLabel(ruleType: SchedulingRuleType, locale: "he" | "en")
     manager_office_auto_parking: {
       he: "חנייה אוטומטית למנהל במשרד",
       en: "Manager office auto-parking",
+    },
+    organization_policy: {
+      he: "חוק ארגון",
+      en: "Organization rule",
     },
   };
   return labels[ruleType][locale];

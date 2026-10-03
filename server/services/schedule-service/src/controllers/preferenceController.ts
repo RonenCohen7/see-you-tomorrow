@@ -1,5 +1,10 @@
 import type { Response } from "express";
-import { AppError, type AuthRequest } from "@syt/shared";
+import {
+  AppError,
+  ATTENDANCE_PREFERENCE_STATUSES,
+  type AttendancePreferenceStatus,
+  type AuthRequest,
+} from "@syt/shared";
 import { z } from "zod";
 import * as pref from "../services/attendancePreferenceService.js";
 import * as orgSettings from "../services/orgSettingsService.js";
@@ -14,12 +19,17 @@ import { israeliWeekDatesFromSundayUtc } from "../utils/dateRange.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+/** Employees and managers both submit their own weekly attendance. */
+function submitsOwnPreferences(role: string): boolean {
+  return role === "employee" || role === "manager";
+}
+
 const putBody = z.object({
   weekStartSunday: isoDate,
   days: z.array(
     z.object({
       workDate: isoDate,
-      preference: z.enum(["office", "home", "vacation", "off"]).optional(),
+      preference: z.enum(ATTENDANCE_PREFERENCE_STATUSES).optional(),
     })
   ),
   submit: z.boolean(),
@@ -39,8 +49,8 @@ export async function getContext(req: AuthRequest, res: Response) {
 
 export async function getWeek(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
-  if (req.user.role !== "employee") {
-    throw new AppError(403, "רק עובדים יכולים לטעון העדפה אישית כאן", "FORBIDDEN");
+  if (!submitsOwnPreferences(req.user.role)) {
+    throw new AppError(403, "רק עובדים ומנהלים יכולים לטעון העדפה אישית כאן", "FORBIDDEN");
   }
   const weekStartSunday = req.params.weekStartSunday;
   const doc = await pref.getMine(req.user.id, weekStartSunday);
@@ -60,8 +70,8 @@ export async function getWeek(req: AuthRequest, res: Response) {
 
 export async function putWeek(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
-  if (req.user.role !== "employee") {
-    throw new AppError(403, "רק עובדים יכולים לשמור העדפות כאן", "FORBIDDEN");
+  if (!submitsOwnPreferences(req.user.role)) {
+    throw new AppError(403, "רק עובדים ומנהלים יכולים לשמור העדפות כאן", "FORBIDDEN");
   }
 
   const parsed = putBody.safeParse(req.body);
@@ -105,8 +115,8 @@ const pipelineQuery = z.object({
 
 export async function getPipelineStatus(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
-  if (req.user.role !== "employee") {
-    throw new AppError(403, "רק למשתמשי עובד", "FORBIDDEN");
+  if (!submitsOwnPreferences(req.user.role)) {
+    throw new AppError(403, "רק לעובדים ומנהלים", "FORBIDDEN");
   }
   const parsed = pipelineQuery.safeParse(req.query);
   if (!parsed.success) throw new AppError(400, "שאילתה לא תקינה", "VALIDATION", parsed.error.flatten());
@@ -146,7 +156,7 @@ export async function getDeptPipelineStatus(req: AuthRequest, res: Response) {
 
 function normalizeDaysToIsraeliWeek(
   weekStartSunday: string,
-  days: Array<{ workDate: string; preference?: "office" | "home" | "vacation" | "off" }>
+  days: Array<{ workDate: string; preference?: AttendancePreferenceStatus }>
 ) {
   const allowed = new Set(israeliWeekDatesFromSundayUtc(weekStartSunday));
   const byDate = new Map(days.map((d) => [d.workDate, d.preference]));

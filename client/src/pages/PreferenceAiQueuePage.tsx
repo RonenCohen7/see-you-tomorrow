@@ -40,6 +40,17 @@ type ProposedPipelineItem = {
   preferenceSource?: "employee" | "none";
 };
 
+type AiBatchException = {
+  kind: "preference_overridden" | "office_shortfall" | "office_over_capacity";
+  date?: string;
+  employeeId?: string;
+  requestedStatus?: string;
+  assignedStatus?: string;
+  officeCount?: number;
+  required?: number;
+  capacity?: number;
+};
+
 type AiBatchPublic = {
   id: string;
   departmentId: string;
@@ -49,6 +60,7 @@ type AiBatchPublic = {
   status: string;
   creationSource?: string;
   model?: string;
+  exceptions?: AiBatchException[];
 };
 
 export default function PreferenceAiQueuePage() {
@@ -213,6 +225,14 @@ export default function PreferenceAiQueuePage() {
                     <WarningAmberIcon color="warning" fontSize="small" />
                   </Tooltip>
                 )}
+                {(batch.exceptions?.length ?? 0) > 0 && (
+                  <Chip
+                    size="small"
+                    color="error"
+                    icon={<WarningAmberIcon />}
+                    label={t("aiExceptionsChip", { count: batch.exceptions!.length })}
+                  />
+                )}
                 <Chip
                   size="small"
                   color="warning"
@@ -268,19 +288,39 @@ function QueueItemRow({
   model,
   employeeName,
   rowBg,
+  isException,
 }: {
   item: ProposedPipelineItem;
   model?: string;
   employeeName: string;
   rowBg: string;
+  isException?: boolean;
 }) {
   const { t } = useTranslation();
+  const theme = useTheme();
   const noteDisplayed = preferenceAiQueueDisplayNotes(item.reason, model);
   return (
-    <TableRow sx={{ bgcolor: rowBg }}>
+    <TableRow
+      sx={{
+        bgcolor: isException
+          ? alpha(theme.palette.error.main, theme.palette.mode === "dark" ? 0.2 : 0.1)
+          : rowBg,
+      }}
+    >
       <TableCell>{item.date}</TableCell>
       <TableCell>{employeeName}</TableCell>
-      <TableCell>{t(item.recommendedStatus)}</TableCell>
+      <TableCell>
+        {isException ? (
+          <Tooltip title={t("aiExceptionRowHint") as string}>
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <WarningAmberIcon color="error" sx={{ fontSize: 16 }} />
+              <span>{t(item.recommendedStatus)}</span>
+            </Stack>
+          </Tooltip>
+        ) : (
+          t(item.recommendedStatus)
+        )}
+      </TableCell>
       <TableCell sx={{ whiteSpace: "normal", wordBreak: "break-word", maxWidth: 320 }}>
         {noteDisplayed}
       </TableCell>
@@ -361,6 +401,45 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
     ? rowsByDate.filter((group) => group.date === selectedDate)
     : rowsByDate;
 
+  const exceptions = batch.exceptions ?? [];
+  const overriddenKeys = useMemo(
+    () =>
+      new Set(
+        (batch.exceptions ?? [])
+          .filter((e) => e.kind === "preference_overridden" && e.date && e.employeeId)
+          .map((e) => `${e.date}|${e.employeeId}`)
+      ),
+    [batch.exceptions]
+  );
+  const employeeLabel = (id?: string) =>
+    (id && empById.get(id)?.fullName?.trim()) || (id ? `…${id.slice(-8)}` : "");
+  const dateLabel = (date?: string) => (date ? `${utcWeekdayShort(date, intlTag)} ${date}` : "");
+  const describeException = (e: AiBatchException) => {
+    switch (e.kind) {
+      case "preference_overridden":
+        return t("aiException_preference_overridden", {
+          name: employeeLabel(e.employeeId),
+          date: dateLabel(e.date),
+          requested: e.requestedStatus ? t(e.requestedStatus) : "",
+          assigned: e.assignedStatus ? t(e.assignedStatus) : "",
+        });
+      case "office_shortfall":
+        return t("aiException_office_shortfall", {
+          date: dateLabel(e.date),
+          count: e.officeCount ?? 0,
+          required: e.required ?? 0,
+        });
+      case "office_over_capacity":
+        return t("aiException_office_over_capacity", {
+          date: dateLabel(e.date),
+          count: e.officeCount ?? 0,
+          capacity: e.capacity ?? 0,
+        });
+      default:
+        return "";
+    }
+  };
+
   const legendSubmittedBg = alpha(
     theme.palette.primary.main,
     theme.palette.mode === "dark" ? 0.16 : 0.1
@@ -375,6 +454,28 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
       {!batch.locationId && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           {t("preferenceAiQueueMissingLocation")}
+        </Alert>
+      )}
+
+      {exceptions.length > 0 ? (
+        <Alert severity="error" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            {t("aiExceptionsTitle", { count: exceptions.length })}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>
+            {t("aiExceptionsIntro")}
+          </Typography>
+          <Box component="ul" sx={{ m: 0, ps: 2.5 }}>
+            {exceptions.map((e, i) => (
+              <Typography component="li" variant="body2" key={`${e.kind}-${e.date}-${e.employeeId}-${i}`}>
+                {describeException(e)}
+              </Typography>
+            ))}
+          </Box>
+        </Alert>
+      ) : (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {t("aiExceptionsNone")}
         </Alert>
       )}
 
@@ -501,6 +602,7 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
                         empById.get(p.employeeId)?.fullName?.trim() || `…${p.employeeId.slice(-8)}`
                       }
                       rowBg={legendSubmittedBg}
+                      isException={overriddenKeys.has(`${p.date}|${p.employeeId}`)}
                     />
                   ))}
                 </TableBody>
@@ -550,6 +652,7 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
                               `…${p.employeeId.slice(-8)}`
                             }
                             rowBg={source === "employee" ? legendSubmittedBg : legendAiFillBg}
+                            isException={overriddenKeys.has(`${p.date}|${p.employeeId}`)}
                           />
                         );
                       })}

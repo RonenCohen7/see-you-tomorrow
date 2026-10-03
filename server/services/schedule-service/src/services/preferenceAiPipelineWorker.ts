@@ -5,8 +5,11 @@ import * as cycleSvc from "./departmentPreferenceCycleService.js";
 import * as batchSvc from "./scheduleAiBatchService.js";
 import * as pref from "./attendancePreferenceService.js";
 import * as remoteDepartment from "./remoteDepartment.js";
+import * as remoteLocation from "./remoteLocation.js";
 import { resolveSystemActorEmployeeId } from "./systemActorEmployee.js";
 import * as notify from "./notificationClient.js";
+import { defaultAiConstraints, findPipelineExceptions } from "./pipelineExceptions.js";
+import { applyRecommendations } from "./applyRecommendationsService.js";
 
 const QUEUE_NAME = "dept-preference-ai";
 
@@ -33,14 +36,9 @@ export function debounceMs(): number {
   return Math.min(PREFERENCE_AI_DEBOUNCE_MAX_MS, Math.max(0, raw));
 }
 
-function defaultAiConstraints() {
-  const minOffice = Number(process.env.PREFERENCE_AI_MIN_OFFICE_PER_DAY ?? 3);
-  const cap = Number(process.env.PREFERENCE_AI_MAX_OFFICE_CAPACITY ?? 50);
-  return {
-    minOfficeEmployeesPerDay: Number.isFinite(minOffice) ? minOffice : 3,
-    maxOfficeCapacity: Number.isFinite(cap) && cap >= 1 ? cap : 50,
-    preferredOfficeDays: ["Monday", "Wednesday"],
-  };
+/** Batches without exceptions are applied immediately; set PREFERENCE_AI_AUTO_APPROVE=false to always wait for a manager. */
+function autoApproveEnabled(): boolean {
+  return (process.env.PREFERENCE_AI_AUTO_APPROVE ?? "true").trim().toLowerCase() !== "false";
 }
 
 export async function enqueuePreferenceAiJob(departmentId: string, weekStartSunday: string) {
@@ -139,9 +137,9 @@ export function startPreferenceAiPipelineWorker() {
   const connection = redisConnection();
   const queue = new Queue(QUEUE_NAME, { connection });
 
-  void forEachActiveTenant(async () => {
+  forEachActiveTenant(async () => {
     await recoverStuckPreBatchJobs(queue);
-  });
+  }).catch((err) => logger.error("preference AI recovery: tenant scan failed", err));
 
   const worker = new Worker(
     QUEUE_NAME,
@@ -172,9 +170,9 @@ export function startPreferenceAiPipelineWorker() {
       const submitterIds = submittedRows.map((r) => r.employeeId);
 
       const dept = await remoteDepartment.fetchDepartmentPublic(departmentId);
-      const locationId = dept?.locationId;
+      const locationId = dept?.locationId || (await remoteLocation.fetchDefaultLocationId());
       if (!locationId) {
-        const msg = "למחלקה לא משויך מיקום — לא ניתן להפעיל המלצת AI אוטומטית.";
+        const msg = "לא הוגדר אף מיקום פעיל בחברה — לא ניתן להפעיל המלצת AI אוטומטית.";
         const cycleFail = await cycleSvc.loadForUpdate(departmentId, weekStartSunday);
         if (cycleFail) await cycleSvc.markFailed(cycleFail, msg);
         void notify.notifyPreferencePipelineNoLocation({
@@ -185,13 +183,14 @@ export function startPreferenceAiPipelineWorker() {
         return;
       }
 
+      const constraints = defaultAiConstraints();
       let aiJson: Awaited<ReturnType<typeof callInternalRecommend>>;
       try {
         aiJson = await callInternalRecommend({
           departmentId,
           locationId,
           dateRange,
-          constraints: defaultAiConstraints(),
+          constraints,
           actingUserId: await resolveSystemActorEmployeeId().catch(() => undefined),
         });
       } catch (e) {
@@ -244,6 +243,13 @@ export function startPreferenceAiPipelineWorker() {
       const cycleReady = await cycleSvc.loadForUpdate(departmentId, weekStartSunday);
       const cycleOid = cycleReady?._id.toString();
 
+      const exceptions = findPipelineExceptions({
+        items: proposedItems,
+        submitted: submittedRows,
+        minOfficePerDay: constraints.minOfficeEmployeesPerDay,
+        maxOfficeCapacity: constraints.maxOfficeCapacity,
+      });
+
       const batchId = await batchSvc.createBatch({
         departmentId,
         locationId,
@@ -255,6 +261,7 @@ export function startPreferenceAiPipelineWorker() {
         preferenceCycleId: cycleOid,
         confidence: aiJson.confidence,
         model: aiJson.model,
+        exceptions,
       });
 
       const cycleAfter = await cycleSvc.loadForUpdate(departmentId, weekStartSunday);
@@ -265,6 +272,31 @@ export function startPreferenceAiPipelineWorker() {
           noSubmittedPreferenceForSlot: prefs?.noSubmittedPreferenceForSlot,
           recommendationRows: prefs?.recommendationRows,
         });
+      }
+
+      if (exceptions.length === 0 && autoApproveEnabled()) {
+        try {
+          await applyRecommendations(
+          {
+            adminUserId: systemActorId,
+            scheduleSource: "ai",
+            aiBatchId: batchId,
+            items: proposedItems.map((p) => ({
+              employeeId: p.employeeId,
+              workDate: p.date,
+              status: p.recommendedStatus,
+              departmentId,
+              locationId,
+              note: (p.reason ? `${p.reason}\n` : "") + "שובץ אוטומטית על ידי AI — ללא חריגים, לא נדרש אישור מנהל.",
+            })),
+          },
+          { autoApproved: true }
+          );
+          logger.info("preference AI batch auto-approved", { departmentId, weekStartSunday, batchId });
+          return;
+        } catch (err) {
+          logger.error("preference AI auto-approve failed — left for manager approval", err);
+        }
       }
 
       void notify.notifyPreferencePipelineAiReady({

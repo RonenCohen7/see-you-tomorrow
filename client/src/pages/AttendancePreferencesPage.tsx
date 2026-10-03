@@ -31,7 +31,9 @@ function addUtcDaysIso(iso: string, delta: number): string {
   return new Date(t).toISOString().slice(0, 10);
 }
 
-type PrefDay = { workDate: string; preference?: "office" | "home" | "vacation" | "off" };
+type PrefStatus = "office" | "home" | "client" | "vacation" | "sick" | "off";
+
+type PrefDay = { workDate: string; preference?: PrefStatus };
 
 type PreferenceDoc = {
   id: string;
@@ -68,7 +70,7 @@ export default function AttendancePreferencesPage() {
   }, [ctx.data?.earliestAllowedWeekStartSunday]);
 
   const [week, setWeek] = useState<string>("");
-  const [draft, setDraft] = useState<Record<string, "office" | "home" | "vacation" | "off" | "">>({});
+  const [draft, setDraft] = useState<Record<string, PrefStatus | "">>({});
   const [preferEmptyDraft, setPreferEmptyDraft] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
 
@@ -122,7 +124,7 @@ export default function AttendancePreferencesPage() {
       return;
     }
     if (preferEmptyDraft) return;
-    const next: Record<string, "office" | "home" | "vacation" | "off" | ""> = {};
+    const next: Record<string, PrefStatus | ""> = {};
     for (const row of d) {
       next[row.workDate] = row.preference ?? "";
     }
@@ -134,7 +136,7 @@ export default function AttendancePreferencesPage() {
       const dayRows: PrefDay[] = days.map((d) => ({
         workDate: d.workDate,
         ...(draft[d.workDate] && draft[d.workDate] !== ""
-          ? { preference: draft[d.workDate] as "office" | "home" | "vacation" | "off" }
+          ? { preference: draft[d.workDate] as PrefStatus }
           : {}),
       }));
       await api.put("/api/schedules/preferences/attendance", {
@@ -261,14 +263,16 @@ export default function AttendancePreferencesPage() {
                   onChange={(e) =>
                     setDraft((prev) => ({
                       ...prev,
-                      [d.workDate]: e.target.value as "office" | "home" | "vacation" | "off" | "",
+                      [d.workDate]: e.target.value as PrefStatus | "",
                     }))
                   }
                 >
                   <MenuItem value="">{t("prefClearPreference")}</MenuItem>
                   <MenuItem value="office">{t("office")}</MenuItem>
                   <MenuItem value="home">{t("home")}</MenuItem>
+                  <MenuItem value="client">{t("client")}</MenuItem>
                   <MenuItem value="vacation">{t("vacation")}</MenuItem>
+                  <MenuItem value="sick">{t("sick")}</MenuItem>
                   <MenuItem value="off">{t("off")}</MenuItem>
                 </Select>
               </FormControl>
@@ -337,7 +341,7 @@ export default function AttendancePreferencesPage() {
               saveMut.mutate(true, {
                 onSuccess: async () => {
                   setPreferEmptyDraft(true);
-                  const empty: Record<string, "office" | "home" | "vacation" | "off" | ""> = {};
+                  const empty: Record<string, PrefStatus | ""> = {};
                   for (const row of daySnapshot) empty[row.workDate] = "";
                   setDraft(empty);
                   setSubmitConfirmOpen(false);

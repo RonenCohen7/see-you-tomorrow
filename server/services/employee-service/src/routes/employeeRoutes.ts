@@ -5,6 +5,7 @@ import * as ctrl from "../controllers/employeeController.js";
 const r = Router();
 
 r.get("/me", requireAuth, ctrl.getMe);
+r.put("/me/department", requireAuth, ctrl.selfAssignDepartment);
 r.get("/birthdays-range", requireAuth, ctrl.birthdaysRange);
 r.post("/import-bulk", requireAuth, ctrl.adminOnly, ctrl.importBulk);
 r.get("/", requireAuth, ctrl.list);

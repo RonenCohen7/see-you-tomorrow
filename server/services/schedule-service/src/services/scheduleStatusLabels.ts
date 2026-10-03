@@ -10,8 +10,9 @@ import * as orgSettings from "./orgSettingsService.js";
 const BUILTIN_LABEL_HE: Record<ScheduleStatus, string> = {
   office: "משרד",
   home: "בית",
+  client: "מחוץ למשרד – לקוח",
   vacation: "חופשה",
-  sick: "מחלה",
+  sick: "חופשת מחלה",
   off: "לא עובד",
 };
 

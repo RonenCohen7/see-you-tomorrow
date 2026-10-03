@@ -7,6 +7,8 @@ export const SCHEDULING_RULE_TYPES = [
   "min_managers_office_daily",
   /** Behavioral: when active, reserving a temporary parking slot for manager/admin rows with office+locationID (handled by schedule → location sync). Not used for AI validation. */
   "manager_office_auto_parking",
+  /** Free-text organization policy saved from the form. No API key. */
+  "organization_policy",
 ] as const;
 export type SchedulingRuleType = (typeof SCHEDULING_RULE_TYPES)[number];
 

@@ -39,6 +39,7 @@ import AttendancePreferencesPage from "./pages/AttendancePreferencesPage";
 import TeamAttendancePreferencesPage from "./pages/TeamAttendancePreferencesPage";
 import PreferenceAiQueuePage from "./pages/PreferenceAiQueuePage";
 import MeetingRoomsPage from "./pages/MeetingRoomsPage";
+import MyParkingPage from "./pages/MyParkingPage";
 
 const qc = new QueryClient();
 
@@ -178,6 +179,7 @@ export default function App() {
                       </ManagerOrAdminRoute>
                     }
                   />
+                  <Route path="/my-parking" element={<MyParkingPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route

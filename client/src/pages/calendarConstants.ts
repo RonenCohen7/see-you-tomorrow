@@ -2,6 +2,8 @@ export type DayAgg = {
   _id: string;
   office: number;
   home: number;
+  /** Older servers may omit it. */
+  client?: number;
   vacation: number;
   sick: number;
   off: number;

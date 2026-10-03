@@ -12,6 +12,7 @@ r.use(requireInternalSecret);
 r.post("/schedules/apply-recommendations", ctrl.applyRecommendations);
 r.post("/schedules/office-presence", ctrl.officePresenceBatch);
 r.post("/schedules/clear-future-for-employee", deptSch.clearFutureForEmployee);
+r.post("/attendance-preferences/assign-department", deptSch.assignDepartmentToPreferences);
 r.get("/schedules/department-range-for-ai", deptSch.listDepartmentRangeForAi);
 r.get("/scheduling-rules/active", ctxCtrl.schedulingRulesRange);
 r.get("/attendance-preferences/dept-range", ctxCtrl.preferencesDeptRange);

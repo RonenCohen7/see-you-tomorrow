@@ -10,6 +10,7 @@ import { logger } from "./logger.js";
 mongoose.set("strictQuery", true);
 
 const connections = new Map<string, mongoose.Connection>();
+const pending = new Map<string, Promise<mongoose.Connection>>();
 
 /** Default targets MongoDB on the host (local dev). Docker Compose sets MONGO_URI to mongodb://mongo:27017. */
 export function getMongoUri(): string {
@@ -20,13 +21,29 @@ export async function getConnection(dbName: string): Promise<mongoose.Connection
   const cached = connections.get(dbName);
   if (cached?.readyState === 1) return cached;
 
-  const uri = getMongoUri();
-  const conn = mongoose.createConnection(`${uri}/${dbName}`, {
-    // Fail fast instead of hanging ~30s when Mongo is down or waking from sleep (Docker).
-    serverSelectionTimeoutMS: 10_000,
-  });
-  await conn.asPromise();
-  logger.info(`Mongo connected: ${dbName}`);
-  connections.set(dbName, conn);
-  return conn;
+  const inflight = pending.get(dbName);
+  if (inflight) return inflight;
+
+  const attempt = (async () => {
+    if (cached) {
+      connections.delete(dbName);
+      await cached.close().catch(() => undefined);
+    }
+    const conn = mongoose.createConnection(`${getMongoUri()}/${dbName}`, {
+      // Fail fast instead of hanging ~30s when Mongo is down or waking from sleep (Docker).
+      serverSelectionTimeoutMS: 10_000,
+    });
+    try {
+      await conn.asPromise();
+    } catch (e) {
+      await conn.close().catch(() => undefined);
+      throw e;
+    }
+    logger.info(`Mongo connected: ${dbName}`);
+    connections.set(dbName, conn);
+    return conn;
+  })().finally(() => pending.delete(dbName));
+
+  pending.set(dbName, attempt);
+  return attempt;
 }

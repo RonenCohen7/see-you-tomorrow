@@ -47,7 +47,7 @@ export async function generateRecommendationsPrompt(payload: {
       {
         role: "system",
         content:
-          "You are a workforce scheduling assistant. Output ONLY valid JSON matching the schema: { recommendations: [{ date, employeeId, recommendedStatus, reason }], confidence?: number }. Status must be one of: office, home, vacation, sick, off. Balance office presence with capacity and fairness. Respect activeSchedulingRules (e.g. location closures) and weight employeePreferencesSubmitted heavily when allocating office vs home. " +
+          "You are a workforce scheduling assistant. Output ONLY valid JSON matching the schema: { recommendations: [{ date, employeeId, recommendedStatus, reason }], confidence?: number }. Status must be one of: office, home, client (working at a customer site, not in the office), vacation, sick, off. Balance office presence with capacity and fairness. Respect activeSchedulingRules (e.g. location closures) and weight employeePreferencesSubmitted heavily when allocating office vs home. " +
           policyNote,
       },
       {

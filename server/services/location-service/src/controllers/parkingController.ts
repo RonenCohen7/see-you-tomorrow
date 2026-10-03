@@ -84,6 +84,30 @@ export async function createReservation(req: AuthRequest, res: Response) {
   res.status(201).json(item);
 }
 
+const claimSchema = z.object({
+  spotId: objectId,
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export async function dayAvailability(req: AuthRequest, res: Response) {
+  const date = typeof req.query.date === "string" ? req.query.date : "";
+  if (!date) throw new AppError(400, "נדרש date", "VALIDATION");
+  const items = await svc.listDayAvailability(date);
+  res.json({ date, items });
+}
+
+export async function claimSpot(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const parsed = claimSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  const item = await svc.claimSpot({
+    ...parsed.data,
+    userId: req.user.id,
+    role: req.user.role as "admin" | "manager" | "employee",
+  });
+  res.status(201).json(item);
+}
+
 export async function deleteReservation(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const result = await svc.deleteReservation(req.params.id, {
