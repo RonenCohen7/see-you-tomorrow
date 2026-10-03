@@ -215,6 +215,9 @@ export default function DashboardPage() {
         {t("taglineDashboard")}
       </Typography>
 
+      <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: "1rem", sm: "1.15rem" } }}>
+        {t("dashTodayStatsTitle", { date: today })}
+      </Typography>
       <Box
         data-help-target="dashboard-stats"
         sx={{
@@ -232,7 +235,7 @@ export default function DashboardPage() {
       >
         {isAdminOrManager && (
           <StatCard
-            label={t("employees")}
+            label={t(user?.role === "manager" ? "dashEmployeesInDept" : "dashEmployeesActive")}
             value={qEmp.data?.total}
             loading={qEmp.isLoading}
             color="#8b5cf6"
@@ -545,6 +548,13 @@ function StatCard({
                 {value ?? "—"}
               </Typography>
             )}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontWeight: 600, textAlign: "center", lineHeight: 1.2, width: "100%", overflowWrap: "anywhere" }}
+            >
+              {label}
+            </Typography>
           </Stack>
         </CardContent>
       </Card>

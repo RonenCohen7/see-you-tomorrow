@@ -59,6 +59,7 @@ import { VirtualAssistantWidget } from "../components/VirtualAssistantWidget";
 import LanguageToggle from "../components/LanguageToggle";
 import { ScreenHelpOverlay } from "../components/ScreenHelpOverlay";
 import { DepartmentSelfAssignDialog } from "../components/DepartmentSelfAssignDialog";
+import { MadeByCredit } from "../components/MadeByCredit";
 import { FLOATING_BUTTONS_HIDDEN_KEY, useLocalStorageFlag } from "../hooks/useLocalStorageFlag";
 import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
 
@@ -255,6 +256,7 @@ export default function MainLayout() {
             <ListItemText primary={t("logout")} />
           </ListItemButton>
         </Tooltip>
+        <MadeByCredit sx={{ pt: 0.5, pb: 0.5, fontSize: "0.68rem", opacity: 0.85 }} />
       </Box>
     </Box>
   );

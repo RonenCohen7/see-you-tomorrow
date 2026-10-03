@@ -2,6 +2,7 @@ import { Box, Button, CircularProgress, Container, Stack, Typography } from "@mu
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink, Navigate } from "react-router-dom";
 import PublicHeader from "../components/PublicHeader";
+import { MadeByCredit } from "../components/MadeByCredit";
 import HomeActivityCarousel from "../components/marketing/HomeActivityCarousel";
 import HomeAiSection from "../components/marketing/HomeAiSection";
 import HomeAvatarMarquee from "../components/marketing/HomeAvatarMarquee";
@@ -71,6 +72,7 @@ export default function HomePage() {
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", textAlign: "center", pb: 2 }}>
             {t("homeLinksAboutPricing")}
           </Typography>
+          <MadeByCredit sx={{ pb: 1 }} />
         </Container>
       </Box>
     </Box>
