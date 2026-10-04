@@ -133,7 +133,11 @@ export const heTranslation = {
   locationsNoActiveMatch: "אין מיקומים פעילים להצגה. כבה את המסנן או הפעל מיקום מחדש.",
   locationsShowAll: "הצג את כל המיקומים",
   locationActivatedToast: "המיקום הוגדר מחדש כפעיל.",
-  schedulesNoteAiMockDisplay: "שובץ על ידי AI ואושר על ידי הנהלה",
+  schedulesNoteAiMockDisplay: "שובץ על פי העדפות עובד · אין קרדיט AI פעיל במערכת",
+  aiNoCreditTitle: "אין קרדיט AI פעיל במערכת",
+  aiNoCreditBody:
+    "השיבוץ נקבע על פי ההעדפות שהעובדים הגישו. ימים ללא העדפה שובצו בסבב אוטומטי פשוט, ללא איזון חכם של קיבולת, הוגנות והיסטוריה. לשיבוץ חכם יש להפעיל קרדיט AI.",
+  aiNoCreditChip: "ללא AI · לפי העדפות",
   schedules: "רשומות שיבוץ",
   parking: "חניות",
   parkingSubtitle:

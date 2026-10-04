@@ -39,6 +39,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 import { departmentsPickerUrl, locationsPickerUrl } from "../utils/referencePickerUrls";
+import { NO_AI_MODEL } from "../utils/preferenceAiQueueDisplayNotes";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth, useRole } from "../store/authContext";
@@ -546,6 +547,14 @@ export default function AIRecommendationsPage() {
                         ))}
                       </Stack>
                     ) : null}
+                  </Alert>
+                ) : null}
+                {result.model === NO_AI_MODEL ? (
+                  <Alert severity="warning" sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {t("aiNoCreditTitle")}
+                    </Typography>
+                    <Typography variant="body2">{t("aiNoCreditBody")}</Typography>
                   </Alert>
                 ) : null}
                 <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: "wrap", rowGap: 1 }}>

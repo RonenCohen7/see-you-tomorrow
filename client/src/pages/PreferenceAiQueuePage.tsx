@@ -28,7 +28,7 @@ import api from "../services/api";
 import { departmentsPickerUrl } from "../utils/referencePickerUrls";
 import type { Employee } from "../types/models";
 import { useRole } from "../store/authContext";
-import { preferenceAiQueueDisplayNotes } from "../utils/preferenceAiQueueDisplayNotes";
+import { NO_AI_MODEL, preferenceAiQueueDisplayNotes } from "../utils/preferenceAiQueueDisplayNotes";
 import { utcWeekdayShort } from "../utils/israeliWeek";
 import { appIntlLocale, type AppLocale } from "../locale/localeConstants";
 
@@ -232,6 +232,11 @@ export default function PreferenceAiQueuePage() {
                     icon={<WarningAmberIcon />}
                     label={t("aiExceptionsChip", { count: batch.exceptions!.length })}
                   />
+                )}
+                {batch.model === NO_AI_MODEL && (
+                  <Tooltip title={t("aiNoCreditBody")} arrow>
+                    <Chip size="small" color="warning" label={t("aiNoCreditChip")} />
+                  </Tooltip>
                 )}
                 <Chip
                   size="small"
@@ -457,6 +462,14 @@ function BatchDetails({ batch, onApprove, onReject, approving, rejecting }: Batc
         </Alert>
       )}
 
+      {batch.model === NO_AI_MODEL && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" fontWeight={700}>
+            {t("aiNoCreditTitle")}
+          </Typography>
+          <Typography variant="body2">{t("aiNoCreditBody")}</Typography>
+        </Alert>
+      )}
       {exceptions.length > 0 ? (
         <Alert severity="error" icon={<WarningAmberIcon />} sx={{ mb: 2 }}>
           <Typography variant="subtitle2" fontWeight={700}>

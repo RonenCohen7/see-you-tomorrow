@@ -1,11 +1,13 @@
-/** טקסט ההסבר מה-AI בהמלצות mock — לא מוצג בתור העדפות למנהל. */
-const MOCK_REASON_MARKER = "המלצה לדוגמה ללא מפתח OpenAI";
+/** Model name the server reports when no AI credit/key is available and the schedule follows employee preferences. */
+export const NO_AI_MODEL = "mock-local";
 
-/** מה להציג בעמודת ההערות: ללא טקסט טכני/דמה; תוכן ממודל אמת כשיש. */
-export function preferenceAiQueueDisplayNotes(reason: string | undefined, batchModel: string | undefined): string {
+/** טקסטים ישנים של המלצות mock — לא מוצגים למנהל. */
+const LEGACY_MOCK_REASON_MARKERS = ["המלצה לדוגמה ללא מפתח OpenAI", "שובץ על ידי AI ואושר על ידי הנהלה"];
+
+/** מה להציג בעמודת ההערות: ללא טקסט טכני/דמה; תוכן ממודל אמת או הסבר "ללא AI" כשיש. */
+export function preferenceAiQueueDisplayNotes(reason: string | undefined, _batchModel?: string): string {
   const raw = typeof reason === "string" ? reason.trim() : "";
   if (!raw) return "";
-  if (batchModel === "mock-local") return "";
-  if (raw.includes(MOCK_REASON_MARKER)) return "";
+  if (LEGACY_MOCK_REASON_MARKERS.some((m) => raw.includes(m))) return "";
   return raw;
 }

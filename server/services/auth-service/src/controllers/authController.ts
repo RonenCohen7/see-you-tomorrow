@@ -1,5 +1,12 @@
 import type { Response } from "express";
-import { AppError, logger } from "@syt/shared";
+import {
+  AppError,
+  getRequestTenantSlug,
+  isSharedSaasMode,
+  logger,
+  markInviteUsed,
+  resolveTenantsForAuth,
+} from "@syt/shared";
 import type { AuthRequest } from "@syt/shared";
 import {
   forgotPasswordSchema,
@@ -14,6 +21,32 @@ import * as authService from "../services/authService.js";
 import * as passwordResetService from "../services/passwordResetService.js";
 import { shouldAllowRegistration } from "../services/bootstrap.js";
 import { assertTurnstileOk } from "../services/turnstile.js";
+
+/**
+ * Shared SaaS: joining an existing company with its company code or a valid invite link is the
+ * normal signup path, so it stays open in production. The tenant is re-resolved here from the
+ * platform registry and must match the tenant this request is scoped to.
+ */
+async function joinsCompanyByCodeOrInvite(req: AuthRequest, email: string): Promise<boolean> {
+  if (!isSharedSaasMode()) return false;
+  const scopedSlug = getRequestTenantSlug();
+  if (!scopedSlug) return false;
+  const body = (req.body ?? {}) as { tenantSlug?: unknown; inviteToken?: unknown };
+  const tenantSlug = typeof body.tenantSlug === "string" ? body.tenantSlug.trim() : "";
+  const inviteToken = typeof body.inviteToken === "string" ? body.inviteToken.trim() : "";
+  if (!tenantSlug && !inviteToken) return false;
+  try {
+    const tenants = await resolveTenantsForAuth({
+      email,
+      tenantSlug: tenantSlug || undefined,
+      inviteToken: inviteToken || undefined,
+    });
+    return tenants.some((t) => t.slug === scopedSlug);
+  } catch (e) {
+    logger.error("POST /api/auth/register company lookup failed", e instanceof Error ? e : undefined);
+    return false;
+  }
+}
 
 export async function register(req: AuthRequest, res: Response) {
   const parsed = registerSchema.safeParse(req.body);
@@ -39,7 +72,9 @@ export async function register(req: AuthRequest, res: Response) {
     throw e;
   }
 
-  const allow = explicitAllow || (!explicitDeny && !isProduction) || dbAllowsFirstUserOnly;
+  const joinsVerifiedCompany = await joinsCompanyByCodeOrInvite(req, email);
+  const allow =
+    explicitAllow || (!explicitDeny && !isProduction) || dbAllowsFirstUserOnly || joinsVerifiedCompany;
 
   logger.info("POST /api/auth/register attempt", {
     email,
@@ -48,6 +83,7 @@ export async function register(req: AuthRequest, res: Response) {
     explicitDeny,
     isProduction,
     dbEmptyAllowsBootstrap: dbAllowsFirstUserOnly,
+    joinsVerifiedCompany,
     allow,
   });
 
@@ -61,6 +97,12 @@ export async function register(req: AuthRequest, res: Response) {
     void _tok;
     const result = await authService.registerEmployee(reg);
     logger.info("POST /api/auth/register success", { email, role: result.employee.role });
+    const inviteToken = typeof req.body?.inviteToken === "string" ? req.body.inviteToken.trim() : "";
+    if (joinsVerifiedCompany && inviteToken) {
+      await markInviteUsed(inviteToken).catch((e) =>
+        logger.error("POST /api/auth/register markInviteUsed failed", e instanceof Error ? e : undefined)
+      );
+    }
     res.status(201).json(result);
   } catch (e) {
     logger.error("POST /api/auth/register registerEmployee failed", e instanceof Error ? e : undefined);

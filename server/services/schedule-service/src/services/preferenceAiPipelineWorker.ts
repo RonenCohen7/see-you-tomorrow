@@ -88,6 +88,7 @@ async function callInternalRecommend(body: Record<string, unknown>) {
     recommendations: Array<{ date: string; employeeId: string; recommendedStatus: string; reason?: string }>;
     confidence?: number;
     model?: string;
+    aiActive?: boolean;
     validation?: { ok: true } | { ok: false; errors: string[] };
     preferenceVsRecommendation?: {
       matchedPreference?: number;
@@ -287,7 +288,11 @@ export function startPreferenceAiPipelineWorker() {
               status: p.recommendedStatus,
               departmentId,
               locationId,
-              note: (p.reason ? `${p.reason}\n` : "") + "שובץ אוטומטית על ידי AI — ללא חריגים, לא נדרש אישור מנהל.",
+              note:
+                (p.reason ? `${p.reason}\n` : "") +
+                (aiJson.aiActive === false
+                  ? "אושר אוטומטית — ללא חריגים, לא נדרש אישור מנהל."
+                  : "שובץ אוטומטית על ידי AI — ללא חריגים, לא נדרש אישור מנהל."),
             })),
           },
           { autoApproved: true }

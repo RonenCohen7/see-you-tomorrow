@@ -136,7 +136,11 @@ export const enTranslation = {
   locationsNoActiveMatch: "No active locations match. Turn off the filter or reactivate one.",
   locationsShowAll: "Show all locations",
   locationActivatedToast: "Location is active again.",
-  schedulesNoteAiMockDisplay: "Scheduled by AI and approved by management",
+  schedulesNoteAiMockDisplay: "Scheduled from employee preferences · no active AI credit",
+  aiNoCreditTitle: "No active AI credit in the system",
+  aiNoCreditBody:
+    "The schedule follows the preferences employees submitted. Days without a preference were filled by a simple automatic rotation, without smart balancing of capacity, fairness and history. Activate AI credit for smart scheduling.",
+  aiNoCreditChip: "No AI · by preferences",
   schedules: "Schedule records",
   parking: "Parking",
   parkingSubtitle:

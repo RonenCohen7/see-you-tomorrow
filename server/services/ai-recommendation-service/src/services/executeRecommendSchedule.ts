@@ -37,6 +37,8 @@ export async function executeRecommend(
   recommendations: Array<{ date: string; employeeId: string; recommendedStatus: string; reason?: string }>;
   confidence?: number;
   model?: string;
+  aiActive: boolean;
+  aiUnavailableReason?: ai.AiUnavailableReason;
   validation: ReturnType<typeof validation.validateScheduleRecommendations>;
   preferenceContext: ReturnType<typeof prefInsight.summarizeLoadedPreferences>;
   preferenceVsRecommendation: ReturnType<typeof prefInsight.summarizePreferenceVsRecommendations>;
@@ -91,11 +93,21 @@ export async function executeRecommend(
     policyAllowFridaySaturdayOffice: allowFridaySaturdayOffice,
   });
 
-  const recommendations = options.honorSubmittedPreferences
+  const honorPreferences = options.honorSubmittedPreferences || !result.aiActive;
+  const withPreferences = honorPreferences
     ? prefInsight.applySubmittedPreferencesToRecommendations(result.recommendations, prefLookup, {
         allowFridaySaturdayOffice,
       })
     : result.recommendations;
+  const recommendations = result.aiActive
+    ? withPreferences
+    : withPreferences.map((row) => ({
+        ...row,
+        reason:
+          prefLookup.get(`${row.employeeId}|${row.date}`) === row.recommendedStatus
+            ? ai.NO_AI_REASON_PREFERENCE_HE
+            : ai.NO_AI_REASON_ROTATION_HE,
+      }));
 
   const validated = validation.validateScheduleRecommendations({
     recommendations,
