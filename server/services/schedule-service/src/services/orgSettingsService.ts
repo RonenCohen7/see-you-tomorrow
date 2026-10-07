@@ -61,7 +61,7 @@ export async function getManagerCanEditSchedules(): Promise<boolean> {
   if (!doc) {
     doc = await Model.create({
       managerCanEditSchedules: false,
-      preferenceMinDaysAhead: 7,
+      preferenceMinDaysAhead: 0,
       preferenceRemindersEnabled: true,
       updatedAt: new Date(),
     });
@@ -86,12 +86,12 @@ export async function getPreferenceMinDaysAhead(): Promise<number> {
   if (!doc) {
     doc = await Model.create({
       managerCanEditSchedules: false,
-      preferenceMinDaysAhead: 7,
+      preferenceMinDaysAhead: 0,
       preferenceRemindersEnabled: true,
       updatedAt: new Date(),
     });
   }
-  return typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 7;
+  return typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 0;
 }
 
 export async function getPreferenceRemindersEnabled(): Promise<boolean> {
@@ -101,7 +101,7 @@ export async function getPreferenceRemindersEnabled(): Promise<boolean> {
   if (!doc) {
     doc = await Model.create({
       managerCanEditSchedules: false,
-      preferenceMinDaysAhead: 7,
+      preferenceMinDaysAhead: 0,
       preferenceRemindersEnabled: true,
       updatedAt: new Date(),
     });
@@ -172,7 +172,7 @@ export async function getOrgSchedulesFull() {
   if (!doc) {
     doc = await Model.create({
       managerCanEditSchedules: false,
-      preferenceMinDaysAhead: 7,
+      preferenceMinDaysAhead: 0,
       preferenceRemindersEnabled: true,
       updatedAt: new Date(),
     });
@@ -187,7 +187,7 @@ export async function getOrgSchedulesFull() {
 
   return {
     managerCanEditSchedules: doc.managerCanEditSchedules,
-    preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 7,
+    preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 0,
     preferenceRemindersEnabled: doc.preferenceRemindersEnabled !== false,
     disabledBuiltinScheduleStatuses,
     customScheduleStatuses: customs.map((c): CustomScheduleStatusDef => {

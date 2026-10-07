@@ -17,18 +17,31 @@ async function model() {
   return getAttendancePreferenceModel(conn);
 }
 
-function utcTodayIso(ref = new Date()): string {
-  return toIsoDate(new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate())));
+export function israelTodayIso(ref = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(ref);
 }
 
-/** Smallest UTC Sunday such that that week is at least `minDaysAhead` UTC days after today. */
+/** First day an employee may still set a preference for: today (Israel) plus the org lead time. */
+export function firstEditablePreferenceDate(minDaysAhead: number, ref = new Date()): string {
+  return addUtcDays(israelTodayIso(ref), Math.max(0, minDaysAhead));
+}
+
+/** Sunday of the week containing the first editable day — that week is open, its earlier days are locked. */
 export function earliestAllowedPreferenceWeekSunday(minDaysAhead: number, ref = new Date()): string {
-  const today = utcTodayIso(ref);
-  const cutoff = addUtcDays(today, minDaysAhead);
-  const d = utcDay(cutoff);
-  const dow = d.getUTCDay();
-  const daysToSunday = dow === 0 ? 0 : 7 - dow;
-  return addUtcDays(cutoff, daysToSunday);
+  const first = firstEditablePreferenceDate(minDaysAhead, ref);
+  return addUtcDays(first, -utcDay(first).getUTCDay());
+}
+
+/** First week that is entirely open for preferences — the week reminders nag about. */
+export function nextFullPreferenceWeekSunday(minDaysAhead: number, ref = new Date()): string {
+  const first = firstEditablePreferenceDate(minDaysAhead, ref);
+  const dow = utcDay(first).getUTCDay();
+  return addUtcDays(first, dow === 0 ? 0 : 7 - dow);
 }
 
 function toPublic(doc: AttendancePreferenceDoc & { _id: Types.ObjectId }) {
@@ -104,6 +117,7 @@ export async function upsertMine(input: {
       "TOO_SOON"
     );
   }
+  const firstEditable = firstEditablePreferenceDate(minDays);
 
   const seenDates = new Set<string>();
   for (const row of input.days) {
@@ -118,6 +132,17 @@ export async function upsertMine(input: {
   }
 
   const M = await model();
+  const existing = await M.findOne({
+    employeeId: new mongoose.Types.ObjectId(input.employeeId),
+    weekStartSunday: input.weekStartSunday,
+  })
+    .select("days")
+    .lean();
+  const previousByDate = new Map((existing?.days ?? []).map((d) => [d.workDate, d.preference]));
+  const days = input.days.map((row) =>
+    row.workDate < firstEditable ? { workDate: row.workDate, preference: previousByDate.get(row.workDate) } : row
+  );
+
   const now = new Date();
   const doc = await M.findOneAndUpdate(
     { employeeId: new mongoose.Types.ObjectId(input.employeeId), weekStartSunday: input.weekStartSunday },
@@ -125,7 +150,7 @@ export async function upsertMine(input: {
       employeeId: new mongoose.Types.ObjectId(input.employeeId),
       departmentId: input.departmentId ? new mongoose.Types.ObjectId(input.departmentId) : undefined,
       weekStartSunday: input.weekStartSunday,
-      days: input.days,
+      days,
       status: input.submit ? "submitted" : "draft",
       ...(input.submit ? { submittedAt: now } : {}),
     },

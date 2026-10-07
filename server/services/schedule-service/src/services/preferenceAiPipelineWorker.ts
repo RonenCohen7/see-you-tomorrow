@@ -234,12 +234,15 @@ export function startPreferenceAiPipelineWorker() {
 
       const systemActorId = await resolveSystemActorEmployeeId();
       const prefs = aiJson.preferenceVsRecommendation;
-      const proposedItems = (aiJson.recommendations ?? []).map((r) => ({
-        date: r.date,
-        employeeId: r.employeeId,
-        recommendedStatus: r.recommendedStatus as import("@syt/shared").ScheduleStatus,
-        reason: r.reason,
-      }));
+      const todayIso = pref.israelTodayIso();
+      const proposedItems = (aiJson.recommendations ?? [])
+        .filter((r) => r.date >= todayIso)
+        .map((r) => ({
+          date: r.date,
+          employeeId: r.employeeId,
+          recommendedStatus: r.recommendedStatus as import("@syt/shared").ScheduleStatus,
+          reason: r.reason,
+        }));
 
       const cycleReady = await cycleSvc.loadForUpdate(departmentId, weekStartSunday);
       const cycleOid = cycleReady?._id.toString();

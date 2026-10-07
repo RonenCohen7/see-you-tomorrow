@@ -1095,7 +1095,8 @@ export const heTranslation = {
   prefAttendanceScreenSubtitle:
     "מלא לכל יום בסטטוס מועדף. הנתונים נשקלות בהמלצות AI — האישור הסופי אצל המנהל.",
   prefAttendanceEarliestWeekLine:
-    "שבוע מוקדם ביותר: {{week}} ({{days}} ימים קדימה מינימום){{reminders}}",
+    "ניתן למלא העדפות החל מ-{{first}} (מינימום {{days}} ימים מראש). ימים שעברו נעולים.{{reminders}}",
+  prefDayLockedPast: "נעול — היום עבר",
   prefAttendanceRemindersSuffix: " · תזכורות אוטומטיות פעילות",
   prefDayPreferenceLabel: "העדפה",
   prefClearPreference: "ללא העדפה",

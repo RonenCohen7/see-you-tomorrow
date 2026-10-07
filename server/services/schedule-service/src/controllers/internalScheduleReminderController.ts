@@ -12,7 +12,7 @@ export async function orgPreferenceSnippet(_req: Request, res: Response) {
 
 export async function preferenceReminderEnvelope(_req: Request, res: Response) {
   const org = await orgSettings.getOrgSchedulesFull();
-  const targetWeek = pref.earliestAllowedPreferenceWeekSunday(org.preferenceMinDaysAhead);
+  const targetWeek = pref.nextFullPreferenceWeekSunday(org.preferenceMinDaysAhead);
   res.json({
     remindersEnabled: org.preferenceRemindersEnabled,
     preferenceMinDaysAhead: org.preferenceMinDaysAhead,

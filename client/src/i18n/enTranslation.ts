@@ -1099,7 +1099,8 @@ export const enTranslation = {
   prefAttendanceScreenSubtitle:
     "Set a preferred status per day. Data feeds AI suggestions — managers approve the final schedule.",
   prefAttendanceEarliestWeekLine:
-    "Earliest week: {{week}} (minimum {{days}} days ahead){{reminders}}",
+    "Preferences can be set from {{first}} (minimum {{days}} days ahead). Past days are locked.{{reminders}}",
+  prefDayLockedPast: "Locked — day has passed",
   prefAttendanceRemindersSuffix: " · Automatic reminders on",
   prefDayPreferenceLabel: "Preference",
   prefClearPreference: "No preference",

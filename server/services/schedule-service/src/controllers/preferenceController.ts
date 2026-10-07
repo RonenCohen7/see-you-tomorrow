@@ -43,6 +43,7 @@ export async function getContext(req: AuthRequest, res: Response) {
   res.json({
     preferenceMinDaysAhead: minDays,
     earliestAllowedWeekStartSunday: earliest,
+    firstEditableDate: pref.firstEditablePreferenceDate(minDays),
     preferenceRemindersEnabled: org.preferenceRemindersEnabled,
   });
 }

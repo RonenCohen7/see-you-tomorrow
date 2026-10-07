@@ -57,7 +57,7 @@ async function main() {
 
   await OrgSettings.create({
     managerCanEditSchedules: false,
-    preferenceMinDaysAhead: 7,
+    preferenceMinDaysAhead: 0,
     preferenceRemindersEnabled: true,
     customScheduleStatuses: [],
     updatedAt: new Date(),

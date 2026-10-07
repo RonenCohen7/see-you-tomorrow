@@ -56,6 +56,7 @@ export default function AttendancePreferencesPage() {
         await api.get<{
           preferenceMinDaysAhead: number;
           earliestAllowedWeekStartSunday: string;
+          firstEditableDate?: string;
           preferenceRemindersEnabled: boolean;
         }>("/api/schedules/preferences/context")
       ).data,
@@ -116,6 +117,9 @@ export default function AttendancePreferencesPage() {
   });
 
   const days = prefQ.data?.days ?? [];
+  const firstEditableDate = ctx.data?.firstEditableDate ?? "";
+  const isLockedDay = (workDate: string) => !!firstEditableDate && workDate < firstEditableDate;
+  const hasEditableDay = days.some((d) => !isLockedDay(d.workDate));
 
   useEffect(() => {
     const d = prefQ.data?.days;
@@ -169,7 +173,7 @@ export default function AttendancePreferencesPage() {
       ) : (
         <Alert severity="info" sx={{ mb: 2 }}>
           {t("prefAttendanceEarliestWeekLine", {
-            week: ctx.data?.earliestAllowedWeekStartSunday ?? "—",
+            first: ctx.data?.firstEditableDate ?? ctx.data?.earliestAllowedWeekStartSunday ?? "—",
             days: ctx.data?.preferenceMinDaysAhead ?? "—",
             reminders: ctx.data?.preferenceRemindersEnabled ? t("prefAttendanceRemindersSuffix") : "",
           })}
@@ -249,12 +253,13 @@ export default function AttendancePreferencesPage() {
       <Stack spacing={1.5}>
         {days.map((d) => {
           const val = draft[d.workDate] ?? "";
+          const locked = isLockedDay(d.workDate);
           return (
             <Stack key={d.workDate} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
-              <Typography sx={{ width: { sm: 200 } }}>
+              <Typography sx={{ width: { sm: 200 } }} color={locked ? "text.disabled" : undefined}>
                 {d.workDate} · {utcWeekdayShort(d.workDate, intlTag)}
               </Typography>
-              <FormControl size="small" sx={{ minWidth: 180 }}>
+              <FormControl size="small" sx={{ minWidth: 180 }} disabled={locked}>
                 <InputLabel id={`lbl-${d.workDate}`}>{t("prefDayPreferenceLabel")}</InputLabel>
                 <Select
                   labelId={`lbl-${d.workDate}`}
@@ -276,6 +281,11 @@ export default function AttendancePreferencesPage() {
                   <MenuItem value="off">{t("off")}</MenuItem>
                 </Select>
               </FormControl>
+              {locked ? (
+                <Typography variant="caption" color="text.disabled">
+                  {t("prefDayLockedPast")}
+                </Typography>
+              ) : null}
             </Stack>
           );
         })}
@@ -284,7 +294,7 @@ export default function AttendancePreferencesPage() {
       <Stack direction="row" spacing={1} sx={{ mt: 3 }}>
         <Button
           variant="outlined"
-          disabled={!week || saveMut.isPending}
+          disabled={!week || saveMut.isPending || !hasEditableDay}
           onClick={() => {
             saveMut.mutate(false, {
               onSuccess: () => setToast({ ok: true, msg: t("prefToastDraftSaved") }),
@@ -300,7 +310,7 @@ export default function AttendancePreferencesPage() {
         </Button>
         <Button
           variant="contained"
-          disabled={!week || saveMut.isPending}
+          disabled={!week || saveMut.isPending || !hasEditableDay}
           onClick={() => setSubmitConfirmOpen(true)}
         >
           {t("prefSubmitPrefs")}

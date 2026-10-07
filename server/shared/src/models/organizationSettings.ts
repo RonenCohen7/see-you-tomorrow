@@ -29,7 +29,7 @@ export interface OrganizationSettingsDoc {
 const organizationSettingsSchema = new Schema<OrganizationSettingsDoc>(
   {
     managerCanEditSchedules: { type: Boolean, default: false },
-    preferenceMinDaysAhead: { type: Number, default: 7, min: 0, max: 60 },
+    preferenceMinDaysAhead: { type: Number, default: 0, min: 0, max: 60 },
     preferenceRemindersEnabled: { type: Boolean, default: true },
     customScheduleStatuses: {
       type: [
