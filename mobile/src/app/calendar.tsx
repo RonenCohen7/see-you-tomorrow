@@ -1,7 +1,19 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Redirect } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -19,6 +31,7 @@ type Employee = {
   id: string;
   fullName: string;
   role: Role;
+  departmentId?: string;
   isActive: boolean;
 };
 
@@ -27,7 +40,19 @@ type Schedule = {
   employeeId: string;
   workDate: string;
   status: string;
+  hours?: number;
   note?: string;
+  source?: string;
+};
+
+type StatusChoice = { value: string; label: string; color: string };
+
+type ShiftDraft = {
+  id?: string;
+  employeeId: string;
+  status: string;
+  hours: string;
+  note: string;
 };
 
 type DayAgg = {
@@ -232,6 +257,8 @@ export default function CalendarScreen() {
   const [dayItems, setDayItems] = useState<Schedule[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
   const [dayError, setDayError] = useState<string | null>(null);
+  const [calendarRevision, setCalendarRevision] = useState(0);
+  const quietRefresh = useRef(false);
 
   useEffect(() => {
     if (status !== "signedIn") return;
@@ -244,8 +271,10 @@ export default function CalendarScreen() {
     const coverTo = covered.length ? isoFromDate(covered[covered.length - 1][6]) : monthEnd(month);
     const spanFrom = upcomingFrom < coverFrom ? upcomingFrom : coverFrom;
     const spanTo = upcomingTo > coverTo ? upcomingTo : coverTo;
+    const silent = quietRefresh.current;
+    quietRefresh.current = false;
     (async () => {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       try {
         const [people, week, monthSchedules, monthAgg, parking, meetings] = await Promise.all([
@@ -266,13 +295,13 @@ export default function CalendarScreen() {
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : t("לא ניתן לטעון את היומן"));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !silent) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [status, month]);
+  }, [status, month, calendarRevision, quietRefresh]);
 
   const today = isoFromDate(new Date());
   const utcToday = new Date().toISOString().slice(0, 10);
@@ -358,11 +387,13 @@ export default function CalendarScreen() {
     return rows;
   }, [describe, month, monthDays, monthRows]);
 
-  async function openDay(iso: string) {
+  async function openDay(iso: string, keep = false) {
     setOpenIso(iso);
-    setDayLoading(true);
+    if (!keep) {
+      setDayLoading(true);
+      setDayItems([]);
+    }
     setDayError(null);
-    setDayItems([]);
     try {
       const data = await api<{ items: Schedule[] }>(`/api/schedules/day/${iso}?scope=company`);
       const utcToday = new Date().toISOString().slice(0, 10);
@@ -528,7 +559,13 @@ export default function CalendarScreen() {
         loading={dayLoading}
         error={dayError}
         employees={employees}
+        user={user}
         onClose={() => setOpenIso(null)}
+        onChanged={() => {
+          quietRefresh.current = true;
+          setCalendarRevision((value) => value + 1);
+          if (openIso) void openDay(openIso, true);
+        }}
       />
     </View>
   );
@@ -593,37 +630,213 @@ function DayRoster({
   loading,
   error,
   employees,
+  user,
   onClose,
+  onChanged,
 }: {
   iso: string | null;
   items: Schedule[];
   loading: boolean;
   error: string | null;
   employees: Employee[];
+  user: { id: string; role: Role; departmentId?: string } | null;
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { locale } = useLocale();
+  const canWrite = user?.role === "admin" || user?.role === "manager";
+  const utcToday = new Date().toISOString().slice(0, 10);
+  const [choices, setChoices] = useState<StatusChoice[]>([]);
+  const [customLabels, setCustomLabels] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<ShiftDraft | null>(null);
+  const [query, setQuery] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!iso) {
+      setDraft(null);
+      setNotice(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api<{
+          disabledBuiltinScheduleStatuses?: string[];
+          customScheduleStatuses?: { id: string; labelHe: string; labelEn?: string; disabled?: boolean }[];
+        }>("/api/schedules/org-settings");
+        if (cancelled) return;
+        const disabled = new Set(data.disabledBuiltinScheduleStatuses ?? []);
+        const next: StatusChoice[] = STATUS.filter((meta) => !disabled.has(meta.key)).map((meta) => ({
+          value: meta.key,
+          label: t(STATUS_LABEL[meta.key]),
+          color: meta.color,
+        }));
+        const labels: Record<string, string> = {};
+        for (const row of data.customScheduleStatuses ?? []) {
+          const value = `custom:${row.id}`;
+          const label = locale === "en" && row.labelEn?.trim() ? row.labelEn.trim() : row.labelHe;
+          labels[value] = label;
+          if (!row.disabled) next.push({ value, label, color: "#64748b" });
+        }
+        setChoices(next);
+        setCustomLabels(labels);
+      } catch {
+        if (!cancelled) {
+          setChoices(
+            STATUS.map((meta) => ({
+              value: meta.key,
+              label: t(STATUS_LABEL[meta.key]),
+              color: meta.color,
+            }))
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [iso, locale]);
+
   const names = new Map(employees.map((person) => [person.id, person.fullName]));
-  const groups = STATUS.map((meta) => ({
-    ...meta,
-    label: t(STATUS_LABEL[meta.key]) ?? meta.key,
-    rows: items.filter((row) => row.status === meta.key).sort((a, b) =>
-      (names.get(a.employeeId) ?? "").localeCompare(names.get(b.employeeId) ?? "", "he")
-    ),
+  const byId = new Map(employees.map((person) => [person.id, person]));
+  const sortName = (a: Schedule, b: Schedule) =>
+    (names.get(a.employeeId) ?? "").localeCompare(names.get(b.employeeId) ?? "", intlTag());
+  const builtinGroups = STATUS.map((meta) => ({
+    key: meta.key,
+    color: meta.color,
+    icon: meta.icon,
+    label: t(STATUS_LABEL[meta.key]),
+    rows: items.filter((row) => row.status === meta.key).sort(sortName),
   })).filter((group) => group.rows.length > 0);
+  const customKeys = [...new Set(items.map((row) => row.status).filter((status) => !STATUS.some((meta) => meta.key === status)))];
+  const groups = [
+    ...builtinGroups,
+    ...customKeys.map((key) => ({
+      key,
+      color: "#64748b",
+      icon: "label" as const,
+      label: customLabels[key] ?? key,
+      rows: items.filter((row) => row.status === key).sort(sortName),
+    })),
+  ];
   const title = iso
-    ? `${iso} · ${WEEKDAY_FULL[new Date(`${iso}T12:00:00`).getDay()] ?? ""}`
+    ? `${iso} · ${t(WEEKDAY_FULL[new Date(`${iso}T12:00:00`).getDay()] ?? "")}`
     : "";
 
+  function canEditEmployee(employeeId: string) {
+    if (!canWrite || !user) return false;
+    if (user.role === "admin") return true;
+    const person = byId.get(employeeId);
+    return Boolean(user.departmentId && person?.departmentId === user.departmentId);
+  }
+
+  function futureInactive(employeeId: string) {
+    return Boolean(iso && iso >= utcToday && byId.get(employeeId)?.isActive === false);
+  }
+
+  const selectable = employees
+    .filter((person) => person.isActive && canEditEmployee(person.id))
+    .filter((person) => !query.trim() || person.fullName.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, intlTag()));
+
+  const draftChoices = draft && !choices.some((choice) => choice.value === draft.status)
+    ? [{ value: draft.status, label: customLabels[draft.status] ?? t(STATUS_LABEL[draft.status] ?? draft.status), color: "#64748b" }, ...choices]
+    : choices;
+
+  function startAdd() {
+    setFormError(null);
+    setQuery("");
+    setDraft({ employeeId: "", status: choices[0]?.value ?? "office", hours: "", note: "" });
+  }
+
+  function startEdit(row: Schedule) {
+    if (futureInactive(row.employeeId)) return;
+    setFormError(null);
+    setDraft({
+      id: row.id,
+      employeeId: row.employeeId,
+      status: row.status,
+      hours: row.hours != null ? String(row.hours) : "",
+      note: row.note ?? "",
+    });
+  }
+
+  function confirmDelete(row: Schedule) {
+    const name = names.get(row.employeeId) ?? t("עובד");
+    Alert.alert(t("מחיקת שיבוץ"), tr(`למחוק את השיבוץ של ${name}?`, `Delete the assignment for ${name}?`), [
+      { text: t("ביטול"), style: "cancel" },
+      { text: t("מחיקה"), style: "destructive", onPress: () => void remove(row.id) },
+    ]);
+  }
+
+  async function remove(id: string) {
+    setFormError(null);
+    try {
+      await api(`/api/schedules/${id}`, { method: "DELETE" });
+      setNotice(t("השיבוץ נמחק."));
+      onChanged();
+    } catch (err) {
+      setNotice(null);
+      setFormError(err instanceof Error ? err.message : t("המחיקה נכשלה."));
+    }
+  }
+
+  async function save() {
+    if (!draft || !iso || !draft.employeeId || futureInactive(draft.employeeId)) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        workDate: iso,
+        status: draft.status,
+        note: draft.note.trim() || undefined,
+      };
+      if (draft.hours.trim() !== "") {
+        const hours = Number(draft.hours);
+        if (Number.isNaN(hours) || hours < 0 || hours > 24) {
+          setFormError(t("שעות חייבות להיות בין 0 ל-24."));
+          setSaving(false);
+          return;
+        }
+        payload.hours = hours;
+      }
+      if (draft.id) {
+        await api(`/api/schedules/${draft.id}`, { method: "PUT", body: payload });
+      } else {
+        payload.employeeId = draft.employeeId;
+        await api("/api/schedules", { method: "POST", body: payload });
+      }
+      setDraft(null);
+      setNotice(t("השיבוץ נשמר."));
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : t("השמירה נכשלה"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
+    <>
     <Modal visible={!!iso} animationType="slide" onRequestClose={onClose}>
       <View style={[styles.rosterScreen, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.rosterHead}>
           <Text style={styles.rosterTitle}>{title}</Text>
+          {canWrite ? (
+            <Pressable onPress={startAdd} hitSlop={8} accessibilityLabel={t("שיבוץ חדש")}>
+              <MaterialIcons name="add-circle" size={28} color={colors.orange} />
+            </Pressable>
+          ) : null}
           <Pressable onPress={onClose} hitSlop={8}>
             <MaterialIcons name="close" size={26} color={colors.ink} />
           </Pressable>
         </View>
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+        {formError && !draft ? <Text style={styles.error}>{formError}</Text> : null}
         {loading ? <ActivityIndicator color={colors.orange} style={styles.loader} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <ScrollView contentContainerStyle={styles.rosterList}>
@@ -635,17 +848,120 @@ function DayRoster({
                 <Text style={[styles.groupTitle, { color: group.color }]}>{group.label}</Text>
                 <Text style={[styles.groupCount, { color: group.color }]}>{group.rows.length}</Text>
               </View>
-              {group.rows.map((row) => (
-                <View key={row.id} style={[styles.personRow, { backgroundColor: `${group.color}14`, borderRightColor: group.color }]}>
-                  <Text style={styles.personName}>{names.get(row.employeeId) ?? t("עובד")}</Text>
-                  {row.note?.trim() ? <Text style={styles.personNote}>{row.note.trim()}</Text> : null}
-                </View>
-              ))}
+              {group.rows.map((row) => {
+                const editable = canEditEmployee(row.employeeId);
+                const locked = futureInactive(row.employeeId);
+                return (
+                  <View key={row.id} style={[styles.personRow, { backgroundColor: `${group.color}14`, borderRightColor: group.color }]}>
+                    <View style={styles.personBody}>
+                      <Text style={styles.personName}>{names.get(row.employeeId) ?? t("עובד")}</Text>
+                      {row.hours != null ? (
+                        <Text style={styles.personNote}>{tr(`${row.hours} שעות`, `${row.hours} hours`)}</Text>
+                      ) : null}
+                      {row.note?.trim() ? <Text style={styles.personNote}>{row.note.trim()}</Text> : null}
+                      {row.source === "ai" ? <Text style={styles.aiTag}>AI</Text> : null}
+                    </View>
+                    {editable ? (
+                      <View style={styles.rowActions}>
+                        <Pressable
+                          onPress={() => startEdit(row)}
+                          disabled={locked}
+                          hitSlop={6}
+                          accessibilityLabel={t("עריכה")}
+                        >
+                          <MaterialIcons name="edit" size={22} color={locked ? colors.muted : colors.orange} />
+                        </Pressable>
+                        <Pressable onPress={() => confirmDelete(row)} hitSlop={6} accessibilityLabel={t("מחיקה")}>
+                          <MaterialIcons name="delete-outline" size={22} color={colors.danger} />
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
             </View>
           ))}
         </ScrollView>
       </View>
     </Modal>
+      <Modal visible={!!draft} animationType="slide" onRequestClose={() => setDraft(null)}>
+        <KeyboardAvoidingView
+          style={[styles.rosterScreen, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.rosterHead}>
+            <Text style={styles.rosterTitle}>{draft?.id ? t("עריכת שיבוץ") : t("שיבוץ חדש")}</Text>
+            <Pressable onPress={() => setDraft(null)} hitSlop={8}>
+              <MaterialIcons name="close" size={26} color={colors.ink} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+            {draft?.id ? (
+              <Text style={styles.personName}>{names.get(draft.employeeId) ?? t("עובד")}</Text>
+            ) : (
+              <>
+                <Text style={styles.fieldLabel}>{t("בחרו עובד")}</Text>
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={t("חיפוש עובד")}
+                  placeholderTextColor={colors.muted}
+                  style={styles.input}
+                />
+                {selectable.map((person) => (
+                  <Pressable
+                    key={person.id}
+                    onPress={() => setDraft((current) => (current ? { ...current, employeeId: person.id } : current))}
+                    style={[styles.choice, draft?.employeeId === person.id && styles.choiceOn]}
+                  >
+                    <Text style={styles.choiceText}>{person.fullName}</Text>
+                  </Pressable>
+                ))}
+              </>
+            )}
+            {draft && futureInactive(draft.employeeId) ? (
+              <Text style={styles.error}>{t("עובד לא פעיל — אי אפשר לערוך שיבוץ עתידי.")}</Text>
+            ) : null}
+            <Text style={styles.fieldLabel}>{t("סטטוס")}</Text>
+            <View style={styles.picks}>
+              {draftChoices.map((choice) => (
+                <Pressable
+                  key={choice.value}
+                  onPress={() => setDraft((current) => (current ? { ...current, status: choice.value } : current))}
+                  style={[styles.pick, draft?.status === choice.value && { backgroundColor: choice.color, borderColor: choice.color }]}
+                >
+                  <Text style={[styles.pickText, draft?.status === choice.value && styles.pickTextOn]}>{choice.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.fieldLabel}>{t("שעות (אופציונלי)")}</Text>
+            <TextInput
+              value={draft?.hours ?? ""}
+              onChangeText={(hours) => setDraft((current) => (current ? { ...current, hours } : current))}
+              keyboardType="decimal-pad"
+              placeholder="0–24"
+              placeholderTextColor={colors.muted}
+              style={[styles.input, styles.hoursInput]}
+            />
+            <Text style={styles.fieldLabel}>{t("הערה")}</Text>
+            <TextInput
+              value={draft?.note ?? ""}
+              onChangeText={(note) => setDraft((current) => (current ? { ...current, note } : current))}
+              multiline
+              style={[styles.input, styles.noteInput]}
+            />
+            {formError ? <Text style={styles.error}>{formError}</Text> : null}
+            <Pressable
+              onPress={() => void save()}
+              disabled={!draft?.employeeId || saving || (draft ? futureInactive(draft.employeeId) : false)}
+              style={[styles.saveButton, (!draft?.employeeId || saving) && styles.saveButtonOff]}
+            >
+              <Text style={styles.saveText}>{saving ? t("שומר...") : t("שמירה")}</Text>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -768,9 +1084,55 @@ const styles = StyleSheet.create({
   groupHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   groupTitle: { fontWeight: "800", fontSize: 16 },
   groupCount: { fontWeight: "800" },
-  personRow: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6, borderRightWidth: 4 },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 6,
+    borderRightWidth: 4,
+  },
+  personBody: { flex: 1, minWidth: 0 },
   personName: { color: colors.ink, fontWeight: "700", },
   personNote: { color: colors.muted, marginTop: 2 },
+  aiTag: { color: colors.violet, fontSize: 12, fontWeight: "800", marginTop: 2 },
+  rowActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  notice: { color: "#15803d", fontWeight: "700", marginBottom: 8 },
+  form: { paddingBottom: 24, gap: 8 },
+  fieldLabel: { color: colors.ink, fontWeight: "800", marginTop: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.12)",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    color: colors.ink,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  hoursInput: { writingDirection: "ltr", textAlign: "left" },
+  noteInput: { minHeight: 80, textAlignVertical: "top" },
+  choice: {
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.12)",
+    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  choiceOn: { borderColor: colors.orange, backgroundColor: "rgba(249,115,22,0.1)" },
+  choiceText: { color: colors.ink, fontWeight: "700" },
+  saveButton: {
+    marginTop: 8,
+    backgroundColor: colors.orange,
+    borderRadius: 14,
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  saveButtonOff: { opacity: 0.45 },
+  saveText: { color: "#ffffff", fontWeight: "800", fontSize: 16 },
   footer: {
     marginTop: 22,
     textAlign: "center",
