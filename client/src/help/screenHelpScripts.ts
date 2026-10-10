@@ -34,7 +34,7 @@ const scriptsHe: Record<string, HelpSegment[]> = {
   ],
   "/calendar": [
     { text: "בלשונית שבעה ימים מוצגים שבעת הימים בשלוש שורות, שלושה בעמודה.", highlight: "calendar-tabs" },
-    { text: "אפשר להישאר על הימים הקרובים, או לבחור שבוע לפי המספר שלו בחודש כדי לראות קדימה.", highlight: "calendar-week-picker" },
+    { text: "אפשר להישאר על הימים הקרובים, או לבחור שבוע בחודש. כל שבוע הוא מיום ראשון עד שבת.", highlight: "calendar-week-picker" },
     { text: "הפריסה מפנה מקום לתוכן בלי לצמצם את גודל הכרטיסים.", highlight: "calendar-seven-grid" },
     { text: "בתצוגת 15 ימים עוברים בין 1–15 לשאר ימי החודש.", highlight: "calendar-fifteen-picker" },
     {
@@ -123,7 +123,7 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   ],
   "/calendar": [
     { text: "The seven-day tab shows one week across three rows with three columns.", highlight: "calendar-tabs" },
-    { text: "Stay on the upcoming days, or pick a week by its number in the month to look ahead.", highlight: "calendar-week-picker" },
+    { text: "Stay on the upcoming days, or pick a week in the month. Each week runs Sunday through Saturday.", highlight: "calendar-week-picker" },
     { text: "This layout frees space without shrinking cards.", highlight: "calendar-seven-grid" },
     { text: "The 15-day view switches between days 1–15 and the rest of the month.", highlight: "calendar-fifteen-picker" },
     {

@@ -165,22 +165,34 @@ function daysInMonth(ym: string): number {
   return Number(monthEnd(ym).slice(8));
 }
 
-function monthWeekCount(ym: string): number {
-  return Math.ceil(daysInMonth(ym) / 7);
+/** Sunday–Saturday weeks that touch the month. Week 1 starts on the Sunday of the week that contains the 1st. */
+function calendarWeeks(ym: string): Date[][] {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return [];
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  const cursor = new Date(first);
+  cursor.setDate(first.getDate() - first.getDay());
+  const weeks: Date[][] = [];
+  while (cursor <= last && weeks.length < 6) {
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(cursor);
+      d.setDate(cursor.getDate() + i);
+      days.push(d);
+    }
+    weeks.push(days);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return weeks;
 }
 
-function datesFromDay(year: number, monthIndex: number, start: number, end: number): Date[] {
-  const days: Date[] = [];
-  for (let day = start; day <= end; day++) days.push(new Date(year, monthIndex, day));
-  return days;
+function monthWeekCount(ym: string): number {
+  return calendarWeeks(ym).length;
 }
 
 function weekDates(ym: string, week: number): Date[] {
-  const [y, m] = ym.split("-").map(Number);
-  const last = daysInMonth(ym);
-  const start = (week - 1) * 7 + 1;
-  if (start > last) return [];
-  return datesFromDay(y, m - 1, start, Math.min(start + 6, last));
+  return calendarWeeks(ym)[week - 1] ?? [];
 }
 
 function countByDate<T extends { workDate: string }>(items: T[]): Record<string, number> {
@@ -224,8 +236,11 @@ export default function CalendarScreen() {
     const days7 = next7Days();
     const upcomingFrom = isoFromDate(days7[0]);
     const upcomingTo = isoFromDate(days7[6]);
-    const spanFrom = upcomingFrom < `${month}-01` ? upcomingFrom : `${month}-01`;
-    const spanTo = upcomingTo > monthEnd(month) ? upcomingTo : monthEnd(month);
+    const covered = calendarWeeks(month);
+    const coverFrom = covered[0] ? isoFromDate(covered[0][0]) : `${month}-01`;
+    const coverTo = covered.length ? isoFromDate(covered[covered.length - 1][6]) : monthEnd(month);
+    const spanFrom = upcomingFrom < coverFrom ? upcomingFrom : coverFrom;
+    const spanTo = upcomingTo > coverTo ? upcomingTo : coverTo;
     (async () => {
       setLoading(true);
       setError(null);
@@ -233,7 +248,7 @@ export default function CalendarScreen() {
         const [people, week, monthSchedules, monthAgg, parking, meetings] = await Promise.all([
           loadCompanyEmployees(),
           api<{ items: Schedule[] }>(`/api/schedules?from=${upcomingFrom}&to=${upcomingTo}&scope=company`),
-          api<{ items: Schedule[] }>(`/api/schedules?from=${month}-01&to=${monthEnd(month)}&scope=company`),
+          api<{ items: Schedule[] }>(`/api/schedules?from=${coverFrom}&to=${coverTo}&scope=company`),
           api<{ days: DayAgg[] }>(`/api/schedules/month/${month}?scope=company`),
           optionalItems<{ workDate: string }>(`/api/parking/reservations?from=${spanFrom}&to=${spanTo}`),
           optionalItems<{ workDate: string }>(`/api/meeting-rooms/bookings?from=${spanFrom}&to=${spanTo}`),

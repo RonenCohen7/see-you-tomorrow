@@ -106,19 +106,24 @@ function buildNext7(intlTag: string): CalendarDayChip[] {
   return out;
 }
 
-/** Week 1 is days 1–7 of the month, week 2 is 8–14, and so on. The last week is shorter. */
+/** Sunday–Saturday weeks that touch the month. Week 1 starts on the Sunday of the week that contains the 1st. */
 function weeksOverlappingMonth(monthYm: string, intlTag: string): { n: number; days: CalendarDayChip[] }[] {
   const [y, m] = monthYm.split("-").map(Number);
   if (!y || !m) return [];
-  const last = new Date(y, m, 0).getDate();
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  const cursor = new Date(first);
+  cursor.setDate(first.getDate() - first.getDay());
   const weeks: { n: number; days: CalendarDayChip[] }[] = [];
-  for (let start = 1; start <= last; start += 7) {
+  while (cursor <= last && weeks.length < 6) {
     const days: CalendarDayChip[] = [];
-    const end = Math.min(start + 6, last);
-    for (let day = start; day <= end; day++) {
-      days.push(dayChip(new Date(y, m - 1, day), intlTag));
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(cursor);
+      d.setDate(cursor.getDate() + i);
+      days.push(dayChip(d, intlTag));
     }
     weeks.push({ n: weeks.length + 1, days });
+    cursor.setDate(cursor.getDate() + 7);
   }
   return weeks;
 }
