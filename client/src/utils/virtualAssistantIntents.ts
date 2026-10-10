@@ -33,11 +33,11 @@ export type ClassifiedAssistantIntent =
   | { kind: "unknown" };
 
 function adminPaths(): readonly string[] {
-  return ["/employees", "/departments", "/locations", "/scheduling-rules"];
+  return ["/departments", "/locations", "/scheduling-rules"];
 }
 
 function managerPaths(): readonly string[] {
-  return ["/schedules", "/parking", "/ai"];
+  return ["/schedules", "/parking", "/ai", "/employees"];
 }
 
 function canOpenPath(path: string, role: Role): boolean {

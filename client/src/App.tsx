@@ -94,9 +94,9 @@ export default function App() {
                   <Route
                     path="/employees"
                     element={
-                      <AdminRoute>
+                      <ManagerOrAdminRoute>
                         <EmployeesPage />
-                      </AdminRoute>
+                      </ManagerOrAdminRoute>
                     }
                   />
                   <Route

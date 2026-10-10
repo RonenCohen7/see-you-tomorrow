@@ -958,7 +958,7 @@ export const heTranslation = {
   employeesPermanentParking: "חנייה קבועה",
   employeesParkingSpotLabel: "חנייה קבועה (מנהל)",
   employeesParkingSpotPlaceholder: "בחרו חנייה פנויה",
-  employeesParkingSpotRequired: "למנהל חדש יש לבחור חנייה קבועה פנויה",
+  employeesParkingSpotRequired: "למנהל יש לבחור חנייה קבועה פנויה",
   employeesParkingSpotHint: "החנייה תישמר בהגדרות החניות כמשתמש קבוע על שם המנהל",
   employeesParkingSpotNone: "ללא חנייה קבועה",
   employeesNoVacantSpots: "אין חניות פנויות במיקום שנבחר — בחרו מיקום אחר או הוסיפו חניות בהגדרות",

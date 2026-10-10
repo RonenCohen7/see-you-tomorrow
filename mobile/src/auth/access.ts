@@ -29,7 +29,8 @@ export function canOpen(role: string | undefined, screen: AppScreen): boolean {
   ) {
     return normalized === "admin" || normalized === "manager";
   }
-  if (screen === "employees" || screen === "departments" || screen === "locations" || screen === "settings") {
+  if (screen === "employees") return normalized === "admin" || normalized === "manager";
+  if (screen === "departments" || screen === "locations" || screen === "settings") {
     return normalized === "admin";
   }
   return false;

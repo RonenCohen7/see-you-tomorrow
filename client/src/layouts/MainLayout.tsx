@@ -75,9 +75,17 @@ const WIDTH = 264;
 /** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
 const WIDTH_COMPACT = 220;
 
-const adminOnlyNav = ["/employees", "/departments", "/locations"];
+const adminOnlyNav = ["/departments", "/locations"];
 /** מנהל מחלקה / אדמין בלבד — לא מוצג למשתמש עם תפקיד עובד */
-const managerAdminNav = ["/dashboard", "/schedules", "/parking", "/ai", "/notifications", "/scheduling-rules"];
+const managerAdminNav = [
+  "/dashboard",
+  "/schedules",
+  "/parking",
+  "/ai",
+  "/notifications",
+  "/scheduling-rules",
+  "/employees",
+];
 
 type NavItem = {
   to: string;

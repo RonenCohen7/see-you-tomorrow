@@ -3,7 +3,7 @@
 const SCREEN_SUMMARIES_HE: Record<string, string> = {
   "/dashboard": "לוח בקרה — נוכחות, חניות והתראות.",
   "/calendar": "יומן — 7 ימים או תצוגת חודש; לחיצה על יום לעריכה.",
-  "/employees": "עובדים — כרטיסים, תפקיד, מחלקה, מיקום.",
+  "/employees": "עובדים — כרטיסים, תפקיד, מחלקה, מיקום וחנייה קבועה למנהל. מנהל ואדמין.",
   "/departments": "מחלקות — מבנה ארגוני.",
   "/locations": "מיקומים — אתרים, קיבולת, חניות.",
   "/schedules": "רשומות שיבוץ — שיבוצים לפי עובד/תאריך/סטטוס.",
@@ -23,7 +23,7 @@ const SCREEN_SUMMARIES_HE: Record<string, string> = {
 const SCREEN_SUMMARIES_EN: Record<string, string> = {
   "/dashboard": "Dashboard — attendance, parking, alerts.",
   "/calendar": "Calendar — week or month view; tap a day to edit.",
-  "/employees": "Employees — profiles, role, department.",
+  "/employees": "Employees — profiles, role, department, and a required parking spot for a manager. Manager and admin.",
   "/departments": "Departments — org structure.",
   "/locations": "Locations — sites, capacity, parking.",
   "/schedules": "Schedules — assignments by employee/date/status.",

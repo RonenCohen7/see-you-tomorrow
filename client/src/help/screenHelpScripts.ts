@@ -44,6 +44,7 @@ const scriptsHe: Record<string, HelpSegment[]> = {
   "/employees": [
     { text: "כאן מנהלים את כרטיסי העובדים: פרטים, תפקיד, מחלקה ומיקום." },
     { text: "אפשר לחפש, לסנן לפעילים בלבד, ולפתוח עריכה לעדכון פרטים או תמונה." },
+    { text: "בקליטת עובד בתפקיד מנהל, או בעריכת תפקיד למנהל, חובה לשייך חנייה קבועה." },
     { text: "שינויים כאן משפיעים על ההרשאות ועל התצוגה בשאר חלקי המערכת." },
   ],
   "/departments": [
@@ -130,6 +131,7 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   "/employees": [
     { text: "Manage employee cards — details, role, department and location." },
     { text: "Search, filter active-only, open edit to update profile text or photo." },
+    { text: "Creating a manager, or changing someone to manager, requires a permanent parking spot." },
     { text: "Changes here affect permissions and what appears elsewhere." },
   ],
   "/departments": [
@@ -270,8 +272,8 @@ const menuItemExplanations: Record<string, MenuExplanation> = {
     en: "Preferences — employees mark which days they want office, home, or vacation. After submit the AI builds a draft schedule for manager approval.",
   },
   employees: {
-    he: "עובדים — ניהול כרטיסי עובדים: פרטים, מחלקה, תפקיד, מיקום וחנייה קבועה. אדמין בלבד.",
-    en: "Employees — manage employee cards: details, department, role, location and permanent parking. Admin only.",
+    he: "עובדים — ניהול כרטיסי עובדים: פרטים, מחלקה, תפקיד, מיקום וחנייה קבועה. מנהל ואדמין. בקליטת מנהל חובה לשייך חנייה.",
+    en: "Employees — manage employee cards: details, department, role, location and permanent parking. Manager and admin. A new manager must get a parking spot.",
   },
   departments: {
     he: "מחלקות — מבנה הארגון: שיוך עובדים למחלקה ולמנהל אחראי. אדמין בלבד.",

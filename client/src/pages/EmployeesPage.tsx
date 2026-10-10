@@ -315,7 +315,7 @@ export default function EmployeesPage() {
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const qc = useQueryClient();
   const role = useRole();
-  const canWrite = role === "admin";
+  const canWrite = role === "admin" || role === "manager";
   const [searchParams, setSearchParams] = useSearchParams();
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [page, setPage] = useState(1);
@@ -379,7 +379,7 @@ export default function EmployeesPage() {
   const reportEmployeesQ = useQuery({
     queryKey: ["employees-compliance-list"],
     queryFn: async () =>
-      (await api.get<{ items: Employee[]; total: number }>("/api/employees?page=1&limit=2500")).data.items,
+      (await api.get<{ items: Employee[]; total: number }>("/api/employees?scope=company&page=1&limit=2500")).data.items,
     enabled: reportsDialogOpen && canWrite,
     staleTime: 30_000,
   });
@@ -393,6 +393,7 @@ export default function EmployeesPage() {
       });
       if (search) params.set("search", search);
       if (activeOnly) params.set("isActive", "true");
+      params.set("scope", "company");
       return (await api.get<{ items: Employee[]; total: number }>(`/api/employees?${params}`)).data;
     },
   });
@@ -456,7 +457,7 @@ export default function EmployeesPage() {
   );
 
   const showParkingInForm = form.role === "manager" || form.role === "admin";
-  const newManagerNeedsParking = !editingId && form.role === "manager";
+  const newManagerNeedsParking = form.role === "manager";
 
   const saveMut = useMutation({
     mutationFn: async () => {

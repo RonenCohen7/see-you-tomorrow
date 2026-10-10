@@ -63,7 +63,7 @@ const tiles: NavTile[] = [
     color: "#f97316",
     managerOrAdminOnly: true,
   },
-  { to: "/employees", i18nKey: "employees", Icon: EmployeesIcon, descriptionKey: "dashTileEmployeesDesc", color: "#8b5cf6", adminOnly: true },
+  { to: "/employees", i18nKey: "employees", Icon: EmployeesIcon, descriptionKey: "dashTileEmployeesDesc", color: "#8b5cf6", managerOrAdminOnly: true },
   { to: "/departments", i18nKey: "departments", Icon: DepartmentsIcon, descriptionKey: "dashTileDepartmentsDesc", color: "#22c55e", adminOnly: true },
   { to: "/locations", i18nKey: "locations", Icon: LocationsIcon, descriptionKey: "dashTileLocationsDesc", color: "#ef4444", adminOnly: true },
   { to: "/ai", i18nKey: "ai", Icon: AIIcon, descriptionKey: "dashTileAiDesc", color: "#ec4899", managerOrAdminOnly: true },

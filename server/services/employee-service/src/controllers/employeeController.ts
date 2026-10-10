@@ -1,5 +1,5 @@
 import type { Response } from "express";
-import { AppError, requireAdmin, type AuthRequest } from "@syt/shared";
+import { AppError, requireAdmin, requireRoles, type AuthRequest } from "@syt/shared";
 import {
   bulkImportEmployeesSchema,
   createEmployeeSchema,
@@ -17,7 +17,7 @@ export async function list(req: AuthRequest, res: Response) {
   const { scope: view, ...query } = parsed.data;
   if (view === "company") {
     const result = await svc.listEmployees(query);
-    if (req.user.role === "admin") return res.json(result);
+    if (req.user.role === "admin" || req.user.role === "manager") return res.json(result);
     return res.json({ ...result, items: result.items.map(svc.toDirectoryEntry) });
   }
 
@@ -39,14 +39,9 @@ export async function list(req: AuthRequest, res: Response) {
 export async function getOne(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const { id } = req.params;
-  if (req.user.role === "admin" || req.user.id === id) {
+  if (req.user.role === "admin" || req.user.role === "manager" || req.user.id === id) {
     const e = await svc.getById(id);
     return res.json(e);
-  }
-  if (req.user.role === "manager") {
-    const dept = await svc.getManagerDepartmentId(req.user.id);
-    const target = await svc.getById(id);
-    if (dept && target.departmentId === dept) return res.json(target);
   }
   throw new AppError(403, "אין הרשאה", "FORBIDDEN");
 }
@@ -102,3 +97,5 @@ export async function remove(req: AuthRequest, res: Response) {
 
 /** Admin-only middleware applied at router */
 export const adminOnly = requireAdmin;
+/** Create and edit employees. Delete stays admin-only. */
+export const managerOrAdmin = requireRoles("admin", "manager");

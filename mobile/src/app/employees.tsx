@@ -68,7 +68,9 @@ async function loadPeople(): Promise<Person[]> {
   const all: Person[] = [];
   let page = 1;
   while (page < 30) {
-    const data = await api<{ items: Person[]; total: number }>(`/api/employees?page=${page}&limit=100&isActive=true`);
+    const data = await api<{ items: Person[]; total: number }>(
+      `/api/employees?scope=company&page=${page}&limit=100&isActive=true`
+    );
     all.push(...data.items);
     if (all.length >= data.total || data.items.length === 0) break;
     page += 1;
@@ -79,7 +81,8 @@ async function loadPeople(): Promise<Person[]> {
 export default function EmployeesScreen() {
   const { status, user } = useAuth();
   const insets = useSafeAreaInsets();
-  const canWrite = user?.role === "admin";
+  const role = user?.role?.trim().toLowerCase();
+  const canWrite = role === "admin" || role === "manager";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);

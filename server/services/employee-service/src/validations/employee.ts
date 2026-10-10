@@ -51,7 +51,7 @@ export const listQuerySchema = z.object({
   locationId: objectId.optional(),
   role: z.enum(["admin", "manager", "employee"]).optional(),
   isActive: z.coerce.boolean().optional(),
-  /** Company-wide directory (calendar names); non-admins get basic fields only. */
+  /** Company-wide list. Employees get basic fields only; manager and admin get full records. */
   scope: z.enum(["company"]).optional(),
 });
 

@@ -962,7 +962,7 @@ export const enTranslation = {
   employeesPermanentParking: "Permanent parking",
   employeesParkingSpotLabel: "Permanent parking (manager)",
   employeesParkingSpotPlaceholder: "Choose an available spot",
-  employeesParkingSpotRequired: "New managers must be assigned a permanent parking spot",
+  employeesParkingSpotRequired: "A manager must be assigned a permanent parking spot",
   employeesParkingSpotHint: "The spot is saved in parking settings as this manager's permanent holder",
   employeesParkingSpotNone: "No permanent parking",
   employeesNoVacantSpots: "No vacant spots at the selected location — change location or add spots in parking settings",
