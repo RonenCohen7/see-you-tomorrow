@@ -1,6 +1,20 @@
 import nodemailer from "nodemailer";
 import { logger } from "@syt/shared";
 
+type OutboundAttachment = { filename: string; content: Buffer; contentType?: string };
+
+type OutboundMail = {
+  to: string;
+  subject: string;
+  text: string;
+  attachments?: OutboundAttachment[];
+};
+
+function fromAddress(): string {
+  const configured = process.env.RESEND_FROM?.trim() || process.env.SMTP_FROM?.trim();
+  return configured || "noreply@seeyoutomorrow.local";
+}
+
 export function createTransport() {
   const host = process.env.SMTP_HOST ?? "localhost";
   const port = Number(process.env.SMTP_PORT ?? 1025);
@@ -16,19 +30,71 @@ export function createTransport() {
   });
 }
 
-export async function sendPlainEmail(to: string, subject: string, text: string) {
+async function deliverResend(apiKey: string, mail: OutboundMail) {
+  const body: Record<string, unknown> = {
+    from: fromAddress(),
+    to: [mail.to],
+    subject: mail.subject,
+    text: mail.text,
+  };
+  if (mail.attachments?.length) {
+    body.attachments = mail.attachments.map((file) => ({
+      filename: file.filename,
+      content: file.content.toString("base64"),
+    }));
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Resend ${res.status}: ${detail.slice(0, 300)}`);
+  }
+  logger.info(`Email sent via Resend to ${mail.to}`);
+}
+
+async function deliverSmtp(mail: OutboundMail) {
   const transport = createTransport();
-  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
-  await transport.sendMail({ from, to, subject, text });
-  logger.info(`Plain email sent to ${to}`);
+  await transport.sendMail({
+    from: fromAddress(),
+    to: mail.to,
+    subject: mail.subject,
+    text: mail.text,
+    attachments: mail.attachments?.map((file) => ({
+      filename: file.filename,
+      content: file.content,
+      contentType: file.contentType ?? "application/pdf",
+    })),
+  });
+  const host = process.env.SMTP_HOST ?? "localhost";
+  const port = Number(process.env.SMTP_PORT ?? 1025);
+  logger.info(`Email sent via SMTP to ${mail.to}`, { smtp: `${host}:${port}` });
+}
+
+async function deliver(mail: OutboundMail) {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (apiKey) {
+    await deliverResend(apiKey, mail);
+    return;
+  }
+  await deliverSmtp(mail);
+}
+
+export async function sendPlainEmail(to: string, subject: string, text: string) {
+  await deliver({ to, subject, text });
 }
 
 export async function sendScheduleEmail(
   to: string,
   ctx: { employeeName: string; workDate: string; workDateEnd?: string; status: string; location?: string }
 ) {
-  const transport = createTransport();
-  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
   const subject = "עדכון לוח זמנים";
   const dateLine =
     ctx.workDateEnd && ctx.workDateEnd !== ctx.workDate
@@ -47,8 +113,7 @@ export async function sendScheduleEmail(
     .filter(Boolean)
     .join("\n");
 
-  await transport.sendMail({ from, to, subject, text });
-  logger.info(`Email sent to ${to}`);
+  await deliver({ to, subject, text });
 }
 
 export async function sendPasswordResetEmail(params: {
@@ -57,8 +122,6 @@ export async function sendPasswordResetEmail(params: {
   resetUrl: string;
   locale: "he" | "en";
 }) {
-  const transport = createTransport();
-  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
   const isHe = params.locale === "he";
   const subject = isHe ? "איפוס סיסמה — See You Tomorrow" : "Reset your password — See You Tomorrow";
   const text = isHe
@@ -87,8 +150,7 @@ export async function sendPasswordResetEmail(params: {
         "See You Tomorrow",
       ].join("\n");
 
-  await transport.sendMail({ from, to: params.to, subject, text });
-  logger.info(`Password reset email sent to ${params.to}`);
+  await deliver({ to: params.to, subject, text });
 }
 
 export async function sendMailWithAttachment(params: {
@@ -97,22 +159,10 @@ export async function sendMailWithAttachment(params: {
   text: string;
   attachment: { filename: string; content: Buffer; contentType?: string };
 }) {
-  const transport = createTransport();
-  const from = process.env.SMTP_FROM ?? "noreply@seeyoutomorrow.local";
-  await transport.sendMail({
-    from,
+  await deliver({
     to: params.to,
     subject: params.subject,
     text: params.text,
-    attachments: [
-      {
-        filename: params.attachment.filename,
-        content: params.attachment.content,
-        contentType: params.attachment.contentType ?? "application/pdf",
-      },
-    ],
+    attachments: [params.attachment],
   });
-  const host = process.env.SMTP_HOST ?? "localhost";
-  const port = Number(process.env.SMTP_PORT ?? 1025);
-  logger.info(`Email with attachment sent to ${params.to}`, { smtp: `${host}:${port}` });
 }

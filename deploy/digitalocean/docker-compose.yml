@@ -34,6 +34,8 @@ x-backend: &backend
     SMTP_USER: ${SMTP_USER:-}
     SMTP_PASS: ${SMTP_PASS:-}
     SMTP_FROM: ${SMTP_FROM:-noreply@seeyoutomorrow.local}
+    RESEND_API_KEY: ${RESEND_API_KEY:-}
+    RESEND_FROM: ${RESEND_FROM:-}
 
 services:
   caddy:
