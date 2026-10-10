@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "@syt/shared";
+import { requireAuth, requireRoles } from "@syt/shared";
 import * as ctrl from "../controllers/scheduleController.js";
 import * as prefCtrl from "../controllers/preferenceController.js";
 import * as aiBatchCtrl from "../controllers/scheduleAiBatchController.js";
@@ -9,7 +9,7 @@ import * as proposalCtrl from "../controllers/schedulingRuleProposalController.j
 const r = Router();
 
 r.get("/org-settings", requireAuth, ctrl.getOrgSettings);
-r.patch("/org-settings", requireAuth, ctrl.adminOnly, ctrl.patchOrgSettings);
+r.patch("/org-settings", requireAuth, requireRoles("admin", "manager"), ctrl.patchOrgSettings);
 
 r.get("/preferences/context", requireAuth, prefCtrl.getContext);
 r.get("/preferences/attendance/week/:weekStartSunday", requireAuth, prefCtrl.getWeek);

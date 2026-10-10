@@ -63,6 +63,7 @@ export default function SettingsPage() {
   const { t } = useTranslation();
   const { mode, toggle } = useThemeMode();
   const role = useRole();
+  const canManageOrg = role === "admin" || role === "manager";
   const qc = useQueryClient();
   const [bcTitle, setBcTitle] = React.useState("");
   const [bcMessage, setBcMessage] = React.useState("");
@@ -71,7 +72,7 @@ export default function SettingsPage() {
   const orgQ = useQuery({
     queryKey: ["org-settings"],
     queryFn: async () => (await api.get<OrgSettingsResponse>("/api/schedules/org-settings")).data,
-    enabled: role === "admin",
+    enabled: canManageOrg,
   });
 
   const [draftCustomStatuses, setDraftCustomStatuses] = React.useState<CustomDraftRow[]>([]);
@@ -129,7 +130,7 @@ export default function SettingsPage() {
         label={t("darkMode")}
       />
 
-      {role === "admin" && (
+      {canManageOrg && (
         <Box sx={{ mt: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
             {t("settingsOrgHeading")}

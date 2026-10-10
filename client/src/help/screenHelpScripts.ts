@@ -91,7 +91,7 @@ const scriptsHe: Record<string, HelpSegment[]> = {
   ],
   "/settings": [
     { text: "ההגדרות כוללות מצב תצוגה בהיר או כהה, והעדפות כלליות של הממשק." },
-    { text: "שינויים נשמרים מקומית בדפדפן או בחשבון, לפי סוג ההגדרה." },
+    { text: "מנהל ואדמין רואים כאן גם הגדרות ארגון, ובתחתית הודעת מערכת שנשלחת לכל מי שמחובר עכשיו." },
   ],
   "/scheduling-rules": [
     { text: "כאן מגדירים חוקי ארגון — בעיקר לאימות לפני אישור המלצות AI; חנייה אוטומטית פועלת בשמירת שיבוץ." },
@@ -189,7 +189,7 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   ],
   "/settings": [
     { text: "Settings cover light/dark mode plus general UI preferences." },
-    { text: "Some values persist locally or with your account depending on type." },
+    { text: "Managers and admins also see organization settings, and at the bottom a system message sent to everyone signed in now." },
   ],
   "/scheduling-rules": [
     {
@@ -320,8 +320,8 @@ const menuItemExplanations: Record<string, MenuExplanation> = {
     en: "Profile — your own user info: name, photo, contact details. Changes here propagate everywhere your name appears.",
   },
   settings: {
-    he: "הגדרות — מצב כהה/בהיר, שפה, והעדפות ממשק כלליות. לאדמין יש כאן גם הגדרות ארגוניות (משלוח מיילים, ימי תזכורת וכו').",
-    en: "Settings — light/dark mode, language, general UI preferences. Admins also get organization-level settings (mail, reminder cadence, etc.).",
+    he: "הגדרות — מצב כהה/בהיר, והגדרות ארגון למנהל ולאדמין: סטטוסים, תזכורות, והודעת מערכת לכל המחוברים.",
+    en: "Settings — light/dark mode, plus organization settings for managers and admins: statuses, reminders, and a system message to everyone who is signed in.",
   },
 };
 

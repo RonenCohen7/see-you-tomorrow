@@ -25,12 +25,13 @@ export function canOpen(role: string | undefined, screen: AppScreen): boolean {
     screen === "teamPreferences" ||
     screen === "notifications" ||
     screen === "ai" ||
-    screen === "schedulingRules"
+    screen === "schedulingRules" ||
+    screen === "settings"
   ) {
     return normalized === "admin" || normalized === "manager";
   }
   if (screen === "employees") return normalized === "admin" || normalized === "manager";
-  if (screen === "departments" || screen === "locations" || screen === "settings") {
+  if (screen === "departments" || screen === "locations") {
     return normalized === "admin";
   }
   return false;
