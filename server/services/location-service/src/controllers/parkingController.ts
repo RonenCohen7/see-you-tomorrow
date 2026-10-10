@@ -57,8 +57,15 @@ export async function deleteSpot(req: AuthRequest, res: Response) {
 }
 
 export async function patchSpot(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   const parsed = patchSpotSchema.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  if (req.user.role === "manager") {
+    const keys = Object.keys(parsed.data);
+    if (keys.length !== 1 || !Object.prototype.hasOwnProperty.call(parsed.data, "assignedEmployeeId")) {
+      throw new AppError(403, "מנהל יכול רק לשייך חנייה קבועה", "FORBIDDEN");
+    }
+  }
   const item = await svc.updateSpot(req.params.id, parsed.data);
   res.json(item);
 }

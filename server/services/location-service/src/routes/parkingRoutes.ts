@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireAdmin } from "@syt/shared";
+import { requireAuth, requireAdmin, requireRoles } from "@syt/shared";
 import * as ctrl from "../controllers/parkingController.js";
 
 const r = Router();
@@ -7,7 +7,7 @@ const r = Router();
 r.get("/spots", requireAuth, ctrl.listSpots);
 r.post("/spots", requireAuth, requireAdmin, ctrl.createSpot);
 r.post("/spots/seed-ten", requireAuth, requireAdmin, ctrl.seedTen);
-r.patch("/spots/:id", requireAuth, requireAdmin, ctrl.patchSpot);
+r.patch("/spots/:id", requireAuth, requireRoles("admin", "manager"), ctrl.patchSpot);
 r.delete("/spots/:id", requireAuth, requireAdmin, ctrl.deleteSpot);
 
 r.get("/day", requireAuth, ctrl.dayAvailability);

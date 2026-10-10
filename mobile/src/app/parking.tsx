@@ -81,7 +81,9 @@ export default function ParkingManagementScreen() {
   const today = useMemo(() => israelToday(), []);
   const rangeTo = useMemo(() => addDays(today, 21), [today]);
   const dateChoices = useMemo(() => Array.from({ length: 22 }, (_, index) => addDays(today, index)), [today]);
-  const isAdmin = user?.role?.trim().toLowerCase() === "admin";
+  const role = user?.role?.trim().toLowerCase();
+  const isAdmin = role === "admin";
+  const canAssignPermanent = role === "admin" || role === "manager";
 
   const [spots, setSpots] = useState<Spot[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -122,7 +124,9 @@ export default function ParkingManagementScreen() {
       const collected: Person[] = [];
       let page = 1;
       while (page < 20) {
-        const data = await api<{ items: Person[]; total: number }>(`/api/employees?page=${page}&limit=100`);
+        const data = await api<{ items: Person[]; total: number }>(
+          `/api/employees?scope=company&page=${page}&limit=100`
+        );
         collected.push(...data.items);
         if (collected.length >= data.total || data.items.length === 0) break;
         page += 1;
@@ -429,7 +433,7 @@ export default function ParkingManagementScreen() {
               </Pressable>
             </View>
           ) : null}
-          {isAdmin ? (
+          {canAssignPermanent ? (
             <Text style={styles.hint}>
               בשדה «שיוך קבוע» קובעים את בעל החנייה. כשהוא במשרד החנייה שמורה לו; כשאינו במשרד היא נפתחת לתפיסה.
             </Text>
@@ -449,7 +453,7 @@ export default function ParkingManagementScreen() {
                 ) : (
                   <Text style={styles.vacant}>פנויה</Text>
                 )}
-                {isAdmin ? (
+                {canAssignPermanent ? (
                   <Pressable
                     onPress={() => {
                       setAssignSpotId(spot.id);

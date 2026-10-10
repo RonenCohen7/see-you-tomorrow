@@ -41,6 +41,7 @@ export default function ParkingManagementPage() {
   const isAdmin = role === "admin";
   const isManager = role === "manager";
   const canManageSpots = isAdmin;
+  const canAssignPermanent = isAdmin || isManager;
   const canAssign = isAdmin || isManager || role === "employee";
   const today = todayIsoLocal();
   const rangeTo = useMemo(() => addDaysIsoLocal(today, 21), [today]);
@@ -88,7 +89,7 @@ export default function ParkingManagementPage() {
       let page = 1;
       while (true) {
         const { data } = await api.get<{ items: Employee[]; total: number }>(
-          `/api/employees?page=${page}&limit=100`
+          `/api/employees?scope=company&page=${page}&limit=100`
         );
         all.push(...data.items);
         if (all.length >= data.total || data.items.length === 0) break;
@@ -310,7 +311,7 @@ export default function ParkingManagementPage() {
             </Stack>
           )}
         </Stack>
-        {canManageSpots ? (
+        {canAssignPermanent ? (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 760, lineHeight: 1.5 }}>
             {t("parkingFixedManagerHint")}
           </Typography>
@@ -376,7 +377,7 @@ export default function ParkingManagementPage() {
                       {t("parkingCardVacant")}
                     </Typography>
                   )}
-                  {canManageSpots && (
+                  {canAssignPermanent && (
                     <TextField
                       select
                       size="small"
