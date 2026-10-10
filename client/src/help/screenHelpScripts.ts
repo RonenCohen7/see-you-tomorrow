@@ -268,8 +268,8 @@ const menuItemExplanations: Record<string, MenuExplanation> = {
     en: "Meeting rooms — book a room: pick room, day and hours. You can also see existing bookings here.",
   },
   attendancePrefs: {
-    he: "העדפות שיבוץ — כאן עובד מסמן לאיזה יום הוא רוצה להגיע למשרד, להישאר בבית או לקחת חופשה. לאחר ההגשה ה-AI לוקח את ההעדפות ובונה הצעת לוח לאישור המנהל.",
-    en: "Preferences — employees mark which days they want office, home, or vacation. After submit the AI builds a draft schedule for manager approval.",
+    he: "העדפות שיבוץ — עובד, מנהל או אדמין מסמנים לאיזה יום הם רוצים להגיע למשרד, להישאר בבית או לקחת חופשה. לאחר ההגשה ה-AI לוקח את ההעדפות ובונה הצעת לוח לאישור.",
+    en: "Preferences — an employee, manager, or admin marks which days they want office, home, or vacation. After submit the AI builds a draft schedule for approval.",
   },
   employees: {
     he: "עובדים — ניהול כרטיסי עובדים: פרטים, מחלקה, תפקיד, מיקום וחנייה קבועה. מנהל ואדמין. בקליטת מנהל חובה לשייך חנייה.",

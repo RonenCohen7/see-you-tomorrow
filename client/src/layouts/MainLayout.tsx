@@ -163,7 +163,6 @@ export default function MainLayout() {
   });
 
   const nav = allPaths.filter((p) => {
-    if (p.to === "/preferences") return role === "employee" || role === "manager";
     if (p.to === "/preference-ai-queue") return role === "admin" || role === "manager";
     if (p.to === "/team-preferences") return role === "admin" || role === "manager";
     if (adminOnlyNav.includes(p.to)) return role === "admin";

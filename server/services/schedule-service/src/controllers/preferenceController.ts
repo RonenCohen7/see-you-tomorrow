@@ -19,9 +19,9 @@ import { israeliWeekDatesFromSundayUtc } from "../utils/dateRange.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-/** Employees and managers both submit their own weekly attendance. */
+/** Employees, managers, and admins submit their own weekly attendance. */
 function submitsOwnPreferences(role: string): boolean {
-  return role === "employee" || role === "manager";
+  return role === "employee" || role === "manager" || role === "admin";
 }
 
 const putBody = z.object({
@@ -51,7 +51,7 @@ export async function getContext(req: AuthRequest, res: Response) {
 export async function getWeek(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   if (!submitsOwnPreferences(req.user.role)) {
-    throw new AppError(403, "רק עובדים ומנהלים יכולים לטעון העדפה אישית כאן", "FORBIDDEN");
+    throw new AppError(403, "אין הרשאה לטעון העדפה אישית", "FORBIDDEN");
   }
   const weekStartSunday = req.params.weekStartSunday;
   const doc = await pref.getMine(req.user.id, weekStartSunday);
@@ -72,7 +72,7 @@ export async function getWeek(req: AuthRequest, res: Response) {
 export async function putWeek(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   if (!submitsOwnPreferences(req.user.role)) {
-    throw new AppError(403, "רק עובדים ומנהלים יכולים לשמור העדפות כאן", "FORBIDDEN");
+    throw new AppError(403, "אין הרשאה לשמור העדפות", "FORBIDDEN");
   }
 
   const parsed = putBody.safeParse(req.body);
@@ -117,7 +117,7 @@ const pipelineQuery = z.object({
 export async function getPipelineStatus(req: AuthRequest, res: Response) {
   if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
   if (!submitsOwnPreferences(req.user.role)) {
-    throw new AppError(403, "רק לעובדים ומנהלים", "FORBIDDEN");
+    throw new AppError(403, "אין הרשאה", "FORBIDDEN");
   }
   const parsed = pipelineQuery.safeParse(req.query);
   if (!parsed.success) throw new AppError(400, "שאילתה לא תקינה", "VALIDATION", parsed.error.flatten());
