@@ -83,21 +83,49 @@ function isoFromDate(d: Date): string {
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
 }
 
-function buildNext7(intlTag: string): { iso: string; weekday: number; dayNum: number; monthShort: string }[] {
+type CalendarDayChip = { iso: string; weekday: number; dayNum: number; monthShort: string };
+
+function dayChip(d: Date, intlTag: string): CalendarDayChip {
+  return {
+    iso: isoFromDate(d),
+    weekday: d.getDay(),
+    dayNum: d.getDate(),
+    monthShort: d.toLocaleDateString(intlTag, { month: "short" }),
+  };
+}
+
+function buildNext7(intlTag: string): CalendarDayChip[] {
   const out = [];
   const base = new Date();
   base.setHours(0, 0, 0, 0);
   for (let i = 0; i < 7; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    out.push({
-      iso: isoFromDate(d),
-      weekday: d.getDay(),
-      dayNum: d.getDate(),
-      monthShort: d.toLocaleDateString(intlTag, { month: "short" }),
-    });
+    out.push(dayChip(d, intlTag));
   }
   return out;
+}
+
+/** Week 1 is days 1–7 of the month, week 2 is 8–14, and so on. The last week is shorter. */
+function weeksOverlappingMonth(monthYm: string, intlTag: string): { n: number; days: CalendarDayChip[] }[] {
+  const [y, m] = monthYm.split("-").map(Number);
+  if (!y || !m) return [];
+  const last = new Date(y, m, 0).getDate();
+  const weeks: { n: number; days: CalendarDayChip[] }[] = [];
+  for (let start = 1; start <= last; start += 7) {
+    const days: CalendarDayChip[] = [];
+    const end = Math.min(start + 6, last);
+    for (let day = start; day <= end; day++) {
+      days.push(dayChip(new Date(y, m - 1, day), intlTag));
+    }
+    weeks.push({ n: weeks.length + 1, days });
+  }
+  return weeks;
+}
+
+function daysInMonth(monthYm: string): number {
+  const [y, m] = monthYm.split("-").map(Number);
+  return new Date(y, m, 0).getDate();
 }
 
 export default function CalendarPage() {
@@ -119,6 +147,8 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(currentMonthYm());
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [calTab, setCalTab] = useState(0);
+  const [sevenPick, setSevenPick] = useState<"upcoming" | number>("upcoming");
+  const [fifteenPick, setFifteenPick] = useState<1 | 2>(1);
   const [assignmentSavedLanding, setAssignmentSavedLanding] = useState<{ open: boolean; message: string } | null>(
     null,
   );
@@ -149,9 +179,18 @@ export default function CalendarPage() {
     return Array.isArray(raw) ? raw.map(String) : [];
   }, [t]);
 
-  const next7 = useMemo(() => buildNext7(intlTag), [intlTag]);
-  const next7From = next7[0].iso;
-  const next7To = next7[next7.length - 1].iso;
+  const upcoming7 = useMemo(() => buildNext7(intlTag), [intlTag]);
+  const monthWeeks = useMemo(() => weeksOverlappingMonth(month, intlTag), [month, intlTag]);
+  const selectedWeek = typeof sevenPick === "number" ? monthWeeks.find((w) => w.n === sevenPick) : undefined;
+  const sevenDays = selectedWeek?.days ?? upcoming7;
+  const sevenFrom = sevenDays[0].iso;
+  const sevenTo = sevenDays[sevenDays.length - 1].iso;
+
+  useEffect(() => {
+    if (typeof sevenPick === "number" && !monthWeeks.some((w) => w.n === sevenPick)) {
+      setSevenPick(monthWeeks.length > 0 ? monthWeeks.length : "upcoming");
+    }
+  }, [monthWeeks, sevenPick]);
 
   const monthEndIso = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
@@ -161,10 +200,10 @@ export default function CalendarPage() {
 
   const birthdaysRange = useMemo(() => {
     const monthStart = `${month}-01`;
-    const from = monthStart < next7From ? monthStart : next7From;
-    const to = monthEndIso > next7To ? monthEndIso : next7To;
+    const from = monthStart < sevenFrom ? monthStart : sevenFrom;
+    const to = monthEndIso > sevenTo ? monthEndIso : sevenTo;
     return { from, to };
-  }, [month, monthEndIso, next7From, next7To]);
+  }, [month, monthEndIso, sevenFrom, sevenTo]);
 
   const birthdaysQ = useQuery({
     queryKey: ["employees-birthdays-range", birthdaysRange.from, birthdaysRange.to],
@@ -236,9 +275,9 @@ export default function CalendarPage() {
   });
 
   const next7Q = useQuery({
-    queryKey: ["calendar-next7", next7From, next7To],
+    queryKey: ["calendar-next7", sevenFrom, sevenTo],
     queryFn: async () =>
-      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${next7From}&to=${next7To}&scope=company`)).data,
+      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${sevenFrom}&to=${sevenTo}&scope=company`)).data,
   });
 
   const dayDetail = useQuery({
@@ -366,18 +405,19 @@ export default function CalendarPage() {
     };
   }, [socket, qc]);
 
-  const { monthLabel, preview15Days } = useMemo(() => {
+  const { monthLabel, monthLastDay, preview15Days } = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
-    const last = new Date(y, m, 0).getDate();
-    const take = Math.min(15, last);
+    const last = daysInMonth(month);
+    const fromDay = fifteenPick === 1 ? 1 : 16;
+    const toDay = fifteenPick === 1 ? Math.min(15, last) : last;
     const days: { iso: string; agg?: DayAgg }[] = [];
-    for (let d = 1; d <= take; d++) {
+    for (let d = fromDay; d <= toDay; d++) {
       const iso = `${month}-${String(d).padStart(2, "0")}`;
       days.push({ iso, agg: monthQ.data?.days.find((x) => x._id === iso) });
     }
     const label = new Date(y, m - 1, 1).toLocaleDateString(intlTag, { month: "long", year: "numeric" });
-    return { monthLabel: label, preview15Days: days };
-  }, [month, monthQ.data?.days, intlTag]);
+    return { monthLabel: label, monthLastDay: last, preview15Days: days };
+  }, [month, monthQ.data?.days, intlTag, fifteenPick]);
 
   const calendarCardSx = useMemo(
     () => ({
@@ -573,14 +613,42 @@ export default function CalendarPage() {
               p: { xs: 1, sm: 1.5, md: 2 },
             }}
           >
-            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
-              {t("calendarSevenDaysTitle")}
+            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.75, fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
+              {selectedWeek
+                ? t("calendarSevenWeekTitle", { n: selectedWeek.n })
+                : t("calendarSevenDaysTitle")}
             </Typography>
+            <Stack
+              data-help-target="calendar-week-picker"
+              direction="row"
+              spacing={0.75}
+              useFlexGap
+              flexWrap="wrap"
+              sx={{ mb: 1.25 }}
+            >
+              <Chip
+                label={t("calendarRangeUpcoming")}
+                color={sevenPick === "upcoming" ? "primary" : "default"}
+                variant={sevenPick === "upcoming" ? "filled" : "outlined"}
+                onClick={() => setSevenPick("upcoming")}
+                aria-pressed={sevenPick === "upcoming"}
+              />
+              {monthWeeks.map((week) => (
+                <Chip
+                  key={week.n}
+                  label={t("calendarWeekChip", { n: week.n })}
+                  color={sevenPick === week.n ? "primary" : "default"}
+                  variant={sevenPick === week.n ? "filled" : "outlined"}
+                  onClick={() => setSevenPick(week.n)}
+                  aria-pressed={sevenPick === week.n}
+                />
+              ))}
+            </Stack>
             {next7Q.isLoading ? (
               <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 1 }} />
             ) : (
               <Box className="calendar-page__seven-grid" data-help-target="calendar-seven-grid">
-                {next7.map(({ iso, weekday, dayNum, monthShort }) => {
+                {sevenDays.map(({ iso, weekday, dayNum, monthShort }) => {
                   const isToday = iso === today;
                   const list = next7ByDay.get(iso) ?? [];
                   const empList = companyEmployees;
@@ -998,12 +1066,39 @@ export default function CalendarPage() {
             <Stack spacing={1.25} sx={{ mb: 1.5 }}>
               <Box>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: "0.95rem", sm: "1.05rem" } }}>
-                  {t("calendarFifteenPreviewTitle")}
+                  {t("calendarFifteenBlockTitle", {
+                    from: fifteenPick === 1 ? 1 : 16,
+                    to: fifteenPick === 1 ? Math.min(15, monthLastDay) : monthLastDay,
+                  })}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
                   {monthLabel}
                 </Typography>
               </Box>
+              <Stack
+                data-help-target="calendar-fifteen-picker"
+                direction="row"
+                spacing={0.75}
+                useFlexGap
+                flexWrap="wrap"
+              >
+                <Chip
+                  label={t("calendarFifteenRangeChip", { from: 1, to: Math.min(15, monthLastDay) })}
+                  color={fifteenPick === 1 ? "primary" : "default"}
+                  variant={fifteenPick === 1 ? "filled" : "outlined"}
+                  onClick={() => setFifteenPick(1)}
+                  aria-pressed={fifteenPick === 1}
+                />
+                {monthLastDay > 15 ? (
+                  <Chip
+                    label={t("calendarFifteenRangeChip", { from: 16, to: monthLastDay })}
+                    color={fifteenPick === 2 ? "primary" : "default"}
+                    variant={fifteenPick === 2 ? "filled" : "outlined"}
+                    onClick={() => setFifteenPick(2)}
+                    aria-pressed={fifteenPick === 2}
+                  />
+                ) : null}
+              </Stack>
               <Button
                 data-help-target="calendar-full-month-btn"
                 fullWidth
