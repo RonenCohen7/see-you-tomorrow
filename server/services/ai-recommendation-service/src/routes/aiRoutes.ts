@@ -1,6 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { requireAuth, requireAdmin } from "@syt/shared";
+import { requireAuth, requireRoles } from "@syt/shared";
 import * as ctrl from "../controllers/aiController.js";
 import * as assistantCtrl from "../controllers/assistantController.js";
 import * as supportChatCtrl from "../controllers/supportChatController.js";
@@ -25,7 +25,7 @@ const supportChatLimiter = rateLimit({
 
 r.post("/recommend-schedule", requireAuth, ctrl.recommendSchedule);
 r.post("/approve-recommendations", requireAuth, ctrl.approveRecommendations);
-r.post("/draft-scheduling-rule", requireAuth, requireAdmin, ctrl.draftSchedulingRuleFromText);
+r.post("/draft-scheduling-rule", requireAuth, requireRoles("admin", "manager"), ctrl.draftSchedulingRuleFromText);
 r.post("/assistant/chat", requireAuth, assistantChatLimiter, assistantCtrl.assistantChat);
 r.post("/support/chat", supportChatLimiter, supportChatCtrl.supportChat);
 

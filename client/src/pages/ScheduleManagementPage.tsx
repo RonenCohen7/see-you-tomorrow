@@ -172,7 +172,7 @@ export default function ScheduleManagementPage() {
       let page = 1;
       while (true) {
         const { data } = await api.get<{ items: Employee[]; total: number }>(
-          `/api/employees?page=${page}&limit=${limit}`
+          `/api/employees?scope=company&page=${page}&limit=${limit}`
         );
         all.push(...data.items);
         if (all.length >= data.total || data.items.length === 0) break;
@@ -190,7 +190,7 @@ export default function ScheduleManagementPage() {
 
   const schedulesQ = useQuery({
     queryKey: ["schedules-all"],
-    queryFn: async () => (await api.get<{ items: Schedule[] }>("/api/schedules")).data,
+    queryFn: async () => (await api.get<{ items: Schedule[] }>("/api/schedules?scope=company")).data,
   });
 
   const deptsQ = useQuery({
@@ -258,10 +258,14 @@ export default function ScheduleManagementPage() {
     return m;
   }, [employeesQ.data?.items]);
 
+  const canEditEmployee = (departmentId?: string) =>
+    role === "admin" || (role === "manager" && !!user?.departmentId && departmentId === user.departmentId);
+
   const employeesForAutocomplete = useMemo(() => {
     const list = employeesQ.data?.items ?? [];
-    return [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, intlTag));
-  }, [employeesQ.data?.items, intlTag]);
+    const editable = role === "manager" ? list.filter((e) => canEditEmployee(e.departmentId)) : list;
+    return [...editable].sort((a, b) => a.fullName.localeCompare(b.fullName, intlTag));
+  }, [employeesQ.data?.items, intlTag, role, user?.departmentId]);
 
   const selectedEmployeeForForm = form.employeeId ? employeeMap.get(form.employeeId) ?? null : null;
 
@@ -448,7 +452,7 @@ export default function ScheduleManagementPage() {
     queryFn: async () =>
       (
         await api.get<{ items: Schedule[] }>(
-          `/api/schedules?from=${coverageWeek.days[0]}&to=${coverageWeek.days[6]}`
+          `/api/schedules?from=${coverageWeek.days[0]}&to=${coverageWeek.days[6]}&scope=company`
         )
       ).data.items,
     enabled: canWrite,
@@ -700,7 +704,7 @@ export default function ScheduleManagementPage() {
     filterable: false,
     align: "center",
     headerAlign: "center",
-    renderCell: ({ row }) => (
+    renderCell: ({ row }) => canEditEmployee(row.departmentId) ? (
       <Stack direction="row" spacing={0.25} sx={{ height: "100%", alignItems: "center" }}>
         <Tooltip title={t("edit")} arrow>
           <IconButton size="small" color="primary" onClick={() => openEdit(row)}>
@@ -719,7 +723,7 @@ export default function ScheduleManagementPage() {
           </IconButton>
         </Tooltip>
       </Stack>
-    ),
+    ) : null,
   };
 
   const columns: GridColDef<Schedule>[] = [
@@ -967,7 +971,9 @@ export default function ScheduleManagementPage() {
           severity="info"
           sx={{ mb: 1.5 }}
           action={
-            employeesMatchedWithoutShifts.length === 1 && canWrite ? (
+            employeesMatchedWithoutShifts.length === 1 &&
+            canWrite &&
+            canEditEmployee(employeesMatchedWithoutShifts[0].departmentId) ? (
               <Button color="inherit" size="small" onClick={() => openCreateForEmployee(employeesMatchedWithoutShifts[0].id)}>
                 {t("schedulesSearchOpenNewShift")}
               </Button>

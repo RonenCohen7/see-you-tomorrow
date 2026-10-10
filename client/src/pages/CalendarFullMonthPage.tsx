@@ -159,7 +159,8 @@ export default function CalendarFullMonthPage() {
     enabled: !!openDay,
   });
 
-  const { employeesQ, employeeMap, managedEmployees, editableEmployeeIds } = useCompanyCalendarEmployees();
+  const { employeesQ, employeeMap, editableEmployeeIds } = useCompanyCalendarEmployees();
+  const companyEmployees = employeesQ.data ?? [];
 
   type ParkingDayRow = { spotLabel: string; guestName: string; hoursLabel: string };
 
@@ -185,17 +186,18 @@ export default function CalendarFullMonthPage() {
   }, [parkingResQ.data, parkingSpotsQ.data, employeesQ.data, t]);
 
   const managerMonthSchedulesQ = useQuery({
-    queryKey: ["schedules-manager-month", month, monthEndIso],
+    queryKey: ["schedules-manager-month", "company", month, monthEndIso],
     queryFn: async () =>
-      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${month}-01&to=${monthEndIso}`)).data.items,
-    enabled: canWrite,
+      (await api.get<{ items: Schedule[] }>(`/api/schedules?from=${month}-01&to=${monthEndIso}&scope=company`)).data
+        .items,
+    enabled: !!user,
     staleTime: 15_000,
   });
 
   const monthLeaderCoverageByIso = useMemo(() => {
-    const emp = managedEmployees;
+    const emp = companyEmployees;
     const sched = managerMonthSchedulesQ.data ?? [];
-    const ready = canWrite && !employeesQ.isLoading && !managerMonthSchedulesQ.isLoading;
+    const ready = !employeesQ.isLoading && !managerMonthSchedulesQ.isLoading && employeesQ.data != null;
     const m = new Map<string, { missing: boolean; names: string[] }>();
     if (!ready) return m;
     const [y, mm] = month.split("-").map(Number);
@@ -210,9 +212,9 @@ export default function CalendarFullMonthPage() {
     }
     return m;
   }, [
-    canWrite,
+    employeesQ.data,
     employeesQ.isLoading,
-    managedEmployees,
+    companyEmployees,
     managerMonthSchedulesQ.isLoading,
     managerMonthSchedulesQ.data,
     month,
@@ -226,6 +228,8 @@ export default function CalendarFullMonthPage() {
       void qc.invalidateQueries({ queryKey: ["calendar-next7"] });
       void qc.invalidateQueries({ queryKey: ["calendar-day"] });
       void qc.invalidateQueries({ queryKey: ["employees-birthdays-range"] });
+      void qc.invalidateQueries({ queryKey: ["parking-day"] });
+      void qc.invalidateQueries({ queryKey: ["parking-spots"] });
       void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
       void qc.invalidateQueries({ queryKey: ["meeting-room-bookings"] });
       void qc.invalidateQueries({ queryKey: ["schedules-manager-month"] });
@@ -475,7 +479,7 @@ export default function CalendarFullMonthPage() {
                   {row.map((cell, ci) => {
                     if (!cell) return <Box key={ci} />;
                     const cov = monthLeaderCoverageByIso.get(cell.iso);
-                    const leaderOfficeMissing = !gapHintsHidden && (cov?.missing ?? false);
+                    const leaderOfficeMissing = canWrite && !gapHintsHidden && (cov?.missing ?? false);
                     const leaderNamesToday = cov?.names ?? [];
                     return (
                       <MonthDayCell
@@ -507,7 +511,7 @@ export default function CalendarFullMonthPage() {
         items={dayDetail.data?.items ?? []}
         loading={dayDetail.isLoading}
         employeeMap={employeeMap}
-        employees={managedEmployees}
+        employees={companyEmployees}
         editableEmployeeIds={editableEmployeeIds}
         canWrite={canWrite}
         birthdaysOnDate={openDay ? (birthdaysByIso.get(openDay) ?? []) : []}

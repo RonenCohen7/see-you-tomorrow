@@ -1,10 +1,10 @@
 import type { Response } from "express";
-import { AppError, requireAdmin, SCHEDULING_RULE_TYPES, type AuthRequest } from "@syt/shared";
+import { AppError, requireRoles, SCHEDULING_RULE_TYPES, type AuthRequest } from "@syt/shared";
 import { z } from "zod";
 import * as rules from "../services/schedulingRuleService.js";
 import * as conflictSvc from "../services/schedulingRuleConflictsService.js";
 
-export const schedulingRuleAdmin = requireAdmin;
+export const schedulingRuleAdmin = requireRoles("admin", "manager");
 
 const createBody = z.object({
   ruleType: z.enum(SCHEDULING_RULE_TYPES),

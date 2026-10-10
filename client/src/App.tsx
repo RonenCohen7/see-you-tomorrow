@@ -118,9 +118,9 @@ export default function App() {
                   <Route
                     path="/scheduling-rules"
                     element={
-                      <AdminRoute>
+                      <ManagerOrAdminRoute>
                         <SchedulingRulesPage />
-                      </AdminRoute>
+                      </ManagerOrAdminRoute>
                     }
                   />
                   <Route

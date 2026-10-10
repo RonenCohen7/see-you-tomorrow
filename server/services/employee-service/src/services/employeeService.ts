@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Types, type HydratedDocument } from "mongoose";
 import {
@@ -64,7 +65,7 @@ async function getModel() {
 export async function createEmployee(input: {
   fullName: string;
   email: string;
-  password: string;
+  password?: string;
   phone: string;
   imageUrl?: string;
   jobTitle: string;
@@ -73,7 +74,7 @@ export async function createEmployee(input: {
   managerId?: string;
   role?: Role;
   isActive?: boolean;
-  birthDate: string;
+  birthDate?: string;
   address?: string;
   maritalStatus?: MaritalStatus | "";
   emergencyContact?: string;
@@ -83,7 +84,7 @@ export async function createEmployee(input: {
   const exists = await Employee.findOne({ email: input.email.toLowerCase() });
   if (exists) throw new AppError(409, "כתובת האימייל כבר בשימוש", "EMAIL_EXISTS");
 
-  const hashed = await bcrypt.hash(input.password, 12);
+  const hashed = await bcrypt.hash(input.password ?? randomBytes(18).toString("base64url"), 12);
   const doc = await Employee.create({
     fullName: input.fullName,
     email: input.email.toLowerCase(),
@@ -96,7 +97,7 @@ export async function createEmployee(input: {
     managerId: input.managerId,
     role: input.role ?? "employee",
     isActive: input.isActive ?? true,
-    birthDate: new Date(input.birthDate),
+    birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
     address: input.address || undefined,
     maritalStatus: input.maritalStatus || undefined,
     emergencyContact: input.emergencyContact,

@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import LocalParkingIcon from "@mui/icons-material/LocalParking";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import api from "../services/api";
 import { useAuth } from "../store/authContext";
@@ -54,8 +54,16 @@ export function ParkingClaimPanel() {
   const dayQ = useQuery({
     queryKey: [PARKING_DAY_QUERY_KEY, date],
     queryFn: async () => (await api.get<{ items: DaySpot[] }>(`/api/parking/day?date=${date}`)).data.items,
-    refetchInterval: 20_000,
+    refetchInterval: 4_000,
+    refetchIntervalInBackground: true,
   });
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void qc.invalidateQueries({ queryKey: [PARKING_DAY_QUERY_KEY] });
+    }, 4_000);
+    return () => window.clearInterval(id);
+  }, [qc]);
 
   const refreshAll = async () => {
     await qc.invalidateQueries({ queryKey: [PARKING_DAY_QUERY_KEY] });

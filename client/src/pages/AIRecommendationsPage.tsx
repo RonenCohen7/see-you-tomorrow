@@ -386,7 +386,7 @@ export default function AIRecommendationsPage() {
                   {t("generateRecommendations")}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  ההמלצות לא יוחלו בלי אישור — מנהל מערכת או מנהל מחלקה (רק למחלקתו).
+                  ההמלצות לא יחולו בלי אישור — מנהל מערכת או מנהל מחלקה (רק למחלקתו).
                 </Typography>
               </Box>
             </Stack>

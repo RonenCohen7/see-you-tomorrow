@@ -77,6 +77,20 @@ export async function scheduleOfficePresence(
   }
 }
 
+/** Tells every open website session to reload parking (and the calendar strips that read it). */
+export async function notifyDashboardRefresh(): Promise<void> {
+  try {
+    const res = await fetch(`${notifyBase()}/internal/notifications/dashboard-refresh`, {
+      method: "POST",
+      headers: internalServiceHeaders({ "Content-Type": "application/json" }),
+      body: "{}",
+    });
+    if (!res.ok) logger.warn("notifyDashboardRefresh failed", { status: res.status });
+  } catch (e) {
+    logger.warn("notifyDashboardRefresh error", e);
+  }
+}
+
 export async function fetchEmployeeInternal(id: string) {
   try {
     const res = await fetch(`${empBase()}/internal/employees/${id}`, {

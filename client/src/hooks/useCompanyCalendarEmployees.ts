@@ -5,8 +5,8 @@ import { useAuth, useRole } from "../store/authContext";
 import type { Employee } from "../types/models";
 
 /**
- * Calendar shows the whole company to every role.
- * Coverage checks and editing stay within what the user manages (manager → own department).
+ * Calendar reads the whole company for every role.
+ * `managedEmployees` is only who a manager may edit (their department).
  */
 export function useCompanyCalendarEmployees() {
   const { user } = useAuth();

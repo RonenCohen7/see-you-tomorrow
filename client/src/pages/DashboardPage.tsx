@@ -83,14 +83,15 @@ export default function DashboardPage() {
 
   const qDay = useQuery({
     queryKey: ["schedules-day", today],
-    queryFn: async () => (await api.get<{ items: Schedule[] }>(`/api/schedules/day/${today}`)).data,
+    queryFn: async () =>
+      (await api.get<{ items: Schedule[] }>(`/api/schedules/day/${today}?scope=company`)).data,
   });
 
   /** Active employees only — inactive employee rows must not inflate dashboard counts. */
   const qEmp = useQuery({
     queryKey: ["employees-count-active"],
     queryFn: async () =>
-      (await api.get<{ total: number }>("/api/employees?page=1&limit=1&isActive=true")).data,
+      (await api.get<{ total: number }>("/api/employees?scope=company&page=1&limit=1&isActive=true")).data,
     enabled: isAdminOrManager,
   });
 
@@ -101,7 +102,7 @@ export default function DashboardPage() {
       let page = 1;
       while (true) {
         const { data } = await api.get<{ items: Employee[]; total: number }>(
-          `/api/employees?page=${page}&limit=100`
+          `/api/employees?scope=company&page=${page}&limit=100`
         );
         all.push(...data.items);
         if (all.length >= data.total || data.items.length === 0) break;

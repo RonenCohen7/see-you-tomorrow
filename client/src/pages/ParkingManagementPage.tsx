@@ -68,6 +68,8 @@ export default function ParkingManagementPage() {
   const spotsQ = useQuery({
     queryKey: ["parking-spots"],
     queryFn: async () => (await api.get<{ items: ParkingSpotPublic[] }>("/api/parking/spots")).data.items,
+    refetchInterval: 4_000,
+    refetchIntervalInBackground: true,
   });
 
   const resQ = useQuery({
@@ -75,6 +77,8 @@ export default function ParkingManagementPage() {
     queryFn: async () =>
       (await api.get<{ items: ParkingReservationPublic[] }>(`/api/parking/reservations?from=${today}&to=${rangeTo}`))
         .data.items,
+    refetchInterval: 4_000,
+    refetchIntervalInBackground: true,
   });
 
   const employeesQ = useQuery({
@@ -96,6 +100,14 @@ export default function ParkingManagementPage() {
   });
 
   const spotById = useMemo(() => new Map((spotsQ.data ?? []).map((s) => [s.id, s])), [spotsQ.data]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void qc.invalidateQueries({ queryKey: ["parking-spots"] });
+      void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+    }, 4_000);
+    return () => window.clearInterval(id);
+  }, [qc]);
 
   const employeesForUi = useMemo(() => {
     if (role === "employee" && user) return [user];

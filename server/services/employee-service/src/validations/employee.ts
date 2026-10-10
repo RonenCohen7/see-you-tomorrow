@@ -19,7 +19,7 @@ const imageUrlField = z
 export const createEmployeeSchema = z.object({
   fullName: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(8).optional(),
   phone: z.string().min(1, "דרוש טלפון"),
   imageUrl: imageUrlField,
   jobTitle: z.string().min(1, "דרוש תפקיד בעבודה"),
@@ -28,7 +28,7 @@ export const createEmployeeSchema = z.object({
   managerId: objectId.optional(),
   role: z.enum(["admin", "manager", "employee"]).optional(),
   isActive: z.boolean().optional(),
-  birthDate: isoDate,
+  birthDate: isoDate.optional(),
   address: z.string().optional(),
   maritalStatus: z.enum(MARITAL_STATUSES).or(z.literal("")).optional(),
   emergencyContact: z.string().optional(),

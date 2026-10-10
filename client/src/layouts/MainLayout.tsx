@@ -48,7 +48,7 @@ import {
 import React from "react";
 import { Link as RouterLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../services/api";
 import { useAuth, useRole } from "../store/authContext";
 import { useSocket } from "../hooks/useSocket";
@@ -75,9 +75,9 @@ const WIDTH = 264;
 /** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
 const WIDTH_COMPACT = 220;
 
-const adminOnlyNav = ["/employees", "/departments", "/locations", "/scheduling-rules"];
+const adminOnlyNav = ["/employees", "/departments", "/locations"];
 /** מנהל מחלקה / אדמין בלבד — לא מוצג למשתמש עם תפקיד עובד */
-const managerAdminNav = ["/dashboard", "/schedules", "/parking", "/ai", "/notifications"];
+const managerAdminNav = ["/dashboard", "/schedules", "/parking", "/ai", "/notifications", "/scheduling-rules"];
 
 type NavItem = {
   to: string;
@@ -120,6 +120,7 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const role = useRole();
   const { user, logout } = useAuth();
+  const qc = useQueryClient();
   const { socket, connected } = useSocket(user?.id);
   /** עובד רגיל אינו רואה התראות, סוכן חכם או כפתורי FAB ניהוליים. */
   const isEmployee = role === "employee";
@@ -161,10 +162,17 @@ export default function MainLayout() {
       });
     };
     socket.on(SOCKET_EVENTS_CLIENT.systemBroadcast, onBroadcast);
+    const refreshParking = () => {
+      void qc.invalidateQueries({ queryKey: ["parking-day"] });
+      void qc.invalidateQueries({ queryKey: ["parking-spots"] });
+      void qc.invalidateQueries({ queryKey: ["parking-reservations"] });
+    };
+    socket.on(SOCKET_EVENTS_CLIENT.dashboardRefresh, refreshParking);
     return () => {
       socket.off(SOCKET_EVENTS_CLIENT.systemBroadcast, onBroadcast);
+      socket.off(SOCKET_EVENTS_CLIENT.dashboardRefresh, refreshParking);
     };
-  }, [socket]);
+  }, [socket, qc]);
 
   const { data: unread } = useQuery({
     queryKey: ["unread"],

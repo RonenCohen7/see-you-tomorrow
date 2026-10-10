@@ -254,6 +254,7 @@ export async function createReservation(input: {
     createdBy: input.createdBy ? new mongoose.Types.ObjectId(input.createdBy) : undefined,
   });
   const guest = await internalHttp.fetchEmployeeInternal(input.employeeId);
+  void internalHttp.notifyDashboardRefresh();
   return toPublicReservation(doc as unknown as ParkingReservationDoc, guest?.fullName);
 }
 
@@ -278,6 +279,7 @@ export async function deleteReservation(
   }
 
   await Reservation.deleteOne({ _id: doc._id });
+  void internalHttp.notifyDashboardRefresh();
   return { ok: true };
 }
 

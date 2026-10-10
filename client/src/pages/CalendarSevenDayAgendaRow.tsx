@@ -24,6 +24,7 @@ type Props = {
   employeeMap: Map<string, Employee>;
   sortLocale: string;
   leaderOfficeMissing: boolean;
+  leaderNames?: string[];
   birthdayNames: string[];
   parkingCount: number;
   meetingCount: number;
@@ -41,6 +42,7 @@ export function CalendarSevenDayAgendaRow({
   employeeMap,
   sortLocale,
   leaderOfficeMissing,
+  leaderNames = [],
   birthdayNames,
   parkingCount,
   meetingCount,
@@ -159,13 +161,21 @@ export function CalendarSevenDayAgendaRow({
           </>
         )}
 
-        {(leaderOfficeMissing || birthdayNames.length > 0 || parkingCount > 0 || meetingCount > 0 || aiCount > 0) && (
+        {(leaderOfficeMissing || leaderNames.length > 0 || birthdayNames.length > 0 || parkingCount > 0 || meetingCount > 0 || aiCount > 0) && (
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center" sx={{ pt: 0.25 }}>
             {leaderOfficeMissing && (
               <Stack direction="row" spacing={0.25} alignItems="center" sx={{ color: "error.main" }}>
                 <SupervisorAccountIcon sx={{ fontSize: 16 }} />
                 <Typography variant="caption" fontWeight={700}>
                   {t("calendarDayNoManagerOffice")}
+                </Typography>
+              </Stack>
+            )}
+            {!leaderOfficeMissing && leaderNames.length > 0 && (
+              <Stack direction="row" spacing={0.25} alignItems="center" sx={{ color: "success.main" }}>
+                <SupervisorAccountIcon sx={{ fontSize: 16 }} />
+                <Typography variant="caption" fontWeight={700}>
+                  {t("calendarManagersInOffice", { names: leaderNames.join(" · ") })}
                 </Typography>
               </Stack>
             )}

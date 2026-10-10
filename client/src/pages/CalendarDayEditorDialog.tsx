@@ -152,10 +152,11 @@ export function CalendarDayEditorDialog({
   const canEditRow = (employeeId: string) =>
     canWrite && (!editableEmployeeIds || editableEmployeeIds.has(employeeId));
 
-  const selectableEmployees = useMemo(
-    () => (editor?.id ? employees : employees.filter((e) => e.isActive !== false)),
-    [employees, editor?.id]
-  );
+  const selectableEmployees = useMemo(() => {
+    const active = editor?.id ? employees : employees.filter((e) => e.isActive !== false);
+    if (!editableEmployeeIds) return active;
+    return active.filter((e) => editableEmployeeIds.has(e.id) || e.id === editor?.employeeId);
+  }, [employees, editor?.id, editor?.employeeId, editableEmployeeIds]);
 
   const utcTodayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
