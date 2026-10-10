@@ -20,6 +20,7 @@ r.post("/notifications/preference-pipeline-rejected", ctrl.preferencePipelineRej
 r.post("/notifications/preference-pipeline-batch-pending-managers", ctrl.preferencePipelineBatchPendingManagers);
 r.post("/notifications/email-attachment", ctrl.emailAttachment);
 r.post("/notifications/password-reset-email", ctrl.passwordResetEmail);
+r.post("/notifications/welcome-company-email", ctrl.welcomeCompanyEmail);
 r.post("/notifications/scheduling-rule-proposal", ctrl.schedulingRuleProposal);
 
 export const internalRoutes = r;

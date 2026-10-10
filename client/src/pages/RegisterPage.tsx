@@ -12,12 +12,13 @@ import {
   CircularProgress,
   MenuItem,
 } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import PublicHeader from "../components/PublicHeader";
 import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
-import { useAuth } from "../store/authContext";
+import { useLocale } from "../locale/LocaleContext";
+import { useAuth, type OrgRegistration } from "../store/authContext";
 import { apiErrorMessage, rateLimitRetrySecondsFromAxios } from "../utils/apiErrorMessage";
 import { defaultLandingForRole } from "../utils/roleRouting";
 import { isSharedSaasEnabled } from "../utils/tenantAuth";
@@ -27,7 +28,8 @@ type RegisterDepartment = { id: string; name: string };
 
 export default function RegisterPage() {
   const { t } = useTranslation();
-  const { register, registerOrganization, user } = useAuth();
+  const { register, registerOrganization, beginSession, user } = useAuth();
+  const { locale } = useLocale();
   const sharedSaas = isSharedSaasEnabled();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
@@ -47,6 +49,8 @@ export default function RegisterPage() {
   const [departmentsStatus, setDepartmentsStatus] = useState<"idle" | "loading" | "ok" | "notFound">("idle");
   const departmentsLoading = departmentsStatus === "loading";
   const [departmentId, setDepartmentId] = useState("");
+  const [issued, setIssued] = useState<OrgRegistration | null>(null);
+  const entering = useRef(false);
 
   const onTurnstileChange = useCallback((t: string | null) => setTurnstileToken(t), []);
   const joinExisting = !sharedSaas || mode === "join" || Boolean(inviteToken);
@@ -92,7 +96,7 @@ export default function RegisterPage() {
     if (departmentId && !departments.some((d) => d.id === departmentId)) setDepartmentId("");
   }, [departments, departmentId]);
 
-  if (user) {
+  if (user && !entering.current) {
     return <Navigate to={defaultLandingForRole(user.role)} replace />;
   }
 
@@ -125,16 +129,20 @@ export default function RegisterPage() {
           })
         : await registerOrganization({
             organizationName,
-            slug: tenantSlug,
             fullName,
             email,
             password,
             phone: phone || undefined,
             jobTitle: jobTitle || undefined,
+            locale,
             turnstileToken,
           });
       if (registered === "redirect") return;
-      nav(defaultLandingForRole(registered?.role ?? null), { state: { justRegistered: true } });
+      if ("companyCode" in registered) {
+        setIssued(registered);
+        return;
+      }
+      nav(defaultLandingForRole(registered.role), { state: { justRegistered: true } });
     } catch (err: unknown) {
       const retrySec = rateLimitRetrySecondsFromAxios(err);
       setError(retrySec != null ? t("rateLimitRetryIn", { seconds: retrySec }) : apiErrorMessage(err, t("error")));
@@ -168,7 +176,7 @@ export default function RegisterPage() {
           </Typography>
 
           <Box component="form" onSubmit={submit}>
-            {sharedSaas && !inviteToken && (
+            {sharedSaas && !inviteToken && !issued && (
               <ToggleButtonGroup
                 exclusive
                 fullWidth
@@ -182,11 +190,45 @@ export default function RegisterPage() {
                 <ToggleButton value="join">{t("saasJoinOrg")}</ToggleButton>
               </ToggleButtonGroup>
             )}
-            {sharedSaas && mode === "create" && !inviteToken && (
+            {sharedSaas && mode === "create" && !inviteToken && !issued && (
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 {t("registerOrgHint")}
               </Typography>
             )}
+            {issued ? (
+              <Box>
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  {issued.welcomeEmailSent
+                    ? t("orgReadyEmail", { email })
+                    : t("orgReadyEmailFailed")}
+                </Alert>
+                <Typography variant="body1" sx={{ mb: 1 }}>
+                  {t("orgReadyBody", { name: issued.organizationName })}
+                </Typography>
+                <Typography
+                  variant="h3"
+                  sx={{ textAlign: "center", fontWeight: 800, letterSpacing: 2, my: 2 }}
+                >
+                  {issued.companyCode}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {t("orgReadyKeep")}
+                </Typography>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={() => {
+                    entering.current = true;
+                    beginSession(issued);
+                    nav("/employees", { replace: true });
+                  }}
+                >
+                  {t("orgReadyLogin")}
+                </Button>
+              </Box>
+            ) : null}
+            {!issued && (
+            <>
             {inviteToken && (
               <Alert severity="info" sx={{ mb: 2 }}>
                 {t("inviteRegisterHint")}
@@ -207,15 +249,15 @@ export default function RegisterPage() {
                 onChange={(e) => setOrganizationName(e.target.value)}
               />
             )}
-            {sharedSaas && !inviteToken && (
+            {sharedSaas && mode === "join" && !inviteToken && (
               <TextField
                 fullWidth
                 required
-                label={mode === "create" ? t("organizationSlug") : t("companySlug")}
+                label={t("companySlug")}
                 margin="normal"
                 value={tenantSlug}
                 onChange={(e) => setTenantSlug(e.target.value)}
-                helperText={mode === "create" ? t("organizationSlugHelp") : t("companySlugHelp")}
+                helperText={t("companySlugHelp")}
               />
             )}
             <TextField
@@ -290,6 +332,8 @@ export default function RegisterPage() {
             <Button fullWidth type="submit" variant="contained" sx={{ mt: 3 }} disabled={loading}>
               {loading ? <CircularProgress size={24} color="inherit" /> : t("register")}
             </Button>
+            </>
+            )}
           </Box>
 
           <Typography sx={{ mt: 2 }} variant="body2" color="text.secondary">

@@ -27,6 +27,16 @@ type AuthTokensResponse = {
   refreshToken: string;
   employee: Employee;
   tenant?: TenantRedirectInfo;
+  welcomeEmailSent?: boolean;
+};
+
+export type OrgRegistration = {
+  accessToken: string;
+  refreshToken: string;
+  employee: Employee;
+  companyCode: string;
+  organizationName: string;
+  welcomeEmailSent: boolean;
 };
 
 type AuthCtx = AuthState & {
@@ -44,14 +54,15 @@ type AuthCtx = AuthState & {
   }) => Promise<Employee | "redirect">;
   registerOrganization: (input: {
     organizationName: string;
-    slug: string;
     fullName: string;
     email: string;
     password: string;
     phone?: string;
     jobTitle?: string;
+    locale?: "he" | "en";
     turnstileToken?: string | null;
-  }) => Promise<Employee | "redirect">;
+  }) => Promise<OrgRegistration | "redirect">;
+  beginSession: (input: { accessToken: string; refreshToken: string; employee: Employee }) => void;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -135,16 +146,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerOrganization = useCallback(
     async (input: {
       organizationName: string;
-      slug: string;
       fullName: string;
       email: string;
       password: string;
       phone?: string;
       jobTitle?: string;
+      locale?: "he" | "en";
       turnstileToken?: string | null;
     }) => {
-      const { turnstileToken, ...rest } = input;
-      const body: Record<string, string> = { ...rest, slug: rest.slug.trim().toLowerCase() };
+      const { turnstileToken, locale, ...rest } = input;
+      const body: Record<string, string> = { ...rest };
+      if (locale) body.locale = locale;
       if (turnstileToken) body.turnstileToken = turnstileToken;
       const { data } = await api.post<AuthTokensResponse>("/api/auth/register-organization", body);
       if (
@@ -156,12 +168,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ) {
         return "redirect" as const;
       }
-      setTokens(data.accessToken, data.refreshToken);
-      setUser(data.employee);
-      return data.employee;
+      return {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        employee: data.employee,
+        companyCode: data.tenant?.slug ?? "",
+        organizationName: data.tenant?.name ?? input.organizationName,
+        welcomeEmailSent: data.welcomeEmailSent !== false,
+      };
     },
     []
   );
+
+  const beginSession = useCallback((input: { accessToken: string; refreshToken: string; employee: Employee }) => {
+    setTokens(input.accessToken, input.refreshToken);
+    setUser(input.employee);
+  }, []);
 
   const logout = useCallback(async () => {
     const rt = localStorage.getItem("syt_refresh");
@@ -181,10 +203,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       registerOrganization,
+      beginSession,
       logout,
       refreshMe,
     }),
-    [user, loading, login, register, registerOrganization, logout, refreshMe]
+    [user, loading, login, register, registerOrganization, beginSession, logout, refreshMe]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

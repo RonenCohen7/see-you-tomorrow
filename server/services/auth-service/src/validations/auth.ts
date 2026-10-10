@@ -39,11 +39,11 @@ export const resetPasswordSchema = z.object({
 
 export const registerOrganizationSchema = z.object({
   organizationName: z.string().min(2).max(80),
-  slug: z.string().min(2).max(40),
   fullName: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(8),
   phone: z.string().optional(),
   jobTitle: z.string().optional(),
+  locale: z.enum(["he", "en"]).optional(),
   turnstileToken: z.string().optional(),
 });

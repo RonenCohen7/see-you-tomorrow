@@ -1,5 +1,7 @@
-import { PLATFORM_DB } from "../config/dbNames.js";
+import crypto from "node:crypto";
+import { DB_NAMES, PLATFORM_DB } from "../config/dbNames.js";
 import { getRequestTenantSlug, isSharedSaasMode, runWithTenant } from "../config/tenantContext.js";
+import { getOrganizationSettingsModel } from "../models/organizationSettings.js";
 import { getConnection } from "../utils/mongo.js";
 import {
   getTenantEmailMembershipModel,
@@ -62,6 +64,95 @@ export async function getTenantBySlug(slug: string): Promise<TenantRegistryDoc |
   const conn = await platformConn();
   const TenantRegistry = getTenantRegistryModel(conn);
   return TenantRegistry.findOne({ slug: slug.trim().toLowerCase(), status: "active" }).lean();
+}
+
+/** Inclusive range for a newly registered company's numeric code. `88` is the original company. */
+export const COMPANY_CODE_MIN = 88;
+export const COMPANY_CODE_MAX = 200;
+
+export async function listCompanyCodesInRange(): Promise<Set<string>> {
+  const conn = await platformConn();
+  const TenantRegistry = getTenantRegistryModel(conn);
+  const rows = await TenantRegistry.find().select("slug dbPrefix").lean();
+  const taken = new Set<string>();
+  const mark = (raw: string | undefined) => {
+    const code = (raw ?? "").trim().replace(/_$/, "");
+    const n = Number(code);
+    if (Number.isInteger(n) && n >= COMPANY_CODE_MIN && n <= COMPANY_CODE_MAX && String(n) === code) {
+      taken.add(code);
+    }
+  };
+  for (const row of rows) {
+    mark(row.slug);
+    mark(row.dbPrefix);
+  }
+  return taken;
+}
+
+/** A free code in 88–200, or null when the range is full. Does not reserve it. */
+export function pickCompanyCode(taken: Set<string>): string | null {
+  const free: string[] = [];
+  for (let n = COMPANY_CODE_MIN; n <= COMPANY_CODE_MAX; n++) {
+    const code = String(n);
+    if (!taken.has(code)) free.push(code);
+  }
+  if (free.length === 0) return null;
+  return free[crypto.randomInt(free.length)] ?? null;
+}
+
+export async function insertTenantRegistry(input: {
+  slug: string;
+  name: string;
+  dbPrefix: string;
+  emailDomains?: string[];
+  subdomain: string;
+  authServiceUrl: string;
+  gatewayUrl: string;
+  status?: TenantStatus;
+}): Promise<boolean> {
+  const conn = await platformConn();
+  const TenantRegistry = getTenantRegistryModel(conn);
+  const slug = input.slug.trim().toLowerCase();
+  const dbPrefix = input.dbPrefix.endsWith("_") ? input.dbPrefix : `${input.dbPrefix}_`;
+  try {
+    await TenantRegistry.create({
+      slug,
+      name: input.name.trim(),
+      dbPrefix,
+      emailDomains: (input.emailDomains ?? []).map((d) => d.trim().toLowerCase()).filter(Boolean),
+      subdomain: input.subdomain.trim().toLowerCase(),
+      authServiceUrl: input.authServiceUrl.trim(),
+      gatewayUrl: input.gatewayUrl.trim(),
+      status: input.status ?? "active",
+    });
+    return true;
+  } catch (e) {
+    if (typeof e === "object" && e !== null && "code" in e && (e as { code: number }).code === 11000) return false;
+    throw e;
+  }
+}
+
+/** Create the company databases for the tenant already selected by `runWithTenant`. */
+export async function ensureTenantDatabases(): Promise<void> {
+  const names = [
+    DB_NAMES.auth,
+    DB_NAMES.employees,
+    DB_NAMES.departments,
+    DB_NAMES.locations,
+    DB_NAMES.schedules,
+    DB_NAMES.notifications,
+    DB_NAMES.settings,
+  ];
+  for (const dbName of names) {
+    const conn = await getConnection(dbName);
+    const db = conn.db;
+    if (!db) throw new Error(`Mongo database unavailable: ${dbName}`);
+    const existing = await db.listCollections({ name: "_tenant_init" }).toArray();
+    if (existing.length === 0) await db.createCollection("_tenant_init");
+  }
+  const settings = getOrganizationSettingsModel(await getConnection(DB_NAMES.settings));
+  const org = await settings.findOne().select("_id").lean();
+  if (!org) await settings.create({});
 }
 
 export async function deleteTenantBySlug(slug: string): Promise<void> {

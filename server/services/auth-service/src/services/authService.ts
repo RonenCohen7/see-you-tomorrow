@@ -14,15 +14,18 @@ import {
   AppError,
   type Role,
   deleteTenantBySlug,
-  findTenantBySlug,
+  ensureTenantDatabases,
   getRequestTenantSlug,
+  insertTenantRegistry,
   isSharedSaasMode,
-  normalizeTenantSlug,
+  listCompanyCodesInRange,
+  pickCompanyCode,
   runWithTenant,
   syncEmailMembership,
-  upsertTenantRegistry,
 } from "@syt/shared";
 import type { EmployeeDoc } from "@syt/shared";
+import * as notificationClient from "./notificationClient.js";
+import { logger } from "@syt/shared";
 
 function hashRefresh(raw: string) {
   return crypto.createHash("sha256").update(raw).digest("hex");
@@ -208,12 +211,12 @@ const PERSONAL_EMAIL_DOMAINS = new Set([
 
 export async function registerOrganization(input: {
   organizationName: string;
-  slug: string;
   fullName: string;
   email: string;
   password: string;
   phone?: string;
   jobTitle?: string;
+  locale?: "he" | "en";
 }) {
   if (!isSharedSaasMode()) {
     throw new AppError(
@@ -222,14 +225,6 @@ export async function registerOrganization(input: {
       "SAAS_MODE_REQUIRED"
     );
   }
-
-  const slug = normalizeTenantSlug(input.slug);
-  if (!slug) {
-    throw new AppError(400, "קוד חברה לא תקין. השתמשו באותיות באנגלית, מספרים ומקף.", "INVALID_SLUG");
-  }
-
-  const taken = await findTenantBySlug(slug);
-  if (taken) throw new AppError(409, "קוד החברה כבר תפוס. בחרו קוד אחר.", "TENANT_EXISTS");
 
   const email = input.email.trim().toLowerCase();
   const domain = email.split("@")[1] ?? "";
@@ -242,30 +237,63 @@ export async function registerOrganization(input: {
   const authServiceUrl = process.env.AUTH_SERVICE_URL ?? "http://localhost:4001";
   const name = input.organizationName.trim();
 
-  await upsertTenantRegistry({
-    slug,
-    name,
-    dbPrefix: slug,
-    emailDomains,
-    subdomain: slug,
-    authServiceUrl,
-    gatewayUrl,
-  });
+  let slug = "";
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const taken = await listCompanyCodesInRange();
+    const code = pickCompanyCode(taken);
+    if (!code) {
+      throw new AppError(503, "אין כרגע קודי חברה פנויים. פנו לתמיכה.", "COMPANY_CODES_EXHAUSTED");
+    }
+    const reserved = await insertTenantRegistry({
+      slug: code,
+      name,
+      dbPrefix: code,
+      emailDomains,
+      subdomain: code,
+      authServiceUrl,
+      gatewayUrl,
+    });
+    if (reserved) {
+      slug = code;
+      break;
+    }
+  }
+  if (!slug) {
+    throw new AppError(503, "לא הצלחנו להקצות קוד חברה. נסו שוב.", "COMPANY_CODE_RETRY");
+  }
 
   try {
-    return await runWithTenant(slug, async () => {
-      const result = await registerEmployee({
+    const result = await runWithTenant(slug, async () => {
+      await ensureTenantDatabases();
+      return registerEmployee({
         fullName: input.fullName,
         email,
         password: input.password,
         phone: input.phone,
         jobTitle: input.jobTitle,
       });
-      return {
-        ...result,
-        tenant: { slug, name, gatewayUrl, subdomain: slug },
-      };
     });
+
+    let welcomeEmailSent = false;
+    try {
+      await notificationClient.sendWelcomeCompanyEmail({
+        to: email,
+        fullName: input.fullName.trim(),
+        organizationName: name,
+        companyCode: slug,
+        loginUrl: `${gatewayUrl}/login`,
+        locale: input.locale === "en" ? "en" : "he",
+      });
+      welcomeEmailSent = true;
+    } catch (e) {
+      logger.warn("welcome company email failed", e instanceof Error ? e.message : undefined);
+    }
+
+    return {
+      ...result,
+      welcomeEmailSent,
+      tenant: { slug, name, gatewayUrl, subdomain: slug },
+    };
   } catch (e) {
     await deleteTenantBySlug(slug).catch(() => undefined);
     throw e;

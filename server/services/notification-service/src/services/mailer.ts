@@ -91,6 +91,50 @@ export async function sendPlainEmail(to: string, subject: string, text: string) 
   await deliver({ to, subject, text });
 }
 
+export async function sendWelcomeCompanyEmail(params: {
+  to: string;
+  fullName: string;
+  organizationName: string;
+  companyCode: string;
+  loginUrl: string;
+  locale: "he" | "en";
+}) {
+  const isHe = params.locale === "he";
+  const subject = isHe
+    ? "ברוכים הבאים — קוד החברה שלכם ב-See You Tomorrow"
+    : "Welcome — your See You Tomorrow company code";
+  const text = isHe
+    ? [
+        `שלום ${params.fullName},`,
+        "",
+        `ברוכים הבאים ל-See You Tomorrow. החברה ${params.organizationName} הוקמה, והמסד שלה מוכן.`,
+        "",
+        `קוד החברה שלך: ${params.companyCode}`,
+        "",
+        "הזינו את הקוד הזה בכל התחברות באתר ובאפליקציה.",
+        "אחרי ההתחברות אפשר לצרף אנשים לחברה.",
+        "",
+        params.loginUrl,
+        "",
+        "See You Tomorrow",
+      ].join("\n")
+    : [
+        `Hello ${params.fullName},`,
+        "",
+        `Welcome to See You Tomorrow. ${params.organizationName} is ready, including its database.`,
+        "",
+        `Your company code: ${params.companyCode}`,
+        "",
+        "Enter this code each time you sign in on the website or in the app.",
+        "After you sign in, you can add people to the company.",
+        "",
+        params.loginUrl,
+        "",
+        "See You Tomorrow",
+      ].join("\n");
+  await deliver({ to: params.to, subject, text });
+}
+
 export async function sendPasswordResetEmail(params: {
   to: string;
   fullName: string;

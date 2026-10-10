@@ -198,6 +198,22 @@ const passwordResetEmailPayload = z.object({
   locale: z.enum(["he", "en"]).optional().default("he"),
 });
 
+const welcomeCompanyEmailPayload = z.object({
+  to: z.string().email(),
+  fullName: z.string().min(1).max(200),
+  organizationName: z.string().min(1).max(80),
+  companyCode: z.string().regex(/^\d{2,3}$/),
+  loginUrl: z.string().url().max(2000),
+  locale: z.enum(["he", "en"]).optional().default("he"),
+});
+
+export async function welcomeCompanyEmail(req: Request, res: Response) {
+  const parsed = welcomeCompanyEmailPayload.safeParse(req.body);
+  if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
+  await mailer.sendWelcomeCompanyEmail(parsed.data);
+  res.status(204).end();
+}
+
 export async function passwordResetEmail(req: Request, res: Response) {
   const parsed = passwordResetEmailPayload.safeParse(req.body);
   if (!parsed.success) throw new AppError(400, "קלט לא תקין", "VALIDATION", parsed.error.flatten());
