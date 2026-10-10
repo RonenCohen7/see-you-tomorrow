@@ -554,7 +554,7 @@ export const enTranslation = {
   settingsSaveStatuses: "Save status settings",
   settingsSaveStatusesFailed: "Failed to save status settings",
   settingsBroadcastHeading: "System message (all connected users)",
-  settingsBroadcastBlurb: "Real-time broadcast to signed-in users with rate limiting.",
+  settingsBroadcastBlurb: "Opens in the center of the screen for everyone, including people who sign in later, and stays until they close it.",
   settingsBroadcastFailed: "Could not send broadcast",
   settingsBroadcastSent: "Sent",
   settingsBroadcastTitle: "Title",

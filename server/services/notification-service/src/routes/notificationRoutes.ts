@@ -6,6 +6,8 @@ const r = Router();
 
 r.get("/", requireAuth, ctrl.list);
 r.get("/unread-count", requireAuth, ctrl.unread);
+r.get("/system-broadcasts/pending", requireAuth, ctrl.pendingSystemBroadcasts);
+r.post("/system-broadcasts/:id/dismiss", requireAuth, ctrl.dismissSystemBroadcast);
 r.put("/read-all", requireAuth, ctrl.markAllRead);
 r.delete("/mine", requireAuth, ctrl.dismissAll);
 r.put("/:id/read", requireAuth, ctrl.markRead);

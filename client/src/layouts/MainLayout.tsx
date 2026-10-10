@@ -62,14 +62,7 @@ import { DepartmentSelfAssignDialog } from "../components/DepartmentSelfAssignDi
 import { MadeByCredit } from "../components/MadeByCredit";
 import { FLOATING_BUTTONS_HIDDEN_KEY, useLocalStorageFlag } from "../hooks/useLocalStorageFlag";
 import { SOCKET_EVENTS_CLIENT } from "../constants/socketEvents";
-
-export type SystemBroadcastClientPayload = {
-  id: string;
-  title: string;
-  message: string;
-  severity: "info" | "warning" | "error";
-  at: string;
-};
+import SystemBroadcastDialog from "../components/SystemBroadcastDialog";
 
 const WIDTH = 264;
 /** Permanent drawer width on typical laptops — frees horizontal space without tiny fonts */
@@ -133,7 +126,6 @@ export default function MainLayout() {
   /** עובד רגיל אינו רואה התראות, סוכן חכם או כפתורי FAB ניהוליים. */
   const isEmployee = role === "employee";
   const [newUserSnackbarOpen, setNewUserSnackbarOpen] = React.useState(false);
-  const [systemSnack, setSystemSnack] = React.useState<SystemBroadcastClientPayload | null>(null);
   const clearedRegisterState = React.useRef(false);
 
   React.useEffect(() => {
@@ -147,27 +139,8 @@ export default function MainLayout() {
 
   React.useEffect(() => {
     if (!socket) return;
-    const onBroadcast = (raw: unknown) => {
-      if (!raw || typeof raw !== "object") return;
-      const p = raw as Record<string, unknown>;
-      if (
-        typeof p.id !== "string" ||
-        typeof p.title !== "string" ||
-        typeof p.message !== "string" ||
-        typeof p.at !== "string"
-      ) {
-        return;
-      }
-      const sev = p.severity;
-      const severity =
-        sev === "warning" || sev === "error" || sev === "info" ? sev : "info";
-      setSystemSnack({
-        id: p.id,
-        title: p.title,
-        message: p.message,
-        severity,
-        at: p.at,
-      });
+    const onBroadcast = () => {
+      void qc.invalidateQueries({ queryKey: ["system-broadcasts-pending"] });
     };
     socket.on(SOCKET_EVENTS_CLIENT.systemBroadcast, onBroadcast);
     const refreshParking = () => {
@@ -575,31 +548,7 @@ export default function MainLayout() {
           {t("newUserRegisteredMessage")}
         </Alert>
       </Snackbar>
-      <Snackbar
-        open={!!systemSnack}
-        autoHideDuration={systemSnack?.severity === "error" ? 14_000 : 10_000}
-        onClose={() => setSystemSnack(null)}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        sx={{ mt: { xs: 7, sm: 8 } }}
-      >
-        {systemSnack ? (
-          <Alert
-            onClose={() => setSystemSnack(null)}
-            severity={systemSnack.severity}
-            variant="filled"
-            sx={{ width: "100%", maxWidth: { xs: "92vw", sm: 480 } }}
-          >
-            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-              {systemSnack.title}
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
-              {systemSnack.message}
-            </Typography>
-          </Alert>
-        ) : (
-          undefined
-        )}
-      </Snackbar>
+      <SystemBroadcastDialog />
     </Box>
   );
 }

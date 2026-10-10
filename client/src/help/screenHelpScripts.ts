@@ -91,7 +91,7 @@ const scriptsHe: Record<string, HelpSegment[]> = {
   ],
   "/settings": [
     { text: "ההגדרות כוללות מצב תצוגה בהיר או כהה, והעדפות כלליות של הממשק." },
-    { text: "מנהל ואדמין רואים כאן גם הגדרות ארגון, ובתחתית הודעת מערכת שנשלחת לכל מי שמחובר עכשיו." },
+    { text: "מנהל ואדמין שולחים מתחתית הדף הודעה. היא נפתחת במרכז המסך ונשארת עד שלוחצים על הסגירה, גם למי שיתחבר אחר כך." },
   ],
   "/scheduling-rules": [
     { text: "כאן מגדירים חוקי ארגון — בעיקר לאימות לפני אישור המלצות AI; חנייה אוטומטית פועלת בשמירת שיבוץ." },
@@ -189,7 +189,7 @@ const scriptsEn: Record<string, HelpSegment[]> = {
   ],
   "/settings": [
     { text: "Settings cover light/dark mode plus general UI preferences." },
-    { text: "Managers and admins also see organization settings, and at the bottom a system message sent to everyone signed in now." },
+    { text: "Managers and admins send a message from the bottom of this page. It opens in the center and stays until closed, including for people who sign in later." },
   ],
   "/scheduling-rules": [
     {

@@ -549,7 +549,7 @@ export const heTranslation = {
   settingsSaveStatuses: "שמור הגדרות סטטוסים",
   settingsSaveStatusesFailed: "שמירת סטטוסים נכשלה",
   settingsBroadcastHeading: "הודעת מערכת (לכל המחוברים)",
-  settingsBroadcastBlurb: "שידור בזמן אמת למשתמשים מחוברים עם מגבלת תדירות.",
+  settingsBroadcastBlurb: "מופיעה במרכז המסך לכל המשתמשים, גם למי שיתחבר אחר כך, ונשארת עד לחיצה על סגירה.",
   settingsBroadcastFailed: "לא ניתן לשדר",
   settingsBroadcastSent: "נשלח",
   settingsBroadcastTitle: "כותרת",

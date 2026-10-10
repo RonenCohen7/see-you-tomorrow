@@ -1,9 +1,9 @@
-import { randomUUID } from "crypto";
 import type { Response } from "express";
-import { AppError, type AuthRequest } from "@syt/shared";
+import { AppError, logger, type AuthRequest } from "@syt/shared";
 import { z } from "zod";
 import * as svc from "../services/notificationPersistence.js";
 import { canSendSystemBroadcast } from "../services/broadcastThrottle.js";
+import * as broadcasts from "../services/systemBroadcastStore.js";
 import { emitSystemBroadcast } from "../socket.js";
 
 const listQuery = z.object({
@@ -62,15 +62,26 @@ export async function adminSystemBroadcast(req: AuthRequest, res: Response) {
     throw new AppError(429, "המתן לפני שידור נוסף (מגבלת קצב)", "RATE_LIMIT");
   }
 
-  const at = new Date().toISOString();
-  const id = randomUUID();
-  const payload = {
-    id,
+  const payload = await broadcasts.saveSystemBroadcast({
     title: parsed.data.title,
     message: parsed.data.message,
     severity: parsed.data.severity,
-    at,
-  };
+    createdBy: req.user.id,
+  });
   emitSystemBroadcast(payload);
-  res.json({ ok: true as const, id, at });
+  logger.info("system broadcast saved", { id: payload.id });
+  res.json({ ok: true as const, id: payload.id, at: payload.at });
+}
+
+export async function pendingSystemBroadcasts(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const items = await broadcasts.listPendingSystemBroadcasts(req.user.id);
+  res.json({ items });
+}
+
+export async function dismissSystemBroadcast(req: AuthRequest, res: Response) {
+  if (!req.user) throw new AppError(401, "נדרשת התחברות", "UNAUTHORIZED");
+  const ok = await broadcasts.dismissSystemBroadcast(req.params.id, req.user.id);
+  if (!ok) throw new AppError(404, "הודעה לא נמצאה", "NOT_FOUND");
+  res.json({ ok: true as const });
 }
