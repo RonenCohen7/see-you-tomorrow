@@ -91,31 +91,6 @@ export async function sendPlainEmail(to: string, subject: string, text: string) 
   await deliver({ to, subject, text });
 }
 
-export async function sendScheduleEmail(
-  to: string,
-  ctx: { employeeName: string; workDate: string; workDateEnd?: string; status: string; location?: string }
-) {
-  const subject = "עדכון לוח זמנים";
-  const dateLine =
-    ctx.workDateEnd && ctx.workDateEnd !== ctx.workDate
-      ? `תאריכים: ${ctx.workDate} עד ${ctx.workDateEnd} (כולל)`
-      : `תאריך: ${ctx.workDate}`;
-  const text = [
-    `שלום ${ctx.employeeName},`,
-    "",
-    "לוח הזמנים שלך עודכן.",
-    dateLine,
-    `סטטוס: ${ctx.status}`,
-    ctx.location ? `מיקום: ${ctx.location}` : "",
-    "",
-    "See You Tomorrow",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  await deliver({ to, subject, text });
-}
-
 export async function sendPasswordResetEmail(params: {
   to: string;
   fullName: string;

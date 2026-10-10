@@ -115,8 +115,8 @@ export async function handleScheduleChange(payload: {
     message,
     type: "schedule_update",
     recipientIds: recipientIds.map((id) => new mongoose.Types.ObjectId(id)),
-    channels: Array.from(NOTIFICATION_CHANNELS),
-    deliveryStatus: "pending",
+    channels: ["socket", "inapp"],
+    deliveryStatus: "sent",
     readBy: [],
     ...(payload.updatedBy
       ? { createdBy: new mongoose.Types.ObjectId(payload.updatedBy) }
@@ -136,23 +136,6 @@ export async function handleScheduleChange(payload: {
     });
   }
   socket.emitDashboardRefresh(recipientIds);
-
-  emailQueue.enqueueEmailJobsBestEffort(
-    recipientIds.map((rid) => ({
-      name: `email-${doc._id}-${rid}`,
-      data: {
-        notificationId: pub.id,
-        recipientId: rid,
-        workDate: payload.workDate,
-        status: statusLine,
-      },
-      opts: {
-        attempts: 5,
-        backoff: { type: "exponential", delay: 2000 },
-        removeOnComplete: true,
-      },
-    })),
-  );
 
   await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
     logger.warn("notification delivery status update failed");
@@ -214,8 +197,8 @@ export async function handleScheduleRangeChange(payload: {
     message,
     type: "schedule_update",
     recipientIds: recipientIds.map((id) => new mongoose.Types.ObjectId(id)),
-    channels: Array.from(NOTIFICATION_CHANNELS),
-    deliveryStatus: "pending",
+    channels: ["socket", "inapp"],
+    deliveryStatus: "sent",
     readBy: [],
     ...(payload.updatedBy
       ? { createdBy: new mongoose.Types.ObjectId(payload.updatedBy) }
@@ -235,24 +218,6 @@ export async function handleScheduleRangeChange(payload: {
     });
   }
   socket.emitDashboardRefresh(recipientIds);
-
-  emailQueue.enqueueEmailJobsBestEffort(
-    recipientIds.map((rid) => ({
-      name: `email-${doc._id}-${rid}`,
-      data: {
-        notificationId: pub.id,
-        recipientId: rid,
-        workDate: payload.workDateFrom,
-        workDateEnd: payload.workDateTo,
-        status: statusLine,
-      },
-      opts: {
-        attempts: 5,
-        backoff: { type: "exponential", delay: 2000 },
-        removeOnComplete: true,
-      },
-    })),
-  );
 
   await Notification.updateOne({ _id: doc._id }, { deliveryStatus: "sent" }).catch(() => {
     logger.warn("notification delivery status update failed");

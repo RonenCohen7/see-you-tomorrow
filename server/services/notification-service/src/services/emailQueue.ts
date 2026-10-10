@@ -78,21 +78,16 @@ export function startEmailWorker() {
         return;
       }
       await runWithTenant(job.data.tenantSlug ?? null, async () => {
-      const emp = await http.fetchEmployee(job.data.recipientId);
-      if (!emp?.email) {
-        logger.warn("No email for recipient", job.data.recipientId);
-        return;
-      }
-      if (job.data.notificationKind === "meeting_invite") {
+        if (job.data.notificationKind !== "meeting_invite") {
+          logger.info("Skipped schedule assignment email");
+          return;
+        }
+        const emp = await http.fetchEmployee(job.data.recipientId);
+        if (!emp?.email) {
+          logger.warn("No email for recipient", job.data.recipientId);
+          return;
+        }
         await mailer.sendPlainEmail(emp.email, job.data.meetingSubject, job.data.meetingBody);
-        return;
-      }
-      await mailer.sendScheduleEmail(emp.email, {
-        employeeName: emp.fullName ?? "עובד",
-        workDate: job.data.workDate,
-        workDateEnd: job.data.workDateEnd,
-        status: job.data.status,
-      });
       });
     },
     {
