@@ -16,7 +16,8 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSLocationWhenInUseUsageDescription": "See You Tomorrow מבקשת את המיקום כדי לאשר שאתם במשרד."
       }
     },
     "android": {
@@ -43,7 +44,20 @@
           "faceIDPermission": "Allow See You Tomorrow to use Face ID to unlock the app."
         }
       ],
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "See You Tomorrow מבקשת את המיקום כדי לאשר שאתם במשרד."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#f97316",
+          "defaultChannel": "system-messages"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
