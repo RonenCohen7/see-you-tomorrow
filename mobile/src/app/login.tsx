@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { t } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, cleanLoginEmail, cleanSecret } from "@/api/client";
 import { bundledApiUrl, readApiUrl } from "@/api/session";
@@ -40,11 +41,11 @@ export default function LoginScreen() {
     const cleanEmail = cleanLoginEmail(email);
     const cleanPassword = cleanSecret(password);
     if (!cleanEmail || !cleanPassword) {
-      setError("מלאו אימייל וסיסמה.");
+      setError(t("מלאו אימייל וסיסמה."));
       return;
     }
     if (!cleanEmail.includes("@")) {
-      setError("האימייל צריך להיות הכתובת מהאתר, באנגלית. לא השם שמופיע בפרופיל.");
+      setError(t("האימייל צריך להיות הכתובת מהאתר, באנגלית. לא השם שמופיע בפרופיל."));
       return;
     }
     setSubmitting(true);
@@ -57,7 +58,7 @@ export default function LoginScreen() {
       });
       router.replace("/home");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "ההתחברות נכשלה.");
+      setError(err instanceof ApiError ? err.message : t("ההתחברות נכשלה."));
     } finally {
       setSubmitting(false);
     }
@@ -74,8 +75,8 @@ export default function LoginScreen() {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>התחברות</Text>
-          <Text style={styles.tagline}>תיאום עבודה היברידי — פשוט ובהיר</Text>
+          <Text style={styles.title}>{t("התחברות")}</Text>
+          <Text style={styles.tagline}>{t("תיאום עבודה היברידי — פשוט ובהיר")}</Text>
 
           {error ? (
             <View style={styles.errorBox}>
@@ -83,7 +84,7 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          <Text style={styles.label}>קוד חברה</Text>
+          <Text style={styles.label}>{t("קוד חברה")}</Text>
           <TextInput
             value={tenantSlug}
             onChangeText={setTenantSlug}
@@ -91,11 +92,11 @@ export default function LoginScreen() {
             autoCorrect={false}
             textAlign="left"
             style={[styles.input, styles.ltrInput]}
-            placeholder="למשל 88"
+            placeholder={t("למשל 88")}
             placeholderTextColor={colors.muted}
           />
 
-          <Text style={styles.label}>אימייל</Text>
+          <Text style={styles.label}>{t("אימייל")}</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
@@ -111,7 +112,7 @@ export default function LoginScreen() {
             placeholderTextColor={colors.muted}
           />
 
-          <Text style={styles.label}>סיסמה</Text>
+          <Text style={styles.label}>{t("סיסמה")}</Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
@@ -126,7 +127,7 @@ export default function LoginScreen() {
 
           {showServer ? (
             <>
-              <Text style={styles.label}>כתובת השרת המקומי</Text>
+              <Text style={styles.label}>{t("כתובת השרת המקומי")}</Text>
               <TextInput
                 value={apiUrl}
                 onChangeText={setApiUrl}
@@ -148,7 +149,7 @@ export default function LoginScreen() {
             {submitting ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.buttonText}>התחברות</Text>
+              <Text style={styles.buttonText}>{t("התחברות")}</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -160,17 +161,17 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 24, paddingTop: 22, direction: "rtl" },
-  title: { color: colors.ink, fontSize: 28, fontWeight: "800", marginBottom: 6, textAlign: "right", writingDirection: "rtl" },
-  tagline: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 22, textAlign: "right", writingDirection: "rtl" },
+  content: { paddingHorizontal: 24, paddingTop: 22, },
+  title: { color: colors.ink, fontSize: 28, fontWeight: "800", marginBottom: 6, },
+  tagline: { color: colors.muted, fontSize: 16, lineHeight: 24, marginBottom: 22, },
   errorBox: {
     backgroundColor: colors.dangerBg,
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
   },
-  errorText: { color: colors.danger, fontSize: 15, lineHeight: 22, textAlign: "right", writingDirection: "rtl" },
-  label: { color: colors.ink, fontSize: 14, fontWeight: "600", marginBottom: 6, textAlign: "right", writingDirection: "rtl" },
+  errorText: { color: colors.danger, fontSize: 15, lineHeight: 22, },
+  label: { color: colors.ink, fontSize: 14, fontWeight: "600", marginBottom: 6, },
   input: {
     backgroundColor: colors.card,
     borderColor: colors.line,

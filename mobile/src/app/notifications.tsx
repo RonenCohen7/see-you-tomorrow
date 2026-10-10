@@ -9,6 +9,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import HomeLink from "@/ui/HomeLink";
 import { colors } from "@/ui/theme";
+import { intlTag, t, tr } from "@/locale/i18n";
 
 type ScheduleContext = {
   employeeName: string;
@@ -62,7 +63,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : "שגיאה";
+  return err instanceof ApiError ? err.message : t("שגיאה");
 }
 
 function isRead(item: Notice, userId: string): boolean {
@@ -72,7 +73,7 @@ function isRead(item: Notice, userId: string): boolean {
 function whenLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("he-IL", { dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString(intlTag(), { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function NotificationsScreen() {
@@ -143,7 +144,7 @@ export default function NotificationsScreen() {
     setError(null);
     try {
       await api("/api/notifications/read-all", { method: "PUT" });
-      setNotice("כל ההתראות סומנו כנקראו.");
+      setNotice(t("כל ההתראות סומנו כנקראו."));
       await load();
     } catch (err) {
       setError(errorText(err));
@@ -153,10 +154,10 @@ export default function NotificationsScreen() {
   }
 
   function clearAll() {
-    Alert.alert("לנקות את כל ההתראות?", "הפעולה מסירה את כל ההתראות מהרשימה ולא ניתנת לביטול.", [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("לנקות את כל ההתראות?"), t("הפעולה מסירה את כל ההתראות מהרשימה ולא ניתנת לביטול."), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "נקה הכל",
+        text: t("נקה הכל"),
         style: "destructive",
         onPress: () => {
           void (async () => {
@@ -164,7 +165,7 @@ export default function NotificationsScreen() {
             setError(null);
             try {
               await api("/api/notifications/mine", { method: "DELETE" });
-              setNotice("היסטוריית ההתראות נוקתה.");
+              setNotice(t("היסטוריית ההתראות נוקתה."));
               await load();
             } catch (err) {
               setError(errorText(err));
@@ -179,13 +180,13 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="התראות" />
+      <BrandHeader greeting={t("התראות")} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>התראות</Text>
-          <Text style={styles.countChip}>{items.length} אירועים</Text>
-          {unread > 0 ? <Text style={styles.unreadChip}>{unread} לא נקרא</Text> : null}
+          <Text style={styles.pageTitle}>{t("התראות")}</Text>
+          <Text style={styles.countChip}>{items.length} {t("אירועים")}</Text>
+          {unread > 0 ? <Text style={styles.unreadChip}>{unread} {t("לא נקרא")}</Text> : null}
         </View>
         <View style={styles.actions}>
           <Pressable
@@ -193,29 +194,29 @@ export default function NotificationsScreen() {
             onPress={() => void markAll()}
             style={[styles.outline, (unread <= 0 || busy) && styles.disabled]}
           >
-            <Text style={styles.outlineText}>סמן הכל כנקרא</Text>
+            <Text style={styles.outlineText}>{t("סמן הכל כנקרא")}</Text>
           </Pressable>
           <Pressable
             disabled={(items.length === 0 && unread <= 0) || busy}
             onPress={clearAll}
             style={[styles.dangerOutline, (items.length === 0 && unread <= 0) && styles.disabled]}
           >
-            <Text style={styles.dangerText}>נקה הכל</Text>
+            <Text style={styles.dangerText}>{t("נקה הכל")}</Text>
           </Pressable>
         </View>
         <Text style={styles.subtitle}>
-          עדכון שיבוץ מציג למי השינוי, לאיזה תאריך, איזה סטטוס, ומי עדכן.
-        </Text>
+          {t("עדכון שיבוץ מציג למי השינוי, לאיזה תאריך, איזה סטטוס, ומי עדכן.")}
+          </Text>
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {loading ? <ActivityIndicator color={colors.orange} style={{ marginTop: 24 }} /> : null}
-        {!loading && items.length === 0 ? <Text style={styles.empty}>אין התראות להצגה.</Text> : null}
+        {!loading && items.length === 0 ? <Text style={styles.empty}>{t("אין התראות להצגה.")}</Text> : null}
         {items.map((item) => {
           const read = isRead(item, user.id);
           const schedule = item.scheduleContext;
           const meeting = item.meetingContext;
           const statusColor = STATUS_COLOR[schedule?.status ?? ""] ?? colors.muted;
-          const statusText = schedule?.statusDisplayHe?.trim() || STATUS_LABEL[schedule?.status ?? ""] || schedule?.status;
+          const statusText = schedule?.statusDisplayHe?.trim() || t(STATUS_LABEL[schedule?.status ?? ""]) || schedule?.status;
           const range =
             schedule?.workDateEnd && schedule.workDateEnd !== schedule.workDate
               ? `${schedule.workDate} – ${schedule.workDateEnd}`
@@ -224,11 +225,11 @@ export default function NotificationsScreen() {
             <View key={item.id} style={[styles.card, !read && styles.cardUnread]}>
               <View style={styles.cardHead}>
                 <Text style={styles.when}>{whenLabel(item.createdAt)}</Text>
-                <Text style={[styles.badge, read ? styles.badgeRead : styles.badgeUnread]}>{read ? "נקרא" : "לא נקרא"}</Text>
+                <Text style={[styles.badge, read ? styles.badgeRead : styles.badgeUnread]}>{read ? t("נקרא") : t("לא נקרא")}</Text>
               </View>
               {!read ? (
                 <Pressable disabled={busy} onPress={() => void markRead(item.id)} style={styles.readButton}>
-                  <Text style={styles.readButtonText}>סמן כנקרא</Text>
+                  <Text style={styles.readButtonText}>{t("סמן כנקרא")}</Text>
                 </Pressable>
               ) : null}
               <Text style={styles.cardTitle}>{item.title}</Text>
@@ -236,43 +237,43 @@ export default function NotificationsScreen() {
                 <View style={styles.details}>
                   <View style={styles.line}>
                     <MaterialIcons name="person" size={18} color={colors.muted} />
-                    <Text style={styles.lineLabel}>שיבוץ עבור</Text>
+                    <Text style={styles.lineLabel}>{t("שיבוץ עבור")}</Text>
                     <Text style={styles.lineValue}>{schedule.employeeName}</Text>
                   </View>
                   <View style={styles.line}>
                     <MaterialIcons name="event-note" size={18} color={colors.muted} />
-                    <Text style={styles.lineLabel}>{schedule.workDateEnd && schedule.workDateEnd !== schedule.workDate ? "תאריכים" : "תאריך עבודה"}</Text>
+                    <Text style={styles.lineLabel}>{schedule.workDateEnd && schedule.workDateEnd !== schedule.workDate ? t("תאריכים") : t("תאריך עבודה")}</Text>
                     <Text style={styles.lineDate}>{range}</Text>
                   </View>
                   <View style={styles.line}>
-                    <Text style={styles.lineLabel}>סטטוס</Text>
+                    <Text style={styles.lineLabel}>{t("סטטוס")}</Text>
                     <Text style={[styles.statusChip, { color: statusColor, borderColor: statusColor }]}>{statusText}</Text>
                   </View>
                   {schedule.updatedByName ? (
                     <View style={styles.line}>
                       <MaterialIcons name="edit-calendar" size={18} color={colors.muted} />
-                      <Text style={styles.lineLabel}>עודכן על ידי</Text>
+                      <Text style={styles.lineLabel}>{t("עודכן על ידי")}</Text>
                       <Text style={styles.lineValue}>{schedule.updatedByName}</Text>
                     </View>
                   ) : null}
-                  {schedule.note ? <Text style={styles.note}>הערה: {schedule.note}</Text> : null}
+                  {schedule.note ? <Text style={styles.note}>{t("הערה:")} {schedule.note}</Text> : null}
                   <Text style={styles.message}>{item.message}</Text>
                 </View>
               ) : item.type === "meeting_invite" && meeting ? (
                 <View style={styles.details}>
                   <Text style={styles.lineValue}>
                     {meeting.roomName} · {meeting.locationName}
-                    {meeting.floor ? ` · קומה ${meeting.floor}` : ""}
-                    {meeting.isUpdate ? " · עודכן" : ""}
+                    {meeting.floor ? tr(` · קומה ${meeting.floor}`, ` · floor ${meeting.floor}`) : ""}
+                    {meeting.isUpdate ? t(" · עודכן") : ""}
                   </Text>
                   <Text style={styles.cardTitle}>{meeting.title}</Text>
                   <Text style={styles.lineDate}>
                     {meeting.workDate}
                     {meeting.hourStart != null || meeting.hourEnd != null
                       ? ` · ${meeting.hourStart ?? "—"}–${meeting.hourEnd ?? "—"}`
-                      : " · יום מלא"}
+                      : t(" · יום מלא")}
                   </Text>
-                  <Text style={styles.lineValue}>מארגן/ת: {meeting.organizerName}</Text>
+                  <Text style={styles.lineValue}>{t("מארגן/ת:")} {meeting.organizerName}</Text>
                   <Text style={styles.message}>{item.message}</Text>
                 </View>
               ) : (
@@ -288,9 +289,9 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
   titleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  pageTitle: { color: colors.ink, fontSize: 26, fontWeight: "800", writingDirection: "rtl" },
+  pageTitle: { color: colors.ink, fontSize: 26, fontWeight: "800", },
   countChip: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -300,7 +301,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontWeight: "700",
     overflow: "hidden",
-    writingDirection: "rtl",
   },
   unreadChip: {
     backgroundColor: "rgba(249,115,22,0.16)",
@@ -310,7 +310,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     fontWeight: "800",
     overflow: "hidden",
-    writingDirection: "rtl",
   },
   actions: { flexDirection: "row", gap: 8, marginBottom: 10 },
   outline: {
@@ -323,7 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#ffffff",
   },
-  outlineText: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
+  outlineText: { color: colors.ink, fontWeight: "800", },
   dangerOutline: {
     borderWidth: 1,
     borderColor: colors.red,
@@ -334,16 +333,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#ffffff",
   },
-  dangerText: { color: colors.danger, fontWeight: "800", writingDirection: "rtl" },
+  dangerText: { color: colors.danger, fontWeight: "800", },
   disabled: { opacity: 0.4 },
-  subtitle: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 22, marginBottom: 12 },
+  subtitle: { color: colors.muted, lineHeight: 22, marginBottom: 12 },
   notice: {
     backgroundColor: "#dcfce7",
     color: "#166534",
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
@@ -352,12 +349,10 @@ const styles = StyleSheet.create({
     color: colors.danger,
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 12 },
+  empty: { color: colors.muted, marginTop: 12 },
   card: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -368,8 +363,8 @@ const styles = StyleSheet.create({
   },
   cardUnread: { borderColor: "rgba(249,115,22,0.45)", backgroundColor: "rgba(249,115,22,0.05)" },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  when: { color: colors.muted, fontWeight: "700", writingDirection: "rtl" },
-  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, overflow: "hidden", fontWeight: "800", writingDirection: "rtl" },
+  when: { color: colors.muted, fontWeight: "700", },
+  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, overflow: "hidden", fontWeight: "800", },
   badgeUnread: { backgroundColor: colors.orange, color: "#ffffff" },
   badgeRead: { borderWidth: 1, borderColor: colors.line, color: colors.muted },
   readButton: {
@@ -382,12 +377,12 @@ const styles = StyleSheet.create({
     minHeight: 34,
     justifyContent: "center",
   },
-  readButtonText: { color: colors.orangePressed, fontWeight: "800", writingDirection: "rtl" },
-  cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
+  readButtonText: { color: colors.orangePressed, fontWeight: "800", },
+  cardTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", marginTop: 8 },
   details: { marginTop: 8, gap: 8 },
   line: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
-  lineLabel: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
-  lineValue: { color: colors.ink, textAlign: "right", writingDirection: "rtl" },
+  lineLabel: { color: colors.ink, fontWeight: "800", },
+  lineValue: { color: colors.ink, },
   lineDate: { color: colors.ink, writingDirection: "ltr" },
   statusChip: {
     borderWidth: 1,
@@ -396,8 +391,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     fontWeight: "800",
     overflow: "hidden",
-    writingDirection: "rtl",
   },
-  note: { color: colors.muted, textAlign: "right", writingDirection: "rtl" },
-  message: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 20, marginTop: 4 },
+  note: { color: colors.muted, },
+  message: { color: colors.muted, lineHeight: 20, marginTop: 4 },
 });

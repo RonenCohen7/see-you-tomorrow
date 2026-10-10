@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { hello, t, tr } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { api } from "@/api/client";
@@ -118,7 +119,7 @@ function LocationMap({ query }: { query: string }) {
     );
   }
   if (!geo) {
-    return <Text style={styles.noMap}>לא נמצאה נקודה במפה לכתובת הזו. בדקו רחוב, מספר בית ועיר.</Text>;
+    return <Text style={styles.noMap}>{t("לא נמצאה נקודה במפה לכתובת הזו. בדקו רחוב, מספר בית ועיר.")}</Text>;
   }
   return (
     <View>
@@ -139,7 +140,7 @@ function LocationMap({ query }: { query: string }) {
           void Linking.openURL(`https://www.openstreetmap.org/?mlat=${geo.lat}&mlon=${geo.lon}#map=17/${geo.lat}/${geo.lon}`)
         }
       >
-        <Text style={styles.link}>פתיחה במפה</Text>
+        <Text style={styles.link}>{t("פתיחה במפה")}</Text>
       </Pressable>
     </View>
   );
@@ -167,7 +168,7 @@ export default function LocationsScreen() {
       const data = await api<{ items: Loc[] }>(`/api/locations${qs}`);
       setItems(data.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "לא ניתן לטעון מיקומים");
+      setError(err instanceof Error ? err.message : t("לא ניתן לטעון מיקומים"));
     } finally {
       setLoading(false);
     }
@@ -198,7 +199,7 @@ export default function LocationsScreen() {
     if (!editor || !editor.name.trim()) return;
     const capacity = Number(editor.capacity);
     if (!Number.isFinite(capacity) || capacity <= 0) {
-      setError("קיבולת צריכה להיות מספר גדול מאפס");
+      setError(t("קיבולת צריכה להיות מספר גדול מאפס"));
       return;
     }
     setSaving(true);
@@ -216,7 +217,7 @@ export default function LocationsScreen() {
       setEditor(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שמירת המיקום נכשלה");
+      setError(err instanceof Error ? err.message : t("שמירת המיקום נכשלה"));
     } finally {
       setSaving(false);
     }
@@ -224,17 +225,20 @@ export default function LocationsScreen() {
 
   function deactivate(loc: Loc) {
     Alert.alert(
-      "מיקום",
-      `לסמן את המיקום «${loc.name}» כלא פעיל? הרשומה נשארת במערכת לצורך שיבוץ והיסטוריה.`,
+      t("מיקום"),
+      tr(
+        `לסמן את המיקום «${loc.name}» כלא פעיל? הרשומה נשארת במערכת לצורך שיבוץ והיסטוריה.`,
+        `Mark “${loc.name}” inactive? The record stays for scheduling and history.`
+      ),
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t("ביטול"), style: "cancel" },
         {
-          text: "סימון כלא פעיל",
+          text: t("סימון כלא פעיל"),
           style: "destructive",
           onPress: () => {
             void api(`/api/locations/${loc.id}`, { method: "DELETE" })
               .then(() => load())
-              .catch((err: unknown) => setError(err instanceof Error ? err.message : "הפעולה נכשלה"));
+              .catch((err: unknown) => setError(err instanceof Error ? err.message : t("הפעולה נכשלה")));
           },
         },
       ]
@@ -246,7 +250,7 @@ export default function LocationsScreen() {
       await api(`/api/locations/${loc.id}`, { method: "PUT", body: { isActive: true } });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "הפעלת המיקום נכשלה");
+      setError(err instanceof Error ? err.message : t("הפעלת המיקום נכשלה"));
     }
   }
 
@@ -257,29 +261,28 @@ export default function LocationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={user ? `שלום, ${user.fullName}` : undefined} />
+      <BrandHeader greeting={user ? hello(user.fullName) : undefined} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
           <MaterialIcons name="place" size={26} color={colors.orange} />
-          <Text style={styles.title}>מיקומים</Text>
+          <Text style={styles.title}>{t("מיקומים")}</Text>
           <View style={styles.count}>
-            <Text style={styles.countText}>{items.length} סה״כ</Text>
+            <Text style={styles.countText}>{items.length} {t("סה״כ")}</Text>
           </View>
         </View>
 
         <Text style={styles.purpose}>
-          כאן מוגדרים הסניפים והמשרדים הפיזיים של הארגון — שם לתצוגה, כתובת, קיבולת והצגת מפה. המיקומים משמשים
-          לשיוך עובדים ומחלקות, לחדרי ישיבות, לחוקי שיבוץ ולמשאבי משרד.
-        </Text>
+          {t("כאן מוגדרים הסניפים והמשרדים הפיזיים של הארגון — שם לתצוגה, כתובת, קיבולת והצגת מפה. המיקומים משמשים לשיוך עובדים ומחלקות, לחדרי ישיבות, לחוקי שיבוץ ולמשאבי משרד.")}
+          </Text>
         <Text style={styles.purpose}>
-          חשוב לעדכן את הפרטים בכל פתיחת סניף, החלפת כתובת או שינוי בתכולת המקום.
-        </Text>
+          {t("חשוב לעדכן את הפרטים בכל פתיחת סניף, החלפת כתובת או שינוי בתכולת המקום.")}
+          </Text>
 
         <View style={styles.tools}>
           <View style={styles.switchRow}>
             <Switch value={activeOnly} onValueChange={setActiveOnly} trackColor={{ true: colors.orange }} />
-            <Text style={styles.switchLabel}>פעילים בלבד</Text>
+            <Text style={styles.switchLabel}>{t("פעילים בלבד")}</Text>
           </View>
           {canWrite ? (
             <Pressable onPress={() => setEditor(EMPTY)} style={styles.add}>
@@ -294,10 +297,10 @@ export default function LocationsScreen() {
         {!loading && items.length === 0 ? (
           <View style={styles.empty}>
             <MaterialIcons name="place" size={48} color={colors.muted} />
-            <Text style={styles.emptyTitle}>{activeOnly ? "אין מיקומים פעילים להצגה" : "אין מיקומים עדיין"}</Text>
+            <Text style={styles.emptyTitle}>{activeOnly ? t("אין מיקומים פעילים להצגה") : t("אין מיקומים עדיין")}</Text>
             {activeOnly ? (
               <Pressable onPress={() => setActiveOnly(false)}>
-                <Text style={styles.link}>הצג את כל המיקומים</Text>
+                <Text style={styles.link}>{t("הצג את כל המיקומים")}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -319,14 +322,14 @@ export default function LocationsScreen() {
                   </View>
                   <View style={[styles.badge, loc.isActive ? styles.badgeOn : styles.badgeOff]}>
                     <Text style={[styles.badgeText, loc.isActive ? styles.badgeTextOn : styles.badgeTextOff]}>
-                      {loc.isActive ? "פעיל" : "לא פעיל"}
+                      {loc.isActive ? t("פעיל") : t("לא פעיל")}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.capacityRow}>
                   <MaterialIcons name="people" size={18} color={colors.muted} />
-                  <Text style={styles.meta}>קיבולת:</Text>
+                  <Text style={styles.meta}>{t("קיבולת:")}</Text>
                   <Text style={styles.capacity}>{loc.capacity}</Text>
                 </View>
                 <View style={styles.track}>
@@ -335,7 +338,7 @@ export default function LocationsScreen() {
 
                 {canWrite && !loc.isActive ? (
                   <Pressable onPress={() => void activate(loc)} style={styles.activate}>
-                    <Text style={styles.activateText}>הפעל</Text>
+                    <Text style={styles.activateText}>{t("הפעל")}</Text>
                   </Pressable>
                 ) : null}
 
@@ -343,12 +346,12 @@ export default function LocationsScreen() {
                   <View style={styles.mapBlock}>
                     <View style={styles.capacityRow}>
                       <MaterialIcons name="map" size={18} color={colors.muted} />
-                      <Text style={styles.mapLabel}>מפה לפי כתובת</Text>
+                      <Text style={styles.mapLabel}>{t("מפה לפי כתובת")}</Text>
                     </View>
                     <LocationMap query={query} />
                   </View>
                 ) : (
-                  <Text style={styles.noMap}>הוסיפו כתובת בעריכה כדי להציג מפה</Text>
+                  <Text style={styles.noMap}>{t("הוסיפו כתובת בעריכה כדי להציג מפה")}</Text>
                 )}
 
                 {canWrite ? (
@@ -383,7 +386,7 @@ export default function LocationsScreen() {
 
       <Modal visible={!!editor} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setEditor(null)}>
         <View style={[styles.formScreen, { paddingTop: insets.top + 8 }]}>
-          <Text style={styles.modalTitle}>{editor?.id ? "עריכה" : "מיקום חדש"}</Text>
+          <Text style={styles.modalTitle}>{editor?.id ? t("עריכה") : t("מיקום חדש")}</Text>
           <ScrollView
             ref={formScroll}
             style={styles.formScroll}
@@ -392,74 +395,74 @@ export default function LocationsScreen() {
             keyboardDismissMode="interactive"
           >
             <View onLayout={(event) => { fieldY.current.name = event.nativeEvent.layout.y; }}>
-              <Text style={styles.fieldLabel}>שם</Text>
+              <Text style={styles.fieldLabel}>{t("שם")}</Text>
               <TextInput
                 value={editor?.name ?? ""}
                 onChangeText={(name) => setEditor((current) => (current ? { ...current, name } : current))}
                 onFocus={() => reveal("name")}
                 style={styles.input}
-                textAlign="right"
+               
                 returnKeyType="next"
               />
             </View>
             <View onLayout={(event) => { fieldY.current.address = event.nativeEvent.layout.y; }}>
-              <Text style={styles.fieldLabel}>כתובת (למפה)</Text>
+              <Text style={styles.fieldLabel}>{t("כתובת (למפה)")}</Text>
               <TextInput
                 value={editor?.address ?? ""}
                 onChangeText={(address) => setEditor((current) => (current ? { ...current, address } : current))}
                 onFocus={() => reveal("address")}
                 style={[styles.input, styles.inputTall]}
-                textAlign="right"
+               
                 multiline
               />
-              <Text style={styles.hint}>רחוב ומספר בית, למשל הרצל 10</Text>
+              <Text style={styles.hint}>{t("רחוב ומספר בית, למשל הרצל 10")}</Text>
             </View>
             <View onLayout={(event) => { fieldY.current.city = event.nativeEvent.layout.y; }}>
-              <Text style={styles.fieldLabel}>עיר</Text>
+              <Text style={styles.fieldLabel}>{t("עיר")}</Text>
               <TextInput
                 value={editor?.city ?? ""}
                 onChangeText={(city) => setEditor((current) => (current ? { ...current, city } : current))}
                 onFocus={() => reveal("city")}
                 style={styles.input}
-                textAlign="right"
+               
                 returnKeyType="next"
               />
             </View>
             <View onLayout={(event) => { fieldY.current.country = event.nativeEvent.layout.y; }}>
-              <Text style={styles.fieldLabel}>מדינה</Text>
+              <Text style={styles.fieldLabel}>{t("מדינה")}</Text>
               <TextInput
                 value={editor?.country ?? ""}
                 onChangeText={(country) => setEditor((current) => (current ? { ...current, country } : current))}
                 onFocus={() => reveal("country")}
                 style={styles.input}
-                placeholder="למשל ישראל"
+                placeholder={t("למשל ישראל")}
                 placeholderTextColor={colors.muted}
-                textAlign="right"
+               
                 returnKeyType="next"
               />
             </View>
             <View onLayout={(event) => { fieldY.current.capacity = event.nativeEvent.layout.y; }}>
-              <Text style={styles.fieldLabel}>קיבולת</Text>
+              <Text style={styles.fieldLabel}>{t("קיבולת")}</Text>
               <TextInput
                 value={editor?.capacity ?? ""}
                 onChangeText={(capacity) => setEditor((current) => (current ? { ...current, capacity } : current))}
                 onFocus={() => reveal("capacity")}
                 style={styles.input}
                 keyboardType="number-pad"
-                textAlign="right"
+               
               />
             </View>
           </ScrollView>
           <View style={[styles.formFooter, { marginBottom: keyboardHeight, paddingBottom: keyboardHeight ? 10 : insets.bottom + 10 }]}>
             <Pressable onPress={() => setEditor(null)} style={styles.cancel}>
-              <Text style={styles.cancelText}>ביטול</Text>
+              <Text style={styles.cancelText}>{t("ביטול")}</Text>
             </Pressable>
             <Pressable
               onPress={() => void save()}
               disabled={saving || !editor?.name.trim() || !capacityOk}
               style={styles.save}
             >
-              <Text style={styles.saveText}>{saving ? "שומר…" : "שמירה"}</Text>
+              <Text style={styles.saveText}>{saving ? t("שומר…") : t("שמירה")}</Text>
             </Pressable>
           </View>
         </View>
@@ -470,15 +473,15 @@ export default function LocationsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 16, },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { color: colors.ink, fontSize: 28, fontWeight: "800", writingDirection: "rtl" },
+  title: { color: colors.ink, fontSize: 28, fontWeight: "800", },
   count: { backgroundColor: "rgba(15,23,42,0.06)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  countText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
-  purpose: { color: colors.muted, writingDirection: "rtl", textAlign: "right", marginTop: 8, lineHeight: 20 },
+  countText: { color: colors.ink, fontWeight: "700", },
+  purpose: { color: colors.muted, marginTop: 8, lineHeight: 20 },
   tools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  switchLabel: { color: colors.ink, writingDirection: "rtl" },
+  switchLabel: { color: colors.ink, },
   add: {
     width: 44,
     height: 44,
@@ -488,10 +491,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loader: { marginVertical: 24 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  error: { color: colors.danger, marginBottom: 12 },
   empty: { alignItems: "center", padding: 24, gap: 8 },
-  emptyTitle: { color: colors.muted, fontSize: 16, writingDirection: "rtl", textAlign: "center" },
-  link: { color: colors.orange, fontWeight: "800", writingDirection: "rtl", marginTop: 8 },
+  emptyTitle: { color: colors.muted, fontSize: 16, textAlign: "center" },
+  link: { color: colors.orange, fontWeight: "800", marginTop: 8 },
   card: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -510,12 +513,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardTitle: { flex: 1, alignItems: "flex-end" },
-  name: { color: colors.ink, fontSize: 18, fontWeight: "800", writingDirection: "rtl" },
-  meta: { color: colors.muted, writingDirection: "rtl", textAlign: "right" },
+  name: { color: colors.ink, fontSize: 18, fontWeight: "800", },
+  meta: { color: colors.muted, },
   badge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   badgeOn: { backgroundColor: "rgba(34,197,94,0.16)" },
   badgeOff: { backgroundColor: "rgba(15,23,42,0.06)" },
-  badgeText: { fontWeight: "800", fontSize: 12, writingDirection: "rtl" },
+  badgeText: { fontWeight: "800", fontSize: 12, },
   badgeTextOn: { color: "#15803d" },
   badgeTextOff: { color: colors.muted },
   capacityRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
@@ -523,16 +526,16 @@ const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: "rgba(14,165,233,0.12)", marginTop: 6, overflow: "hidden" },
   fill: { height: 6, backgroundColor: colors.sky },
   activate: { marginTop: 10, backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 8, alignItems: "center" },
-  activateText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  activateText: { color: "#ffffff", fontWeight: "800", },
   mapBlock: { marginTop: 8 },
-  mapLabel: { color: colors.muted, fontWeight: "700", writingDirection: "rtl" },
+  mapLabel: { color: colors.muted, fontWeight: "700", },
   mapFrame: { height: 168, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: "rgba(15,23,42,0.08)", marginTop: 6 },
   map: { flex: 1, backgroundColor: "#e7e5e4" },
   mapSpinner: { marginTop: 70 },
-  geoLabel: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 6 },
-  noMap: { color: colors.muted, marginTop: 12, writingDirection: "rtl", textAlign: "right" },
+  geoLabel: { color: colors.muted, fontSize: 12, marginTop: 6 },
+  noMap: { color: colors.muted, marginTop: 12, },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 16, marginTop: 8 },
-  formScreen: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 16, direction: "rtl" },
+  formScreen: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 16, },
   formScroll: { flex: 1 },
   formContent: { paddingBottom: 24 },
   formFooter: {
@@ -544,9 +547,9 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(15,23,42,0.08)",
     backgroundColor: "#ffffff",
   },
-  modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
-  fieldLabel: { color: colors.muted, marginTop: 12, textAlign: "right", writingDirection: "rtl" },
-  hint: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 4 },
+  modalTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginBottom: 8 },
+  fieldLabel: { color: colors.muted, marginTop: 12, },
+  hint: { color: colors.muted, fontSize: 12, marginTop: 4 },
   input: {
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.12)",
@@ -555,11 +558,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 6,
     color: colors.ink,
-    writingDirection: "rtl",
   },
   inputTall: { minHeight: 72, textAlignVertical: "top", paddingTop: 10 },
   cancel: { paddingHorizontal: 12, paddingVertical: 10 },
-  cancelText: { color: colors.muted, fontWeight: "700", writingDirection: "rtl" },
+  cancelText: { color: colors.muted, fontWeight: "700", },
   save: { backgroundColor: colors.orange, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  saveText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  saveText: { color: "#ffffff", fontWeight: "800", },
 });

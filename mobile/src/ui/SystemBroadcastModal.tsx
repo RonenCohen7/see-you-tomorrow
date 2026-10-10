@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthProvider";
+import { t } from "@/locale/i18n";
 
 type Broadcast = {
   id: string;
@@ -87,7 +88,7 @@ export default function SystemBroadcastModal() {
                 disabled={closing}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="סגירה"
+                accessibilityLabel={t("סגירה")}
               >
                 <MaterialIcons name="close" size={26} color="#ffffff" />
               </Pressable>
@@ -124,15 +125,11 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 20,
     fontWeight: "800",
-    textAlign: "right",
-    writingDirection: "rtl",
   },
   message: {
     marginTop: 10,
     color: "#ffffff",
     fontSize: 16,
     lineHeight: 24,
-    textAlign: "right",
-    writingDirection: "rtl",
   },
 });

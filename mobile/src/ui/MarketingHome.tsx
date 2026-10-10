@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "./BrandHeader";
 import { colors } from "./theme";
+import { t } from "@/locale/i18n";
 
 const logo = require("../../assets/logo.png");
 
@@ -93,7 +94,7 @@ function CalendarMock() {
       </View>
       <View style={styles.mockBody}>
         <View style={styles.mockHead}>
-          <Text style={styles.mockLabel}>יומן</Text>
+          <Text style={styles.mockLabel}>{t("יומן")}</Text>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>SEE YOU TOMORROW</Text>
           </View>
@@ -116,9 +117,9 @@ function CalendarMock() {
           })}
         </View>
         <View style={styles.legend}>
-          <Text style={[styles.legendChip, { color: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.15)" }]}>במשרד</Text>
-          <Text style={[styles.legendChip, { color: "#f97316", backgroundColor: "rgba(249,115,22,0.15)" }]}>בבית</Text>
-          <Text style={[styles.legendChip, { color: "#22c55e", backgroundColor: "rgba(34,197,94,0.15)" }]}>חופשה</Text>
+          <Text style={[styles.legendChip, { color: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.15)" }]}>{t("במשרד")}</Text>
+          <Text style={[styles.legendChip, { color: "#f97316", backgroundColor: "rgba(249,115,22,0.15)" }]}>{t("בבית")}</Text>
+          <Text style={[styles.legendChip, { color: "#22c55e", backgroundColor: "rgba(34,197,94,0.15)" }]}>{t("חופשה")}</Text>
         </View>
       </View>
     </View>
@@ -144,52 +145,52 @@ export default function MarketingHome() {
         </View>
         <View style={styles.hero}>
           <Text style={styles.subtitle}>
-            פלטפורמה ארגונית לתיאום היברידי — לוחות זמנים, צוותים ומשרדים במקום אחד.
-          </Text>
+            {t("פלטפורמה ארגונית לתיאום היברידי — לוחות זמנים, צוותים ומשרדים במקום אחד.")}
+            </Text>
           {status !== "signedIn" ? (
             <>
               <Pressable
                 onPress={() => router.push("/login")}
                 style={({ pressed }) => [styles.loginButton, pressed && styles.loginPressed]}
               >
-                <Text style={styles.loginText}>התחברות</Text>
+                <Text style={styles.loginText}>{t("התחברות")}</Text>
               </Pressable>
-              <Text style={styles.trust}>התחברות מאובטחת · ניהול ארגוני מרכזי</Text>
+              <Text style={styles.trust}>{t("התחברות מאובטחת · ניהול ארגוני מרכזי")}</Text>
             </>
           ) : null}
         </View>
 
         <CalendarMock />
 
-        <Text style={styles.sectionTitle}>צוותים שמתאמים יחד — ביום-יום</Text>
+        <Text style={styles.sectionTitle}>{t("צוותים שמתאמים יחד — ביום-יום")}</Text>
         <FaceMarquee />
 
-        <Text style={styles.sectionTitle}>פעילות חיה במערכת</Text>
-        <Text style={styles.sectionHint}>יומן, צוותים והתראות — הכל זז יחד.</Text>
+        <Text style={styles.sectionTitle}>{t("פעילות חיה במערכת")}</Text>
+        <Text style={styles.sectionHint}>{t("יומן, צוותים והתראות — הכל זז יחד.")}</Text>
         <View style={styles.cardStack}>
           <View style={styles.card}>
             <LinearGradient colors={["#f97316", "#ea580c"]} style={styles.cardHead}>
               <MaterialIcons name="calendar-month" size={18} color="#fff" />
-              <Text style={styles.cardHeadText}>יומן</Text>
+              <Text style={styles.cardHeadText}>{t("יומן")}</Text>
             </LinearGradient>
-            <Text style={styles.cardHint}>סיכום נוכחות חודשי לפי יום</Text>
+            <Text style={styles.cardHint}>{t("סיכום נוכחות חודשי לפי יום")}</Text>
           </View>
           <View style={styles.card}>
             <LinearGradient colors={["#0ea5e9", "#6366f1"]} style={styles.cardHead}>
               <MaterialIcons name="groups" size={18} color="#fff" />
-              <Text style={styles.cardHeadText}>שקיפות לצוות</Text>
+              <Text style={styles.cardHeadText}>{t("שקיפות לצוות")}</Text>
             </LinearGradient>
-            <Text style={styles.cardLine}>נועה · משרד</Text>
-            <Text style={styles.cardLine}>דוד · בית</Text>
-            <Text style={styles.cardLine}>מאיה · משרד</Text>
+            <Text style={styles.cardLine}>{t("נועה · משרד")}</Text>
+            <Text style={styles.cardLine}>{t("דוד · בית")}</Text>
+            <Text style={styles.cardLine}>{t("מאיה · משרד")}</Text>
           </View>
           <View style={styles.card}>
             <LinearGradient colors={["#a78bfa", "#ec4899"]} style={styles.cardHead}>
               <MaterialIcons name="notifications-active" size={18} color="#fff" />
-              <Text style={styles.cardHeadText}>התראות</Text>
+              <Text style={styles.cardHeadText}>{t("התראות")}</Text>
             </LinearGradient>
-            <Text style={styles.cardLine}>3 עובדים במשרד מחר — מחלקת פיתוח</Text>
-            <Text style={styles.cardLine}>המלצת AI: לאזן נוכחות במשרד</Text>
+            <Text style={styles.cardLine}>{t("3 עובדים במשרד מחר — מחלקת פיתוח")}</Text>
+            <Text style={styles.cardLine}>{t("המלצת AI: לאזן נוכחות במשרד")}</Text>
           </View>
         </View>
       </ScrollView>
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingHorizontal: 16,
   },
-  hero: { paddingHorizontal: 20, direction: "rtl", alignItems: "center" },
+  hero: { paddingHorizontal: 20, alignItems: "center" },
   brandRow: {
     direction: "ltr",
     flexDirection: "row",
@@ -230,8 +231,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 16,
     lineHeight: 24,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 16,
     alignSelf: "stretch",
   },
@@ -245,8 +244,8 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   loginPressed: { backgroundColor: colors.orangePressed },
-  loginText: { color: "#ffffff", fontSize: 16, fontWeight: "700", writingDirection: "rtl" },
-  trust: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 10, alignSelf: "stretch" },
+  loginText: { color: "#ffffff", fontSize: 16, fontWeight: "700", },
+  trust: { color: colors.muted, fontSize: 12, marginTop: 10, alignSelf: "stretch" },
   mock: {
     marginHorizontal: 20,
     marginTop: 22,
@@ -273,9 +272,9 @@ const styles = StyleSheet.create({
   dots: { flexDirection: "row", gap: 4 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   mockTitle: { color: colors.muted, fontSize: 12, fontWeight: "600", writingDirection: "ltr" },
-  mockBody: { padding: 12, direction: "rtl" },
+  mockBody: { padding: 12, },
   mockHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  mockLabel: { color: colors.ink, fontWeight: "700", fontSize: 14, writingDirection: "rtl" },
+  mockLabel: { color: colors.ink, fontWeight: "700", fontSize: 14, },
   badge: {
     borderWidth: 1,
     borderColor: "rgba(249,115,22,0.45)",
@@ -295,11 +294,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     textAlign: "center",
-    writingDirection: "rtl",
     marginTop: 28,
     paddingHorizontal: 20,
   },
-  sectionHint: { color: colors.muted, textAlign: "center", writingDirection: "rtl", marginTop: 6, marginBottom: 4 },
+  sectionHint: { color: colors.muted, textAlign: "center", marginTop: 6, marginBottom: 4 },
   marqueeClip: { marginTop: 16, overflow: "hidden", alignSelf: "stretch" },
   marqueeTrack: { flexDirection: "row", alignItems: "center", direction: "ltr" },
   face: { width: FACE - 6, height: FACE - 6, borderRadius: (FACE - 6) / 2, borderWidth: 3, marginRight: 6 },
@@ -313,21 +311,18 @@ const styles = StyleSheet.create({
     borderColor: "rgba(15,23,42,0.06)",
   },
   cardHead: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  cardHeadText: { color: "#ffffff", fontWeight: "700", fontSize: 14, writingDirection: "rtl" },
-  cardHint: { color: colors.muted, fontSize: 13, textAlign: "right", writingDirection: "rtl", padding: 12 },
+  cardHeadText: { color: "#ffffff", fontWeight: "700", fontSize: 14, },
+  cardHint: { color: colors.muted, fontSize: 13, padding: 12 },
   cardLine: {
     color: colors.ink,
     fontSize: 13,
     fontWeight: "600",
-    textAlign: "right",
-    writingDirection: "rtl",
     marginHorizontal: 12,
     marginBottom: 8,
     backgroundColor: "rgba(14,165,233,0.08)",

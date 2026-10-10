@@ -1,6 +1,7 @@
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { t } from "@/locale/i18n";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -18,7 +19,7 @@ export async function requestDevicePermissions(): Promise<void> {
   try {
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("system-messages", {
-        name: "הודעות מערכת",
+        name: t("הודעות מערכת"),
         importance: Notifications.AndroidImportance.HIGH,
       });
     }

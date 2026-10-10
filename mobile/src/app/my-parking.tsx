@@ -9,6 +9,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import HomeLink from "@/ui/HomeLink";
 import { colors } from "@/ui/theme";
+import { t, tr } from "@/locale/i18n";
 
 type DaySpot = {
   spotId: string;
@@ -42,7 +43,7 @@ function addDays(iso: string, days: number): string {
 }
 
 function weekday(iso: string): string {
-  return WEEKDAY[new Date(`${iso}T12:00:00Z`).getUTCDay()] ?? "";
+  return t(WEEKDAY[new Date(`${iso}T12:00:00Z`).getUTCDay()] ?? "");
 }
 
 function displayDate(iso: string): string {
@@ -51,18 +52,31 @@ function displayDate(iso: string): string {
 }
 
 function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : "שגיאה";
+  return err instanceof ApiError ? err.message : t("שגיאה");
 }
 
 function stateLabel(spot: DaySpot, userId: string): string {
   if (spot.state === "taken") {
     return spot.reservation?.employeeId === userId
-      ? "תפוסה על ידך"
-      : `תפוסה על ידי ${spot.reservation?.employeeName || "עובד/ת אחר/ת"}`;
+      ? t("תפוסה על ידך")
+      : tr(
+          `תפוסה על ידי ${spot.reservation?.employeeName || "עובד/ת אחר/ת"}`,
+          `Taken by ${spot.reservation?.employeeName || "someone else"}`
+        );
   }
-  if (spot.state === "owner_reserved") return `שמורה ל${spot.ownerName || "בעלים"} (במשרד)`;
-  if (spot.ownerId) return `פנויה · ${spot.ownerName || "הבעלים"} לא במשרד`;
-  return "פנויה";
+  if (spot.state === "owner_reserved") {
+    return tr(
+      `שמורה ל${spot.ownerName || "בעלים"} (במשרד)`,
+      `Reserved for ${spot.ownerName || "the owner"} (in the office)`
+    );
+  }
+  if (spot.ownerId) {
+    return tr(
+      `פנויה · ${spot.ownerName || "הבעלים"} לא במשרד`,
+      `Free · ${spot.ownerName || "the owner"} is not in the office`
+    );
+  }
+  return t("פנויה");
 }
 
 export default function MyParkingScreen() {
@@ -118,7 +132,7 @@ export default function MyParkingScreen() {
     setNotice(null);
     try {
       await api("/api/parking/claim", { method: "POST", body: { spotId, workDate: date } });
-      setNotice("סימנת שתפסת את החנייה — כולם רואים שהיא תפוסה.");
+      setNotice(t("סימנת שתפסת את החנייה — כולם רואים שהיא תפוסה."));
       await load();
     } catch (err) {
       setError(errorText(err));
@@ -128,10 +142,10 @@ export default function MyParkingScreen() {
   }
 
   function release(reservationId: string) {
-    Alert.alert("שחרור חנייה", "לשחרר את החנייה? היא תחזור להיות פנויה לכולם.", [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("שחרור חנייה"), t("לשחרר את החנייה? היא תחזור להיות פנויה לכולם."), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "שחרר",
+        text: t("שחרר"),
         style: "destructive",
         onPress: () => {
           void (async () => {
@@ -139,7 +153,7 @@ export default function MyParkingScreen() {
             setNotice(null);
             try {
               await api(`/api/parking/reservations/${reservationId}`, { method: "DELETE" });
-              setNotice("החנייה שוחררה.");
+              setNotice(t("החנייה שוחררה."));
               await load();
             } catch (err) {
               setError(errorText(err));
@@ -154,12 +168,12 @@ export default function MyParkingScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="תפיסת חנייה" />
+      <BrandHeader greeting={t("תפיסת חנייה")} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <Text style={styles.subtitle}>
-          חנייה של מנהל שמורה לו רק בימים שהוא משובץ במשרד. בשאר הימים היא פנויה — מי שחונה בה מסמן «תפסתי חנייה».
-        </Text>
+          {t("חנייה של מנהל שמורה לו רק בימים שהוא משובץ במשרד. בשאר הימים היא פנויה — מי שחונה בה מסמן «תפסתי חנייה».")}
+          </Text>
 
         <View style={styles.filters}>
           <Pressable onPress={() => setPickerOpen(true)} style={styles.dateButton}>
@@ -170,18 +184,21 @@ export default function MyParkingScreen() {
             onPress={() => setDate(today)}
             style={[styles.chip, date === today && styles.chipOn]}
           >
-            <Text style={[styles.chipText, date === today && styles.chipTextOn]}>היום</Text>
+            <Text style={[styles.chipText, date === today && styles.chipTextOn]}>{t("היום")}</Text>
           </Pressable>
           <Pressable
             onPress={() => setDate(tomorrow)}
             style={[styles.chip, date === tomorrow && styles.chipOn]}
           >
-            <Text style={[styles.chipText, date === tomorrow && styles.chipTextOn]}>מחר</Text>
+            <Text style={[styles.chipText, date === tomorrow && styles.chipTextOn]}>{t("מחר")}</Text>
           </Pressable>
         </View>
         {!loading && spots.length > 0 ? (
           <Text style={styles.summary}>
-            {weekday(date)} {displayDate(date)} · {freeCount} פנויות מתוך {spots.length}
+            {tr(
+              `${weekday(date)} ${displayDate(date)} · ${freeCount} פנויות מתוך ${spots.length}`,
+              `${weekday(date)} ${displayDate(date)} · ${freeCount} free of ${spots.length}`
+            )}
           </Text>
         ) : null}
 
@@ -191,11 +208,13 @@ export default function MyParkingScreen() {
         {mine?.reservation ? (
           <View style={styles.holdBanner}>
             <Text style={styles.holdText}>
-              תפסת את {mine.label}
-              {mine.locationName ? ` · ${mine.locationName}` : ""} בתאריך {displayDate(date)}.
+              {tr(
+                `תפסת את ${mine.label}${mine.locationName ? ` · ${mine.locationName}` : ""} בתאריך ${displayDate(date)}.`,
+                `You took ${mine.label}${mine.locationName ? ` · ${mine.locationName}` : ""} on ${displayDate(date)}.`
+              )}
             </Text>
             <Pressable disabled={busy} onPress={() => release(mine.reservation!.id)} style={styles.releaseLink}>
-              <Text style={styles.releaseLinkText}>שחרר חנייה</Text>
+              <Text style={styles.releaseLinkText}>{t("שחרר חנייה")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -203,14 +222,19 @@ export default function MyParkingScreen() {
         {myFixed ? (
           <View style={styles.fixedBanner}>
             <Text style={styles.fixedTitle}>
-              החנייה הקבועה שלך: {myFixed.label}
-              {myFixed.locationName ? ` · ${myFixed.locationName}` : ""}
+              {tr(
+                `החנייה הקבועה שלך: ${myFixed.label}${myFixed.locationName ? ` · ${myFixed.locationName}` : ""}`,
+                `Your assigned spot: ${myFixed.label}${myFixed.locationName ? ` · ${myFixed.locationName}` : ""}`
+              )}
             </Text>
             {!myFixed.ownerInOffice ? (
               <Text style={styles.fixedBody}>
                 {myFixed.reservation
-                  ? `לא משובץ/ת במשרד בתאריך זה — ${myFixed.reservation.employeeName} תפס/ה את החנייה שלך.`
-                  : "לא משובץ/ת במשרד בתאריך זה — החנייה שלך פנויה לעובדים אחרים."}
+                  ? tr(
+                      `לא משובץ/ת במשרד בתאריך זה — ${myFixed.reservation.employeeName} תפס/ה את החנייה שלך.`,
+                      `You are not scheduled in the office on this date — ${myFixed.reservation.employeeName} took your spot.`
+                    )
+                  : t("לא משובץ/ת במשרד בתאריך זה — החנייה שלך פנויה לעובדים אחרים.")}
               </Text>
             ) : null}
           </View>
@@ -219,7 +243,7 @@ export default function MyParkingScreen() {
         {loading ? (
           <ActivityIndicator color={colors.orange} style={{ marginTop: 24 }} />
         ) : spots.length === 0 ? (
-          <Text style={styles.empty}>לא הוגדרו חניות במערכת.</Text>
+          <Text style={styles.empty}>{t("לא הוגדרו חניות במערכת.")}</Text>
         ) : (
           ordered.map(([id, group]) => (
             <View key={id} style={styles.group}>
@@ -252,7 +276,7 @@ export default function MyParkingScreen() {
                         onPress={() => void claim(spot.spotId)}
                         style={({ pressed }) => [styles.claimButton, pressed && styles.claimPressed, busy && styles.disabled]}
                       >
-                        <Text style={styles.claimText}>תפסתי חנייה</Text>
+                        <Text style={styles.claimText}>{t("תפסתי חנייה")}</Text>
                       </Pressable>
                     ) : null}
                     {isMine && spot.reservation ? (
@@ -261,7 +285,7 @@ export default function MyParkingScreen() {
                         onPress={() => release(spot.reservation!.id)}
                         style={styles.releaseButton}
                       >
-                        <Text style={styles.releaseButtonText}>שחרר חנייה</Text>
+                        <Text style={styles.releaseButtonText}>{t("שחרר חנייה")}</Text>
                       </Pressable>
                     ) : null}
                   </View>
@@ -275,7 +299,7 @@ export default function MyParkingScreen() {
       <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setPickerOpen(false)}>
           <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => undefined}>
-            <Text style={styles.sheetTitle}>תאריך</Text>
+            <Text style={styles.sheetTitle}>{t("תאריך")}</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               {choices.map((iso) => (
                 <Pressable
@@ -301,8 +325,8 @@ export default function MyParkingScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
-  subtitle: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 22, marginBottom: 14 },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
+  subtitle: { color: colors.muted, lineHeight: 22, marginBottom: 14 },
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   dateButton: {
     flexDirection: "row",
@@ -326,16 +350,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   chipOn: { backgroundColor: colors.orange, borderColor: colors.orange },
-  chipText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  chipText: { color: colors.ink, fontWeight: "700", },
   chipTextOn: { color: "#ffffff" },
-  summary: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  summary: { color: colors.muted, marginBottom: 12 },
   notice: {
     backgroundColor: "#dcfce7",
     color: "#166534",
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
@@ -344,21 +366,19 @@ const styles = StyleSheet.create({
     color: colors.danger,
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
   holdBanner: { backgroundColor: "#dcfce7", borderRadius: 14, padding: 12, marginBottom: 10 },
-  holdText: { color: "#166534", fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
+  holdText: { color: "#166534", fontWeight: "700", },
   releaseLink: { alignSelf: "flex-start", marginTop: 8 },
-  releaseLinkText: { color: "#166534", fontWeight: "800", writingDirection: "rtl" },
+  releaseLinkText: { color: "#166534", fontWeight: "800", },
   fixedBanner: { backgroundColor: "#e0f2fe", borderRadius: 14, padding: 12, marginBottom: 10 },
-  fixedTitle: { color: "#0c4a6e", fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
-  fixedBody: { color: "#0c4a6e", textAlign: "right", writingDirection: "rtl", marginTop: 4 },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 16 },
+  fixedTitle: { color: "#0c4a6e", fontWeight: "800", },
+  fixedBody: { color: "#0c4a6e", marginTop: 4 },
+  empty: { color: colors.muted, marginTop: 16 },
   group: { marginBottom: 8 },
-  groupTitle: { color: colors.ink, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8, marginTop: 8 },
+  groupTitle: { color: colors.ink, fontWeight: "800", marginBottom: 8, marginTop: 8 },
   card: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -370,7 +390,7 @@ const styles = StyleSheet.create({
   cardFree: { borderWidth: 2, borderColor: "#22c55e" },
   cardMine: { borderWidth: 2, borderColor: colors.orange },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  spotLabel: { color: colors.ink, fontSize: 22, fontWeight: "800", writingDirection: "rtl" },
+  spotLabel: { color: colors.ink, fontSize: 22, fontWeight: "800", },
   stateChip: {
     alignSelf: "flex-start",
     backgroundColor: "#f1f5f9",
@@ -381,7 +401,7 @@ const styles = StyleSheet.create({
   },
   stateFree: { backgroundColor: "#dcfce7" },
   stateMine: { backgroundColor: "rgba(249,115,22,0.16)" },
-  stateText: { color: colors.muted, fontWeight: "700", writingDirection: "rtl" },
+  stateText: { color: colors.muted, fontWeight: "700", },
   stateTextFree: { color: "#166534" },
   stateTextMine: { color: colors.orangePressed },
   claimButton: {
@@ -392,7 +412,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   claimPressed: { backgroundColor: "#16a34a" },
-  claimText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  claimText: { color: "#ffffff", fontWeight: "800", },
   releaseButton: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -401,12 +421,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  releaseButtonText: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
+  releaseButtonText: { color: colors.ink, fontWeight: "800", },
   disabled: { opacity: 0.5 },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, direction: "rtl" },
-  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, },
+  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   choice: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
   choiceOn: { backgroundColor: "rgba(249,115,22,0.12)" },
-  choiceText: { color: colors.ink, textAlign: "right", writingDirection: "rtl", fontWeight: "600" },
+  choiceText: { color: colors.ink, fontWeight: "600" },
 });

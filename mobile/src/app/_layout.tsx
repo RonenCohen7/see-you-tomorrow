@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { I18nManager } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
+import { LocaleProvider } from "@/locale/LocaleProvider";
 import { requestDevicePermissions } from "@/ui/devicePermissions";
 import SignedInSwipe from "@/ui/SignedInSwipe";
 import SystemBroadcastModal from "@/ui/SystemBroadcastModal";
@@ -39,9 +40,11 @@ function SignedInShell() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <SignedInShell />
-      </AuthProvider>
+      <LocaleProvider>
+        <AuthProvider>
+          <SignedInShell />
+        </AuthProvider>
+      </LocaleProvider>
     </SafeAreaProvider>
   );
 }

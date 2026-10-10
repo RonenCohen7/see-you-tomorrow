@@ -1,4 +1,5 @@
 import { clearTokens, readAccessToken, readApiUrl, readRefreshToken, saveTokens } from "./session";
+import { t } from "@/locale/i18n";
 
 export type Employee = {
   id: string;
@@ -46,14 +47,14 @@ export class ApiError extends Error {
 }
 
 async function parseError(response: Response): Promise<ApiError> {
-  let message = "שגיאת שרת";
+  let message = t("שגיאת שרת");
   let code: string | undefined;
   try {
     const body = (await response.json()) as ApiErrorBody;
     if (body.code === "VALIDATION" && body.details?.fieldErrors?.email?.length) {
-      message = "האימייל לא תקין. הקלידו את הכתובת באנגלית, כמו באתר.";
+      message = t("האימייל לא תקין. הקלידו את הכתובת באנגלית, כמו באתר.");
     } else if (body.code === "VALIDATION" && body.details?.fieldErrors?.password?.length) {
-      message = "חסרה סיסמה.";
+      message = t("חסרה סיסמה.");
     } else if (body.error) {
       message = body.error;
     }
@@ -111,7 +112,7 @@ export async function api<T>(
   try {
     response = await send();
   } catch {
-    throw new ApiError(0, "אין חיבור לשרת. בדקו שהמערכת רצה ושהטלפון באותה רשת.");
+    throw new ApiError(0, t("אין חיבור לשרת. בדקו שהמערכת רצה ושהטלפון באותה רשת."));
   }
 
   if (response.status === 401 && auth) {
@@ -121,7 +122,7 @@ export async function api<T>(
       try {
         response = await send();
       } catch {
-        throw new ApiError(0, "אין חיבור לשרת. בדקו שהמערכת רצה ושהטלפון באותה רשת.");
+        throw new ApiError(0, t("אין חיבור לשרת. בדקו שהמערכת רצה ושהטלפון באותה רשת."));
       }
     }
   }

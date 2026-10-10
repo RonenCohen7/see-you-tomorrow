@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { t, tr } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, ApiError } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -58,7 +59,7 @@ function addDays(iso: string, days: number): string {
 }
 
 function weekday(iso: string): string {
-  return WEEKDAY[new Date(`${iso}T12:00:00Z`).getUTCDay()] ?? "";
+  return t(WEEKDAY[new Date(`${iso}T12:00:00Z`).getUTCDay()] ?? "");
 }
 
 function displayDate(iso: string): string {
@@ -67,11 +68,11 @@ function displayDate(iso: string): string {
 }
 
 function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : "שגיאה";
+  return err instanceof ApiError ? err.message : t("שגיאה");
 }
 
 function hoursLabel(row: Reservation): string {
-  if (row.hourStart == null && row.hourEnd == null) return "יום מלא";
+  if (row.hourStart == null && row.hourEnd == null) return t("יום מלא");
   return `${row.hourStart ?? "—"}–${row.hourEnd ?? "—"}`;
 }
 
@@ -222,10 +223,16 @@ export default function ParkingManagementScreen() {
 
   function removeSpot(spotId: string) {
     const spot = spotById.get(spotId);
-    Alert.alert("הסרת חנייה", `למחוק את ${spot?.label ?? "החנייה"}? כל ההקצאות הזמניות שלה יימחקו.`, [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(
+      t("הסרת חנייה"),
+      tr(
+        `למחוק את ${spot?.label ?? "החנייה"}? כל ההקצאות הזמניות שלה יימחקו.`,
+        `Delete ${spot?.label ?? "this spot"}? Its temporary assignments will be deleted too.`
+      ),
+      [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "מחיקה",
+        text: t("מחיקה"),
         style: "destructive",
         onPress: () => {
           void (async () => {
@@ -245,10 +252,10 @@ export default function ParkingManagementScreen() {
   }
 
   function removeReservation(id: string) {
-    Alert.alert("מחיקת הקצאה", "למחוק הקצאה זו?", [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("מחיקת הקצאה"), t("למחוק הקצאה זו?"), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "מחיקה",
+        text: t("מחיקה"),
         style: "destructive",
         onPress: () => {
           void (async () => {
@@ -271,7 +278,7 @@ export default function ParkingManagementScreen() {
     const start = hourStart.trim() === "" ? undefined : Number(hourStart);
     const end = hourEnd.trim() === "" ? undefined : Number(hourEnd);
     if ((start !== undefined && !Number.isFinite(start)) || (end !== undefined && !Number.isFinite(end))) {
-      setError("שעה לא תקינה");
+      setError(t("שעה לא תקינה"));
       return;
     }
     setBusy(true);
@@ -302,16 +309,16 @@ export default function ParkingManagementScreen() {
 
   const pickerTitle =
     picker === "seed" || picker === "addLoc"
-      ? "מיקום"
+      ? t("מיקום")
       : picker === "remove"
-        ? "בחרו חנייה להסרה"
+        ? t("בחרו חנייה להסרה")
         : picker === "resSpot"
-          ? "חניה"
+          ? t("חניה")
           : picker === "resPerson"
-            ? "משתמש/ת בחניה"
+            ? t("משתמש/ת בחניה")
             : picker === "resDate"
-              ? "תאריך"
-              : "שיוך קבוע";
+              ? t("תאריך")
+              : t("שיוך קבוע");
 
   const pickerOptions: { id: string; label: string }[] =
     picker === "seed" || picker === "addLoc"
@@ -324,11 +331,11 @@ export default function ParkingManagementScreen() {
             ? people.map((person) => ({ id: person.id, label: person.fullName }))
             : picker === "resDate"
               ? dateChoices.map((iso) => ({ id: iso, label: `${weekday(iso)} · ${displayDate(iso)}` }))
-              : [{ id: "", label: "— ללא שיוך" }, ...people.map((person) => ({
+              : [{ id: "", label: t("— ללא שיוך") }, ...people.map((person) => ({
                   id: person.id,
                   label:
                     person.role === "manager" || person.role === "admin"
-                      ? `${person.fullName} · ${roleLabel[person.role] ?? person.role}`
+                      ? `${person.fullName} · ${t(roleLabel[person.role]) ?? person.role}`
                       : person.fullName,
                 }))];
 
@@ -345,26 +352,26 @@ export default function ParkingManagementScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="ניהול חניות" />
+      <BrandHeader greeting={t("ניהול חניות")} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>חניות</Text>
+          <Text style={styles.pageTitle}>{t("חניות")}</Text>
           <Pressable onPress={() => void load()} hitSlop={8}>
             <MaterialIcons name="refresh" size={22} color={colors.orange} />
           </Pressable>
         </View>
         <Text style={styles.subtitle}>
-          חניה קבועה למנהל. כשהוא לא משובץ למשרד, החניה פנויה להקצאה זמנית לפי יום ושעות.
-        </Text>
+          {t("חניה קבועה למנהל. כשהוא לא משובץ למשרד, החניה פנויה להקצאה זמנית לפי יום ושעות.")}
+          </Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {loading ? <ActivityIndicator color={colors.orange} style={{ marginTop: 24 }} /> : null}
 
         {isAdmin ? (
           <View style={styles.panel}>
-            <Text style={styles.panelTitle}>יצירת עד 10 חניות במיקום</Text>
+            <Text style={styles.panelTitle}>{t("יצירת עד 10 חניות במיקום")}</Text>
             <Pressable onPress={() => setPicker("seed")} style={styles.field}>
-              <Text style={styles.fieldText}>{places.find((place) => place.id === seedLoc)?.name || "מיקום"}</Text>
+              <Text style={styles.fieldText}>{places.find((place) => place.id === seedLoc)?.name || t("מיקום")}</Text>
               <MaterialIcons name="arrow-drop-down" size={22} color={colors.muted} />
             </Pressable>
             <Pressable
@@ -372,14 +379,14 @@ export default function ParkingManagementScreen() {
               onPress={() => void seed()}
               style={({ pressed }) => [styles.primary, (!seedLoc || busy) && styles.disabled, pressed && styles.primaryPressed]}
             >
-              <Text style={styles.primaryText}>השלם ל-10 חניות</Text>
+              <Text style={styles.primaryText}>{t("השלם ל-10 חניות")}</Text>
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.panel}>
           <View style={styles.titleRow}>
-            <Text style={styles.panelTitle}>הקצאות זמניות</Text>
+            <Text style={styles.panelTitle}>{t("הקצאות זמניות")}</Text>
             <Pressable
               onPress={() => {
                 setResDate(today);
@@ -387,10 +394,10 @@ export default function ParkingManagementScreen() {
               }}
               style={styles.smallPrimary}
             >
-              <Text style={styles.smallPrimaryText}>הקצאת חניה</Text>
+              <Text style={styles.smallPrimaryText}>{t("הקצאת חניה")}</Text>
             </Pressable>
           </View>
-          {reservations.length === 0 ? <Text style={styles.empty}>אין הקצאות ב־21 הימים הקרובים.</Text> : null}
+          {reservations.length === 0 ? <Text style={styles.empty}>{t("אין הקצאות ב־21 הימים הקרובים.")}</Text> : null}
           {reservations.map((row) => {
             const spot = spotById.get(row.spotId);
             const guest = row.guestFullName || names.get(row.employeeId) || "—";
@@ -398,14 +405,14 @@ export default function ParkingManagementScreen() {
               <View key={row.id} style={styles.resRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.resTitle}>
-                    {displayDate(row.workDate)} · {spot?.label ?? "חניה"}
+                    {displayDate(row.workDate)} · {spot?.label ?? t("חניה")}
                   </Text>
                   <Text style={styles.resMeta}>
                     {guest} · {hoursLabel(row)}
                   </Text>
                 </View>
                 <Pressable disabled={busy} onPress={() => removeReservation(row.id)} hitSlop={8}>
-                  <Text style={styles.deleteText}>מחיקה</Text>
+                  <Text style={styles.deleteText}>{t("מחיקה")}</Text>
                 </Pressable>
               </View>
             );
@@ -414,7 +421,7 @@ export default function ParkingManagementScreen() {
 
         <View style={styles.panel}>
           <View style={styles.titleRow}>
-            <Text style={styles.panelTitle}>רשימת חניות</Text>
+            <Text style={styles.panelTitle}>{t("רשימת חניות")}</Text>
           </View>
           {isAdmin ? (
             <View style={styles.adminActions}>
@@ -426,32 +433,32 @@ export default function ParkingManagementScreen() {
                 }}
                 style={styles.smallPrimary}
               >
-                <Text style={styles.smallPrimaryText}>הוספת חנייה</Text>
+                <Text style={styles.smallPrimaryText}>{t("הוספת חנייה")}</Text>
               </Pressable>
               <Pressable onPress={() => setPicker("remove")} style={styles.dangerOutline}>
-                <Text style={styles.dangerOutlineText}>הסרת חנייה</Text>
+                <Text style={styles.dangerOutlineText}>{t("הסרת חנייה")}</Text>
               </Pressable>
             </View>
           ) : null}
           {canAssignPermanent ? (
             <Text style={styles.hint}>
-              בשדה «שיוך קבוע» קובעים את בעל החנייה. כשהוא במשרד החנייה שמורה לו; כשאינו במשרד היא נפתחת לתפיסה.
-            </Text>
+              {t("בשדה «שיוך קבוע» קובעים את בעל החנייה. כשהוא במשרד החנייה שמורה לו; כשאינו במשרד היא נפתחת לתפיסה.")}
+              </Text>
           ) : null}
           {spots.map((spot) => {
             const occupied = Boolean(spot.assignedEmployeeId);
             return (
               <View key={spot.id} style={[styles.spot, occupied ? styles.spotTaken : styles.spotFree, !spot.isActive && styles.inactive]}>
-                <Text style={styles.spotCaption}>חניה</Text>
+                <Text style={styles.spotCaption}>{t("חניה")}</Text>
                 <Text style={styles.spotLabel}>{spot.label}</Text>
                 <Text style={styles.spotPlace}>{spot.locationName}</Text>
                 {occupied ? (
                   <>
-                    <Text style={styles.ownerCaption}>בעלים קבוע</Text>
+                    <Text style={styles.ownerCaption}>{t("בעלים קבוע")}</Text>
                     <Text style={styles.ownerName}>{holderName(spot)}</Text>
                   </>
                 ) : (
-                  <Text style={styles.vacant}>פנויה</Text>
+                  <Text style={styles.vacant}>{t("פנויה")}</Text>
                 )}
                 {canAssignPermanent ? (
                   <Pressable
@@ -462,7 +469,7 @@ export default function ParkingManagementScreen() {
                     style={styles.field}
                   >
                     <Text style={styles.fieldText} numberOfLines={1}>
-                      שיוך קבוע: {holderName(spot) || "—"}
+                      {tr("שיוך קבוע:", "Permanent assignment:")} {holderName(spot) || "—"}
                     </Text>
                     <MaterialIcons name="arrow-drop-down" size={22} color={colors.muted} />
                   </Pressable>
@@ -485,7 +492,7 @@ export default function ParkingManagementScreen() {
             <ScrollView style={{ maxHeight: 420 }}>
               {pickerOptions.map((option) => (
                 <Pressable key={option.id || "none"} onPress={() => onPick(option.id)} style={styles.choice}>
-                  <Text style={styles.choiceText}>{option.label}</Text>
+                  <Text style={styles.choiceText}>{t(option.label)}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -495,7 +502,7 @@ export default function ParkingManagementScreen() {
 
       <Modal visible={addOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setAddOpen(false)}>
         <View style={[styles.formScreen, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.formTitle}>{picker === "addLoc" ? "מיקום" : "חנייה חדשה"}</Text>
+          <Text style={styles.formTitle}>{picker === "addLoc" ? t("מיקום") : t("חנייה חדשה")}</Text>
           {picker === "addLoc" ? (
             <ScrollView style={{ flex: 1 }}>
               {places.map((place) => (
@@ -511,11 +518,11 @@ export default function ParkingManagementScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: keyboardHeight + 24 }}
           >
-            <Text style={styles.label}>מיקום</Text>
+            <Text style={styles.label}>{t("מיקום")}</Text>
             <Pressable onPress={() => setPicker("addLoc")} style={styles.field}>
-              <Text style={styles.fieldText}>{places.find((place) => place.id === addLoc)?.name || "בחרו מיקום"}</Text>
+              <Text style={styles.fieldText}>{places.find((place) => place.id === addLoc)?.name || t("בחרו מיקום")}</Text>
             </Pressable>
-            <Text style={styles.label}>שם חנייה (אופציונלי)</Text>
+            <Text style={styles.label}>{t("שם חנייה (אופציונלי)")}</Text>
             <TextInput
               value={addLabel}
               onChangeText={setAddLabel}
@@ -524,7 +531,7 @@ export default function ParkingManagementScreen() {
                 fieldY.current.label = event.nativeEvent.layout.y;
               }}
               style={styles.input}
-              textAlign="right"
+             
             />
           </ScrollView>
           )}
@@ -533,7 +540,7 @@ export default function ParkingManagementScreen() {
               onPress={() => (picker === "addLoc" ? setPicker(null) : setAddOpen(false))}
               style={styles.cancelButton}
             >
-              <Text style={styles.cancelText}>ביטול</Text>
+              <Text style={styles.cancelText}>{t("ביטול")}</Text>
             </Pressable>
             {picker === "addLoc" ? null : (
             <Pressable
@@ -541,7 +548,7 @@ export default function ParkingManagementScreen() {
               onPress={() => void createSpot()}
               style={[styles.footerSave, (!addLoc || busy) && styles.disabled]}
             >
-              <Text style={styles.primaryText}>שמירה</Text>
+              <Text style={styles.primaryText}>{t("שמירה")}</Text>
             </Pressable>
             )}
           </View>
@@ -550,50 +557,50 @@ export default function ParkingManagementScreen() {
 
       <Modal visible={resOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setResOpen(false)}>
         <View style={[styles.formScreen, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.formTitle}>{pickerTitle && (picker === "resSpot" || picker === "resPerson" || picker === "resDate") ? pickerTitle : "הקצאת חניה"}</Text>
+          <Text style={styles.formTitle}>{pickerTitle && (picker === "resSpot" || picker === "resPerson" || picker === "resDate") ? pickerTitle : t("הקצאת חניה")}</Text>
           {picker === "resSpot" || picker === "resPerson" || picker === "resDate" ? (
             <ScrollView style={{ flex: 1 }}>
               {pickerOptions.map((option) => (
                 <Pressable key={option.id} onPress={() => onPick(option.id)} style={styles.choice}>
-                  <Text style={styles.choiceText}>{option.label}</Text>
+                  <Text style={styles.choiceText}>{t(option.label)}</Text>
                 </Pressable>
               ))}
             </ScrollView>
           ) : (
           <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: keyboardHeight + 24 }}>
-            <Text style={styles.label}>חניה</Text>
+            <Text style={styles.label}>{t("חניה")}</Text>
             <Pressable onPress={() => setPicker("resSpot")} style={styles.field}>
               <Text style={styles.fieldText}>
-                {spotById.get(resSpot) ? `${spotById.get(resSpot)?.label} · ${spotById.get(resSpot)?.locationName}` : "בחרו חניה"}
+                {spotById.get(resSpot) ? `${spotById.get(resSpot)?.label} · ${spotById.get(resSpot)?.locationName}` : t("בחרו חניה")}
               </Text>
             </Pressable>
-            <Text style={styles.label}>משתמש/ת בחניה</Text>
+            <Text style={styles.label}>{t("משתמש/ת בחניה")}</Text>
             <Pressable onPress={() => setPicker("resPerson")} style={styles.field}>
-              <Text style={styles.fieldText}>{names.get(resPerson) || "בחרו עובד"}</Text>
+              <Text style={styles.fieldText}>{names.get(resPerson) || t("בחרו עובד")}</Text>
             </Pressable>
-            <Text style={styles.label}>תאריך</Text>
+            <Text style={styles.label}>{t("תאריך")}</Text>
             <Pressable onPress={() => setPicker("resDate")} style={styles.field}>
               <Text style={styles.fieldText}>
                 {weekday(resDate)} · {displayDate(resDate)}
               </Text>
             </Pressable>
-            <Text style={styles.label}>משעה (אופציונלי)</Text>
+            <Text style={styles.label}>{t("משעה (אופציונלי)")}</Text>
             <TextInput
               value={hourStart}
               onChangeText={setHourStart}
               keyboardType="decimal-pad"
-              placeholder="ריק = יום מלא"
+              placeholder={t("ריק = יום מלא")}
               placeholderTextColor={colors.muted}
               style={styles.input}
-              textAlign="right"
+             
             />
-            <Text style={styles.label}>עד שעה (אופציונלי)</Text>
+            <Text style={styles.label}>{t("עד שעה (אופציונלי)")}</Text>
             <TextInput
               value={hourEnd}
               onChangeText={setHourEnd}
               keyboardType="decimal-pad"
               style={styles.input}
-              textAlign="right"
+             
             />
           </ScrollView>
           )}
@@ -604,7 +611,7 @@ export default function ParkingManagementScreen() {
               }
               style={styles.cancelButton}
             >
-              <Text style={styles.cancelText}>ביטול</Text>
+              <Text style={styles.cancelText}>{t("ביטול")}</Text>
             </Pressable>
             {picker === "resSpot" || picker === "resPerson" || picker === "resDate" ? null : (
             <Pressable
@@ -612,7 +619,7 @@ export default function ParkingManagementScreen() {
               onPress={() => void saveReservation()}
               style={[styles.footerSave, (!resSpot || !resPerson || busy) && styles.disabled]}
             >
-              <Text style={styles.primaryText}>שמירה</Text>
+              <Text style={styles.primaryText}>{t("שמירה")}</Text>
             </Pressable>
             )}
           </View>
@@ -624,17 +631,15 @@ export default function ParkingManagementScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
-  pageTitle: { color: colors.ink, fontSize: 26, fontWeight: "800", writingDirection: "rtl" },
-  subtitle: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 22, marginBottom: 12 },
+  pageTitle: { color: colors.ink, fontSize: 26, fontWeight: "800", },
+  subtitle: { color: colors.muted, lineHeight: 22, marginBottom: 12 },
   error: {
     backgroundColor: colors.dangerBg,
     color: colors.danger,
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
@@ -646,7 +651,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  panelTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", writingDirection: "rtl", textAlign: "right" },
+  panelTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", },
   field: {
     marginTop: 10,
     minHeight: 46,
@@ -659,7 +664,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#ffffff",
   },
-  fieldText: { color: colors.ink, fontWeight: "600", writingDirection: "rtl", textAlign: "right", flex: 1 },
+  fieldText: { color: colors.ink, fontWeight: "600", flex: 1 },
   footerSave: {
     flex: 1,
     backgroundColor: colors.orange,
@@ -679,7 +684,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   primaryPressed: { backgroundColor: colors.orangePressed },
-  primaryText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  primaryText: { color: "#ffffff", fontWeight: "800", },
   smallPrimary: {
     backgroundColor: colors.orange,
     borderRadius: 10,
@@ -688,7 +693,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  smallPrimaryText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  smallPrimaryText: { color: "#ffffff", fontWeight: "800", },
   adminActions: { flexDirection: "row", gap: 8, marginTop: 10, marginBottom: 8 },
   dangerOutline: {
     borderWidth: 1,
@@ -699,9 +704,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dangerOutlineText: { color: colors.danger, fontWeight: "800", writingDirection: "rtl" },
-  hint: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 20, marginBottom: 10 },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 8 },
+  dangerOutlineText: { color: colors.danger, fontWeight: "800", },
+  hint: { color: colors.muted, lineHeight: 20, marginBottom: 10 },
+  empty: { color: colors.muted, marginTop: 8 },
   resRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -710,28 +715,28 @@ const styles = StyleSheet.create({
     borderTopColor: colors.line,
     paddingVertical: 10,
   },
-  resTitle: { color: colors.ink, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
-  resMeta: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 2 },
-  deleteText: { color: colors.danger, fontWeight: "800", writingDirection: "rtl" },
+  resTitle: { color: colors.ink, fontWeight: "700", },
+  resMeta: { color: colors.muted, marginTop: 2 },
+  deleteText: { color: colors.danger, fontWeight: "800", },
   spot: { borderWidth: 2, borderRadius: 16, padding: 12, marginBottom: 10 },
   spotFree: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.12)" },
   spotTaken: { borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)" },
   inactive: { opacity: 0.5 },
-  spotCaption: { color: colors.muted, textAlign: "right", writingDirection: "rtl", fontWeight: "700" },
-  spotLabel: { color: colors.ink, fontSize: 28, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
-  spotPlace: { color: colors.muted, textAlign: "right", writingDirection: "rtl" },
-  ownerCaption: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 8, fontWeight: "700" },
-  ownerName: { color: colors.danger, fontWeight: "800", textAlign: "right", writingDirection: "rtl", fontSize: 16 },
-  vacant: { color: "#166534", fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
+  spotCaption: { color: colors.muted, fontWeight: "700" },
+  spotLabel: { color: colors.ink, fontSize: 28, fontWeight: "800", },
+  spotPlace: { color: colors.muted, },
+  ownerCaption: { color: colors.muted, marginTop: 8, fontWeight: "700" },
+  ownerName: { color: colors.danger, fontWeight: "800", fontSize: 16 },
+  vacant: { color: "#166534", fontWeight: "800", marginTop: 8 },
   disabled: { opacity: 0.45 },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, direction: "rtl" },
-  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, },
+  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   choice: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
-  choiceText: { color: colors.ink, textAlign: "right", writingDirection: "rtl", fontWeight: "600" },
-  formScreen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, direction: "rtl" },
-  formTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
-  label: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 12, marginBottom: 4 },
+  choiceText: { color: colors.ink, fontWeight: "600" },
+  formScreen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, },
+  formTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginBottom: 12 },
+  label: { color: colors.muted, marginTop: 12, marginBottom: 4 },
   input: {
     minHeight: 46,
     borderWidth: 1,
@@ -740,7 +745,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: "#ffffff",
     color: colors.ink,
-    writingDirection: "rtl",
   },
   formFooter: { flexDirection: "row", gap: 10, alignItems: "center" },
   cancelButton: {
@@ -753,5 +757,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#ffffff",
   },
-  cancelText: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
+  cancelText: { color: colors.ink, fontWeight: "800", },
 });

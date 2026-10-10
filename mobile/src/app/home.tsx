@@ -7,6 +7,7 @@ import { canOpen } from "@/auth/access";
 import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import { colors, roleLabel } from "@/ui/theme";
+import { hello, t } from "@/locale/i18n";
 
 export default function HomeScreen() {
   const { status, user, logout } = useAuth();
@@ -24,7 +25,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={`שלום, ${user.fullName}`} />
+      <BrandHeader greeting={hello(user.fullName)} />
       <ScrollView contentContainerStyle={styles.content}>
         {canOpen(user.role, "calendar") ? (
           <Pressable
@@ -32,7 +33,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="calendar-month" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>יומן</Text>
+            <Text style={styles.calendarButtonText}>{t("יומן")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "preferences") ? (
@@ -41,7 +42,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="event-available" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>העדפות שיבוץ</Text>
+            <Text style={styles.calendarButtonText}>{t("העדפות שיבוץ")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "teamPreferences") ? (
@@ -50,7 +51,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="fact-check" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>העדפות צוות</Text>
+            <Text style={styles.calendarButtonText}>{t("העדפות צוות")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "notifications") ? (
@@ -59,7 +60,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="notifications-active" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>התראות</Text>
+            <Text style={styles.calendarButtonText}>{t("התראות")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "ai") ? (
@@ -68,7 +69,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="auto-awesome" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>המלצות AI</Text>
+            <Text style={styles.calendarButtonText}>{t("המלצות AI")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "myParking") ? (
@@ -77,7 +78,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.calendarButton, pressed && styles.calendarPressed]}
           >
             <MaterialIcons name="directions-car" size={22} color="#ffffff" />
-            <Text style={styles.calendarButtonText}>תפיסת חנייה</Text>
+            <Text style={styles.calendarButtonText}>{t("תפיסת חנייה")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "schedulingRules") ? (
@@ -86,7 +87,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="policy" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>חוקי שיבוץ</Text>
+            <Text style={styles.deptButtonText}>{t("חוקי שיבוץ")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "parking") ? (
@@ -95,7 +96,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="local-parking" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>ניהול חניות</Text>
+            <Text style={styles.deptButtonText}>{t("ניהול חניות")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "departments") ? (
@@ -104,7 +105,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="apartment" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>מחלקות</Text>
+            <Text style={styles.deptButtonText}>{t("מחלקות")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "locations") ? (
@@ -113,7 +114,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="place" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>מיקומים</Text>
+            <Text style={styles.deptButtonText}>{t("מיקומים")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "employees") ? (
@@ -122,7 +123,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="groups" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>עובדים</Text>
+            <Text style={styles.deptButtonText}>{t("עובדים")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "settings") ? (
@@ -131,7 +132,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="settings" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>הגדרות</Text>
+            <Text style={styles.deptButtonText}>{t("הגדרות")}</Text>
           </Pressable>
         ) : null}
         {canOpen(user.role, "support") ? (
@@ -140,7 +141,7 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.deptButton, pressed && styles.deptPressed]}
           >
             <MaterialIcons name="support-agent" size={22} color={colors.orange} />
-            <Text style={styles.deptButtonText}>מרכז תמיכה</Text>
+            <Text style={styles.deptButtonText}>{t("מרכז תמיכה")}</Text>
           </Pressable>
         ) : null}
         <View style={styles.card}>
@@ -154,11 +155,11 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.divider} />
-          <Text style={styles.cardLabel}>תפקיד</Text>
-          <Text style={styles.cardValue}>{roleLabel[user.role] ?? user.role}</Text>
+          <Text style={styles.cardLabel}>{t("תפקיד")}</Text>
+          <Text style={styles.cardValue}>{t(roleLabel[user.role]) ?? user.role}</Text>
           {user.jobTitle ? (
             <>
-              <Text style={styles.cardLabel}>תפקיד בעבודה</Text>
+              <Text style={styles.cardLabel}>{t("תפקיד בעבודה")}</Text>
               <Text style={styles.cardValue}>{user.jobTitle}</Text>
             </>
           ) : null}
@@ -170,7 +171,7 @@ export default function HomeScreen() {
           style={({ pressed }) => [styles.logout, pressed && styles.logoutPressed]}
         >
           <MaterialIcons name="logout" size={22} color={colors.muted} />
-          <Text style={styles.logoutText}>התנתקות</Text>
+          <Text style={styles.logoutText}>{t("התנתקות")}</Text>
         </Pressable>
       </ScrollView>
       <LinearGradient
@@ -180,7 +181,7 @@ export default function HomeScreen() {
         end={{ x: 1, y: 0.35 }}
         style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
       >
-        <Text style={styles.footerText}>פיתוח ע״י </Text>
+        <Text style={styles.footerText}>{t("פיתוח ע״י")} </Text>
         <Pressable onPress={() => void Linking.openURL("https://ronencohen.dev")} hitSlop={8}>
           <Text style={styles.footerLink}>ronencohen.dev</Text>
         </Pressable>
@@ -191,10 +192,9 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, direction: "rtl", flexGrow: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, flexGrow: 1 },
   spacer: { flexGrow: 1, minHeight: 16 },
   calendarButton: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -205,9 +205,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   calendarPressed: { backgroundColor: colors.orangePressed },
-  calendarButtonText: { color: "#ffffff", fontSize: 17, fontWeight: "800", writingDirection: "rtl" },
+  calendarButtonText: { color: "#ffffff", fontSize: 17, fontWeight: "800", },
   deptButton: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -220,7 +219,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   deptPressed: { backgroundColor: "rgba(249,115,22,0.12)" },
-  deptButtonText: { color: colors.ink, fontSize: 17, fontWeight: "800", writingDirection: "rtl" },
+  deptButtonText: { color: colors.ink, fontSize: 17, fontWeight: "800", },
   card: {
     backgroundColor: colors.card,
     borderRadius: 18,
@@ -244,11 +243,11 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: "#ffffff", fontWeight: "700", fontSize: 16 },
   identityText: { flex: 1, alignItems: "flex-end" },
-  name: { color: colors.ink, fontSize: 18, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
+  name: { color: colors.ink, fontSize: 18, fontWeight: "700", },
   email: { color: colors.muted, fontSize: 14, textAlign: "left", writingDirection: "ltr", marginTop: 2, alignSelf: "stretch" },
   divider: { height: 1, backgroundColor: colors.line, marginTop: 14 },
-  cardLabel: { color: colors.muted, fontSize: 13, textAlign: "right", writingDirection: "rtl", marginTop: 12 },
-  cardValue: { color: colors.ink, fontSize: 16, fontWeight: "600", textAlign: "right", writingDirection: "rtl" },
+  cardLabel: { color: colors.muted, fontSize: 13, marginTop: 12 },
+  cardValue: { color: colors.ink, fontSize: 16, fontWeight: "600", },
   logout: {
     marginTop: 8,
     minHeight: 48,
@@ -260,9 +259,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   logoutPressed: { backgroundColor: "rgba(249,115,22,0.12)" },
-  logoutText: { color: colors.ink, fontSize: 16, fontWeight: "600", writingDirection: "rtl" },
+  logoutText: { color: colors.ink, fontSize: 16, fontWeight: "600", },
   footer: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -270,7 +268,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingHorizontal: 16,
   },
-  footerText: { color: "#ffffff", fontSize: 13, fontWeight: "600", writingDirection: "rtl" },
+  footerText: { color: "#ffffff", fontSize: 13, fontWeight: "600", },
   footerLink: {
     color: "#ffffff",
     fontSize: 13,

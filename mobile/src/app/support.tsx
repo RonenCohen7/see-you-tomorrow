@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { t } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ApiError, supportChatRequest } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -50,7 +51,7 @@ export default function SupportScreen() {
     const query = search.trim().toLowerCase();
     if (!query) return SUPPORT_FAQ_ENTRIES;
     return SUPPORT_FAQ_ENTRIES.filter((entry) =>
-      [entry.question, entry.answer, ...entry.keywords].join(" ").toLowerCase().includes(query)
+      [entry.question, t(entry.question), entry.answer, t(entry.answer), ...entry.keywords].join(" ").toLowerCase().includes(query)
     );
   }, [search]);
 
@@ -98,7 +99,7 @@ export default function SupportScreen() {
       setError(
         err instanceof ApiError && err.message
           ? err.message
-          : "צ'אט AI אינו זמין — עיינו בשאלות הנפוצות או כתבו ל-sales@seeyoutomorrow.local"
+          : t("צ'אט AI אינו זמין — עיינו בשאלות הנפוצות או כתבו ל-sales@seeyoutomorrow.local")
       );
     } finally {
       setSending(false);
@@ -107,7 +108,7 @@ export default function SupportScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="מרכז תמיכה" />
+      <BrandHeader greeting={t("מרכז תמיכה")} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           ref={scrollRef}
@@ -115,41 +116,40 @@ export default function SupportScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <HomeLink />
-          <Text style={styles.title}>מרכז תמיכה ועזרה</Text>
+          <Text style={styles.title}>{t("מרכז תמיכה ועזרה")}</Text>
           <View style={styles.card}>
             <Text style={styles.intro}>
-              שאלות נפוצות על התחברות, הרשמה וחשבון. לשאלות על לוחות וניהול — פנו למנהל בארגון. העוזר החכם
-              בתוך האפליקציה מיועד למנהלים בלבד.
-            </Text>
+              {t("שאלות נפוצות על התחברות, הרשמה וחשבון. לשאלות על לוחות וניהול — פנו למנהל בארגון. העוזר החכם בתוך האפליקציה מיועד למנהלים בלבד.")}
+              </Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>שאלות נפוצות</Text>
+            <Text style={styles.sectionTitle}>{t("שאלות נפוצות")}</Text>
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="חיפוש בשאלות…"
+              placeholder={t("חיפוש בשאלות…")}
               placeholderTextColor={colors.muted}
               style={styles.search}
-              textAlign="right"
+             
             />
-            <Text style={styles.caption}>נושאים נפוצים</Text>
+            <Text style={styles.caption}>{t("נושאים נפוצים")}</Text>
             <View style={styles.chips}>
               {quickPickEntries().map((entry) => (
                 <Pressable key={entry.id} onPress={() => pick(entry)} style={styles.chip}>
-                  <Text style={styles.chipText}>{entry.question}</Text>
+                  <Text style={styles.chipText}>{t(entry.question)}</Text>
                 </Pressable>
               ))}
             </View>
             {filtered.length === 0 ? (
-              <Text style={styles.empty}>לא נמצאו תוצאות — נסו ניסוח אחר או צ'אט למטה.</Text>
+              <Text style={styles.empty}>{t("לא נמצאו תוצאות — נסו ניסוח אחר או צ'אט למטה.")}</Text>
             ) : (
               SUPPORT_FAQ_CATEGORIES.map((category) => {
                 const items = filtered.filter((entry) => entry.category === category);
                 if (items.length === 0) return null;
                 return (
                   <View key={category} style={styles.group}>
-                    <Text style={styles.groupTitle}>{SUPPORT_CATEGORY_LABEL[category]}</Text>
+                    <Text style={styles.groupTitle}>{t(SUPPORT_CATEGORY_LABEL[category])}</Text>
                     {items.map((entry) => {
                       const open = expandedId === entry.id;
                       return (
@@ -158,14 +158,14 @@ export default function SupportScreen() {
                             onPress={() => setExpandedId(open ? null : entry.id)}
                             style={styles.questionRow}
                           >
-                            <Text style={styles.question}>{entry.question}</Text>
+                            <Text style={styles.question}>{t(entry.question)}</Text>
                             <MaterialIcons
                               name={open ? "expand-less" : "expand-more"}
                               size={22}
                               color={colors.muted}
                             />
                           </Pressable>
-                          {open ? <Text style={styles.answer}>{entry.answer}</Text> : null}
+                          {open ? <Text style={styles.answer}>{t(entry.answer)}</Text> : null}
                         </View>
                       );
                     })}
@@ -178,15 +178,15 @@ export default function SupportScreen() {
           <View style={styles.card}>
             <View style={styles.chatHead}>
               <MaterialIcons name="support-agent" size={22} color={colors.orange} />
-              <Text style={styles.sectionTitle}>צ'אט תמיכה (AI)</Text>
+              <Text style={styles.sectionTitle}>{t("צ'אט תמיכה (AI)")}</Text>
             </View>
-            <Text style={styles.intro}>שאלו על התחברות, הרשמה, סיסמה ועוד. התשובות מבוססות על מרכז העזרה.</Text>
+            <Text style={styles.intro}>{t("שאלו על התחברות, הרשמה, סיסמה ועוד. התשובות מבוססות על מרכז העזרה.")}</Text>
             <View style={styles.note}>
-              <Text style={styles.noteText}>בוט תמיכה — אין גישה לנתוני החשבון שלכם. לנושאים ארגוניים פנו למנהל.</Text>
+              <Text style={styles.noteText}>{t("בוט תמיכה — אין גישה לנתוני החשבון שלכם. לנושאים ארגוניים פנו למנהל.")}</Text>
             </View>
             <View style={styles.thread}>
               {messages.length === 0 ? (
-                <Text style={styles.placeholder}>למשל: לא מצליח להתחבר…</Text>
+                <Text style={styles.placeholder}>{t("למשל: לא מצליח להתחבר…")}</Text>
               ) : (
                 messages.map((bubble) => (
                   <View
@@ -194,7 +194,7 @@ export default function SupportScreen() {
                     style={[styles.bubble, bubble.from === "user" ? styles.userBubble : styles.botBubble]}
                   >
                     <Text style={[styles.bubbleText, bubble.from === "user" && styles.userBubbleText]}>
-                      {bubble.body}
+                      {t(bubble.body)}
                     </Text>
                   </View>
                 ))
@@ -210,10 +210,10 @@ export default function SupportScreen() {
               <TextInput
                 value={input}
                 onChangeText={setInput}
-                placeholder="למשל: לא מצליח להתחבר…"
+                placeholder={t("למשל: לא מצליח להתחבר…")}
                 placeholderTextColor={colors.muted}
                 style={styles.composerInput}
-                textAlign="right"
+               
                 editable={!sending}
                 multiline
                 onFocus={() => scrollRef.current?.scrollToEnd({ animated: true })}
@@ -227,14 +227,14 @@ export default function SupportScreen() {
                   pressed && input.trim() && styles.sendPressed,
                 ]}
               >
-                <Text style={styles.sendText}>שליחה</Text>
+                <Text style={styles.sendText}>{t("שליחה")}</Text>
                 <MaterialIcons name="send" size={18} color="#ffffff" style={styles.sendIcon} />
               </Pressable>
             </View>
           </View>
 
           <Pressable onPress={() => void Linking.openURL(SALES_MAIL)} style={styles.sales}>
-            <Text style={styles.salesText}>יצירת קשר עם המכירות</Text>
+            <Text style={styles.salesText}>{t("יצירת קשר עם המכירות")}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -245,13 +245,11 @@ export default function SupportScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
   title: {
     color: colors.ink,
     fontSize: 26,
     fontWeight: "800",
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 12,
   },
   card: {
@@ -262,8 +260,8 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
   },
-  intro: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: "right", writingDirection: "rtl" },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
+  intro: { color: colors.muted, fontSize: 15, lineHeight: 22, },
+  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", },
   search: {
     marginTop: 12,
     minHeight: 44,
@@ -274,9 +272,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     color: colors.ink,
     fontSize: 16,
-    writingDirection: "rtl",
   },
-  caption: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 12 },
+  caption: { color: colors.muted, fontSize: 12, marginTop: 12 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   chip: {
     backgroundColor: "rgba(249,115,22,0.1)",
@@ -285,27 +282,27 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     maxWidth: "100%",
   },
-  chipText: { color: colors.ink, fontSize: 13, fontWeight: "600", textAlign: "right", writingDirection: "rtl" },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 12 },
+  chipText: { color: colors.ink, fontSize: 13, fontWeight: "600", },
+  empty: { color: colors.muted, marginTop: 12 },
   group: { marginTop: 12 },
-  groupTitle: { color: colors.ink, fontWeight: "700", fontSize: 14, textAlign: "right", writingDirection: "rtl", marginBottom: 6 },
+  groupTitle: { color: colors.ink, fontWeight: "700", fontSize: 14, marginBottom: 6 },
   item: { borderTopWidth: 1, borderTopColor: colors.line, paddingVertical: 8 },
   questionRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  question: { flex: 1, color: colors.ink, fontWeight: "700", fontSize: 15, textAlign: "right", writingDirection: "rtl" },
-  answer: { color: colors.muted, fontSize: 14, lineHeight: 22, textAlign: "right", writingDirection: "rtl", marginTop: 8 },
+  question: { flex: 1, color: colors.ink, fontWeight: "700", fontSize: 15, },
+  answer: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: 8 },
   chatHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   note: { backgroundColor: "rgba(14,165,233,0.1)", borderRadius: 10, padding: 10, marginTop: 10 },
-  noteText: { color: colors.ink, fontSize: 13, textAlign: "right", writingDirection: "rtl" },
+  noteText: { color: colors.ink, fontSize: 13, },
   thread: { backgroundColor: "#f1f5f9", borderRadius: 12, padding: 10, marginTop: 12, minHeight: 120, gap: 8 },
-  placeholder: { color: colors.muted, textAlign: "right", writingDirection: "rtl", padding: 4 },
+  placeholder: { color: colors.muted, padding: 4 },
   bubble: { maxWidth: "92%", borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   userBubble: { alignSelf: "flex-start", backgroundColor: colors.orange },
   botBubble: { alignSelf: "flex-end", backgroundColor: "#ffffff" },
-  bubbleText: { color: colors.ink, fontSize: 14, lineHeight: 20, textAlign: "right", writingDirection: "rtl" },
+  bubbleText: { color: colors.ink, fontSize: 14, lineHeight: 20, },
   userBubbleText: { color: "#ffffff" },
   spinner: { marginVertical: 6 },
   errorBox: { backgroundColor: colors.dangerBg, borderRadius: 10, padding: 10, marginTop: 10 },
-  errorText: { color: colors.danger, textAlign: "right", writingDirection: "rtl" },
+  errorText: { color: colors.danger, },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginTop: 12 },
   composerInput: {
     flex: 1,
@@ -318,7 +315,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: colors.ink,
     fontSize: 16,
-    writingDirection: "rtl",
     backgroundColor: "#ffffff",
   },
   send: {
@@ -333,7 +329,7 @@ const styles = StyleSheet.create({
   sendPressed: { backgroundColor: colors.orangePressed },
   sendDisabled: { opacity: 0.45 },
   sendIcon: { transform: [{ scaleX: -1 }] },
-  sendText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  sendText: { color: "#ffffff", fontWeight: "800", },
   sales: { alignSelf: "center", paddingVertical: 8, marginBottom: 8 },
-  salesText: { color: colors.orange, fontWeight: "700", writingDirection: "rtl" },
+  salesText: { color: colors.orange, fontWeight: "700", },
 });

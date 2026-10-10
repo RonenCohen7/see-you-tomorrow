@@ -15,6 +15,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { t } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, ApiError } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -72,13 +73,13 @@ const TYPE_INTRO: Record<RuleType, string> = {
 };
 
 function impactOf(ruleType: RuleType) {
-  if (ruleType === "manager_office_auto_parking") return "חנייה בשמירה";
-  if (ruleType === "organization_policy") return "חוק ארגון";
-  return "המלצות AI";
+  if (ruleType === "manager_office_auto_parking") return t("חנייה בשמירה");
+  if (ruleType === "organization_policy") return t("חוק ארגון");
+  return t("המלצות AI");
 }
 
 function messageOf(err: unknown) {
-  return err instanceof ApiError && err.message ? err.message : "הפעולה נכשלה.";
+  return err instanceof ApiError && err.message ? err.message : t("הפעולה נכשלה.");
 }
 
 function payloadText(rule: Pick<Rule, "ruleType" | "payload">, names: Map<string, string>) {
@@ -96,7 +97,7 @@ function payloadText(rule: Pick<Rule, "ruleType" | "payload">, names: Map<string
   if (rule.ruleType === "organization_policy") {
     return typeof payload.text === "string" ? payload.text.trim() : "";
   }
-  return "התנהגות מערכת — אין פרמטרים בשורת החוק";
+  return t("התנהגות מערכת — אין פרמטרים בשורת החוק");
 }
 
 export default function SchedulingRulesScreen() {
@@ -174,41 +175,41 @@ export default function SchedulingRulesScreen() {
   }
 
   function removeRule(id: string) {
-    Alert.alert("למחוק חוק?", "החוק יוסר מהמערכת. פעולה זו לא ניתנת לביטול.", [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("למחוק חוק?"), t("החוק יוסר מהמערכת. פעולה זו לא ניתנת לביטול."), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "מחיקה",
+        text: t("מחיקה"),
         style: "destructive",
-        onPress: () => void run(() => api(`/api/schedules/scheduling-rules/${id}`, { method: "DELETE" }), "החוק נמחק."),
+        onPress: () => void run(() => api(`/api/schedules/scheduling-rules/${id}`, { method: "DELETE" }), t("החוק נמחק.")),
       },
     ]);
   }
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="חוקי שיבוץ" />
+      <BrandHeader greeting={t("חוקי שיבוץ")} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
           keyboardShouldPersistTaps="handled"
         >
           <HomeLink />
-          <Text style={styles.title}>חוקי שיבוץ והמלצות AI</Text>
-          <Text style={styles.banner}>החוקים חלים על אישור המלצות AI. שמירה ידנית בלוח אינה נחסמת על ידם.</Text>
+          <Text style={styles.title}>{t("חוקי שיבוץ והמלצות AI")}</Text>
+          <Text style={styles.banner}>{t("החוקים חלים על אישור המלצות AI. שמירה ידנית בלוח אינה נחסמת על ידם.")}</Text>
           {loading ? <ActivityIndicator color={colors.orange} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
           <View style={styles.card}>
-            <Text style={styles.section}>הוספת חוק לארגון</Text>
-            <Text style={styles.hint}>כתבו את החוק בשפה שלכם ושמרו. לא נדרש מפתח AI.</Text>
+            <Text style={styles.section}>{t("הוספת חוק לארגון")}</Text>
+            <Text style={styles.hint}>{t("כתבו את החוק בשפה שלכם ושמרו. לא נדרש מפתח AI.")}</Text>
             <TextInput
               value={policy}
               onChangeText={setPolicy}
-              placeholder="הפסקות מתנהלות רק בין 12:00 ל-14:00"
+              placeholder={t("הפסקות מתנהלות רק בין 12:00 ל-14:00")}
               placeholderTextColor={colors.muted}
               style={[styles.input, styles.area]}
-              textAlign="right"
+             
               multiline
               maxLength={500}
             />
@@ -221,21 +222,21 @@ export default function SchedulingRulesScreen() {
                     body: { ruleType: "organization_policy", payload: { text: policy.trim() } },
                   });
                   setPolicy("");
-                }, "החוק נשמר.")
+                }, t("החוק נשמר."))
               }
               style={({ pressed }) => [styles.primary, (busy || policy.trim().length < 3) && styles.disabled, pressed && styles.primaryPressed]}
             >
-              <Text style={styles.primaryText}>שמור חוק</Text>
+              <Text style={styles.primaryText}>{t("שמור חוק")}</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.section}>ממתין לאישור</Text>
+          <Text style={styles.section}>{t("ממתין לאישור")}</Text>
           {proposals.length === 0 ? (
-            <Text style={styles.hint}>אין הצעות חוק הממתינות לאישור.</Text>
+            <Text style={styles.hint}>{t("אין הצעות חוק הממתינות לאישור.")}</Text>
           ) : (
             proposals.map((proposal) => (
               <View key={proposal.id} style={styles.card}>
-                <Text style={styles.chip}>{TYPE_LABEL[proposal.ruleType]}</Text>
+                <Text style={styles.chip}>{t(TYPE_LABEL[proposal.ruleType])}</Text>
                 <Text style={styles.body}>{proposal.explanationHe}</Text>
                 <View style={styles.row}>
                   <Pressable
@@ -243,24 +244,24 @@ export default function SchedulingRulesScreen() {
                     onPress={() =>
                       void run(
                         () => api(`/api/schedules/scheduling-rules/proposals/${proposal.id}/approve`, { method: "POST" }),
-                        "החוק אושר ונשמר."
+                        t("החוק אושר ונשמר.")
                       )
                     }
                     style={styles.primary}
                   >
-                    <Text style={styles.primaryText}>אשר</Text>
+                    <Text style={styles.primaryText}>{t("אשר")}</Text>
                   </Pressable>
                   <Pressable
                     disabled={busy}
                     onPress={() =>
                       void run(
                         () => api(`/api/schedules/scheduling-rules/proposals/${proposal.id}/reject`, { method: "POST" }),
-                        "ההצעה נדחתה."
+                        t("ההצעה נדחתה.")
                       )
                     }
                     style={styles.outline}
                   >
-                    <Text style={styles.outlineText}>דחה</Text>
+                    <Text style={styles.outlineText}>{t("דחה")}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -268,10 +269,10 @@ export default function SchedulingRulesScreen() {
           )}
 
           <View style={styles.card}>
-            <Text style={styles.section}>מה החוק הנדרש? (מתחילים כאן)</Text>
+            <Text style={styles.section}>{t("מה החוק הנדרש? (מתחילים כאן)")}</Text>
             <Text style={styles.hint}>
-              תארו בקצרה מה תרצו — סגירת סניף, שני מנהלים במשרד בכל יום, או חנייה למנהלים במשרד.
-            </Text>
+              {t("תארו בקצרה מה תרצו — סגירת סניף, שני מנהלים במשרד בכל יום, או חנייה למנהלים במשרד.")}
+              </Text>
             <TextInput
               value={wizard}
               onChangeText={(value) => {
@@ -279,10 +280,10 @@ export default function SchedulingRulesScreen() {
                 setDraft(null);
                 setMaintenance(null);
               }}
-              placeholder="כתוב כאן בחופשיות…"
+              placeholder={t("כתוב כאן בחופשיות…")}
               placeholderTextColor={colors.muted}
               style={[styles.input, styles.area]}
-              textAlign="right"
+             
               multiline
             />
             <Pressable
@@ -299,17 +300,17 @@ export default function SchedulingRulesScreen() {
                   if (data.outcome === "maintenance_action") {
                     setDraft(null);
                     setMaintenance(data.explanationHebrew);
-                    setNotice("זוהתה פעולת תחזוקה.");
+                    setNotice(t("זוהתה פעולת תחזוקה."));
                     return;
                   }
                   setMaintenance(null);
                   setDraft(data.draft);
-                  setNotice("החוק הוסק מהתיאור.");
+                  setNotice(t("החוק הוסק מהתיאור."));
                 }, "")
               }
               style={({ pressed }) => [styles.primary, (busy || wizard.trim().length < 3) && styles.disabled, pressed && styles.primaryPressed]}
             >
-              <Text style={styles.primaryText}>{busy ? "מנתח…" : "להסיק חוק מתיאור זה"}</Text>
+              <Text style={styles.primaryText}>{busy ? t("מנתח…") : t("להסיק חוק מתיאור זה")}</Text>
             </Pressable>
             {maintenance ? (
               <View style={styles.warn}>
@@ -317,37 +318,37 @@ export default function SchedulingRulesScreen() {
                 {isAdmin ? (
                   <Pressable
                     onPress={() =>
-                      Alert.alert("לאשר מחיקת שיבוצים עתידיים?", "הפעולה מוחקת שיבוצים מהיום והלאה לעובדים לא פעילים.", [
-                        { text: "ביטול", style: "cancel" },
+                      Alert.alert(t("לאשר מחיקת שיבוצים עתידיים?"), t("הפעולה מוחקת שיבוצים מהיום והלאה לעובדים לא פעילים."), [
+                        { text: t("ביטול"), style: "cancel" },
                         {
-                          text: "לבצע ניקוי",
+                          text: t("לבצע ניקוי"),
                           style: "destructive",
                           onPress: () =>
                             void run(async () => {
                               await api("/api/schedules/admin/maintenance/inactive-employees-clear-future", { method: "POST" });
                               setMaintenance(null);
                               setWizard("");
-                            }, "הניקוי בוצע."),
+                            }, t("הניקוי בוצע.")),
                         },
                       ])
                     }
                     style={styles.outline}
                   >
-                    <Text style={styles.outlineText}>לבצע ניקוי</Text>
+                    <Text style={styles.outlineText}>{t("לבצע ניקוי")}</Text>
                   </Pressable>
                 ) : (
-                  <Text style={styles.hint}>ניקוי שיבוצים של עובדים לא פעילים זמין למנהל מערכת.</Text>
+                  <Text style={styles.hint}>{t("ניקוי שיבוצים של עובדים לא פעילים זמין למנהל מערכת.")}</Text>
                 )}
               </View>
             ) : null}
             {draft ? (
               <View style={styles.preview}>
-                <Text style={styles.sub}>החוק שנבנה</Text>
+                <Text style={styles.sub}>{t("החוק שנבנה")}</Text>
                 <Text style={styles.body}>{draft.explanationHebrew}</Text>
-                <Text style={styles.chip}>{TYPE_LABEL[draft.ruleType]} · {impactOf(draft.ruleType)}</Text>
+                <Text style={styles.chip}>{t(TYPE_LABEL[draft.ruleType])} · {impactOf(draft.ruleType)}</Text>
                 <Text style={styles.body}>{payloadText(draft, names)}</Text>
                 <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>להפעיל מיד בתוקף</Text>
+                  <Text style={styles.switchLabel}>{t("להפעיל מיד בתוקף")}</Text>
                   <Switch value={draftActive} onValueChange={setDraftActive} trackColor={{ true: colors.orange }} />
                 </View>
                 <Pressable
@@ -366,35 +367,35 @@ export default function SchedulingRulesScreen() {
                       });
                       setDraft(null);
                       setWizard("");
-                    }, "החוק נשמר.")
+                    }, t("החוק נשמר."))
                   }
                   style={styles.primary}
                 >
-                  <Text style={styles.primaryText}>שמור חוק</Text>
+                  <Text style={styles.primaryText}>{t("שמור חוק")}</Text>
                 </Pressable>
               </View>
             ) : null}
           </View>
 
           <Pressable onPress={() => setHelpOpen((open) => !open)} style={styles.fold}>
-            <Text style={styles.section}>הסבר מורחב</Text>
+            <Text style={styles.section}>{t("הסבר מורחב")}</Text>
             <MaterialIcons name={helpOpen ? "expand-less" : "expand-more"} size={24} color={colors.muted} />
           </Pressable>
           {helpOpen ? (
             <Text style={styles.hint}>
-              חוק יכול להיות מופעל או כבוי. חוק לא פעיל נשמר להיסטוריה ואינו נכלל באימות ההמלצות. אפשר ליצור כמה חוקים מאותו סוג.
-            </Text>
+              {t("חוק יכול להיות מופעל או כבוי. חוק לא פעיל נשמר להיסטוריה ואינו נכלל באימות ההמלצות. אפשר ליצור כמה חוקים מאותו סוג.")}
+              </Text>
           ) : null}
 
-          <Text style={styles.section}>חוקים קיימים</Text>
-          {!loading && rules.length === 0 ? <Text style={styles.hint}>אין עדיין חוקים.</Text> : null}
+          <Text style={styles.section}>{t("חוקים קיימים")}</Text>
+          {!loading && rules.length === 0 ? <Text style={styles.hint}>{t("אין עדיין חוקים.")}</Text> : null}
           {ORDER.map((ruleType) => {
             const group = rules.filter((rule) => rule.ruleType === ruleType);
             if (group.length === 0) return null;
             return (
               <View key={ruleType} style={styles.group}>
-                <Text style={styles.sub}>{TYPE_LABEL[ruleType]}</Text>
-                <Text style={styles.hint}>{TYPE_INTRO[ruleType]}</Text>
+                <Text style={styles.sub}>{t(TYPE_LABEL[ruleType])}</Text>
+                <Text style={styles.hint}>{t(TYPE_INTRO[ruleType])}</Text>
                 {group.map((rule) => (
                   <View key={rule.id} style={styles.card}>
                     <Text style={styles.chip}>{impactOf(rule.ruleType)}</Text>
@@ -404,7 +405,7 @@ export default function SchedulingRulesScreen() {
                         <MaterialIcons name="delete-outline" size={22} color={colors.danger} />
                       </Pressable>
                       <View style={styles.switchRow}>
-                        <Text style={styles.switchLabel}>בתוקף</Text>
+                        <Text style={styles.switchLabel}>{t("בתוקף")}</Text>
                         <Switch
                           value={rule.isActive}
                           disabled={busy}
@@ -416,13 +417,13 @@ export default function SchedulingRulesScreen() {
                                   method: "PATCH",
                                   body: { isActive: checked },
                                 }),
-                              checked ? "החוק בתוקף." : "החוק כובה."
+                              checked ? t("החוק בתוקף.") : t("החוק כובה.")
                             )
                           }
                         />
                       </View>
                     </View>
-                    <Text style={styles.meta}>עדיפות: {rule.priority}</Text>
+                    <Text style={styles.meta}>{t("עדיפות:")} {rule.priority}</Text>
                   </View>
                 ))}
               </View>
@@ -430,18 +431,18 @@ export default function SchedulingRulesScreen() {
           })}
 
           <Pressable onPress={() => setAdvancedOpen((open) => !open)} style={styles.fold}>
-            <Text style={styles.section}>טפסים מפורטים</Text>
+            <Text style={styles.section}>{t("טפסים מפורטים")}</Text>
             <MaterialIcons name={advancedOpen ? "expand-less" : "expand-more"} size={24} color={colors.muted} />
           </Pressable>
           {advancedOpen ? (
             <View style={styles.card}>
-              <Text style={styles.sub}>מיקום לא זמין</Text>
+              <Text style={styles.sub}>{t("מיקום לא זמין")}</Text>
               <Pressable onPress={() => setPickingLocation(true)} style={styles.input}>
-                <Text style={styles.fieldText}>{names.get(locationId) ?? "בחירת מיקום"}</Text>
+                <Text style={styles.fieldText}>{names.get(locationId) ?? t("בחירת מיקום")}</Text>
               </Pressable>
-              <TextInput value={from} onChangeText={setFrom} placeholder="מתאריך 2026-10-07" placeholderTextColor={colors.muted} style={styles.input} textAlign="left" />
-              <TextInput value={to} onChangeText={setTo} placeholder="עד תאריך (לא חובה)" placeholderTextColor={colors.muted} style={styles.input} textAlign="left" />
-              <TextInput value={note} onChangeText={setNote} placeholder="הערה (לא חובה)" placeholderTextColor={colors.muted} style={styles.input} textAlign="right" />
+              <TextInput value={from} onChangeText={setFrom} placeholder={t("מתאריך 2026-10-07")} placeholderTextColor={colors.muted} style={styles.input} textAlign="left" />
+              <TextInput value={to} onChangeText={setTo} placeholder={t("עד תאריך (לא חובה)")} placeholderTextColor={colors.muted} style={styles.input} textAlign="left" />
+              <TextInput value={note} onChangeText={setNote} placeholder={t("הערה (לא חובה)")} placeholderTextColor={colors.muted} style={styles.input} />
               <Pressable
                 disabled={busy || !locationId || from.trim().length < 8}
                 onPress={() =>
@@ -462,20 +463,20 @@ export default function SchedulingRulesScreen() {
                     setFrom("");
                     setTo("");
                     setNote("");
-                  }, "חוק הסגירה נשמר.")
+                  }, t("חוק הסגירה נשמר."))
                 }
                 style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
               >
-                <Text style={styles.primaryText}>הוסף חוק סגירת מיקום</Text>
+                <Text style={styles.primaryText}>{t("הוסף חוק סגירת מיקום")}</Text>
               </Pressable>
 
-              <Text style={styles.sub}>מינימום מנהלים ביום</Text>
+              <Text style={styles.sub}>{t("מינימום מנהלים ביום")}</Text>
               <TextInput
                 value={minManagers}
                 onChangeText={setMinManagers}
                 keyboardType="number-pad"
                 style={styles.input}
-                textAlign="right"
+               
               />
               <Pressable
                 disabled={busy}
@@ -489,16 +490,16 @@ export default function SchedulingRulesScreen() {
                           payload: { minManagers: Math.min(50, Math.max(0, Number(minManagers) || 0)) },
                         },
                       }),
-                    "חוק המנהלים נשמר."
+                    t("חוק המנהלים נשמר.")
                   )
                 }
                 style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
               >
-                <Text style={styles.primaryText}>הוסף חוק מנהלים</Text>
+                <Text style={styles.primaryText}>{t("הוסף חוק מנהלים")}</Text>
               </Pressable>
 
-              <Text style={styles.sub}>חנייה אוטומטית למנהל במשרד</Text>
-              {hasAutoParking ? <Text style={styles.hint}>כבר קיים חוק מסוג זה. מחקו אותו לפני הוספה חדשה.</Text> : null}
+              <Text style={styles.sub}>{t("חנייה אוטומטית למנהל במשרד")}</Text>
+              {hasAutoParking ? <Text style={styles.hint}>{t("כבר קיים חוק מסוג זה. מחקו אותו לפני הוספה חדשה.")}</Text> : null}
               <Pressable
                 disabled={busy || hasAutoParking}
                 onPress={() =>
@@ -508,12 +509,12 @@ export default function SchedulingRulesScreen() {
                         method: "POST",
                         body: { ruleType: "manager_office_auto_parking", payload: {} },
                       }),
-                    "חוק החנייה נשמר."
+                    t("חוק החנייה נשמר.")
                   )
                 }
                 style={({ pressed }) => [styles.outline, (busy || hasAutoParking) && styles.disabled, pressed && styles.pressed]}
               >
-                <Text style={styles.outlineText}>הוסף חוק חנייה אוטומטית</Text>
+                <Text style={styles.outlineText}>{t("הוסף חוק חנייה אוטומטית")}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -523,7 +524,7 @@ export default function SchedulingRulesScreen() {
       <Modal visible={pickingLocation} animationType="slide" onRequestClose={() => setPickingLocation(false)}>
         <View style={[styles.picker, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
           <Pressable onPress={() => setPickingLocation(false)} style={styles.fold}>
-            <Text style={styles.section}>מיקום</Text>
+            <Text style={styles.section}>{t("מיקום")}</Text>
             <MaterialIcons name="close" size={22} color={colors.ink} />
           </Pressable>
           <ScrollView>
@@ -549,15 +550,13 @@ export default function SchedulingRulesScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
-  title: { color: colors.ink, fontSize: 26, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
+  title: { color: colors.ink, fontSize: 26, fontWeight: "800", marginBottom: 8 },
   banner: {
     color: colors.ink,
     backgroundColor: "rgba(14,165,233,0.12)",
     borderRadius: 12,
     padding: 10,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 12,
   },
   card: {
@@ -568,10 +567,10 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 12,
   },
-  section: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  sub: { color: colors.ink, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 14 },
-  hint: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: "right", writingDirection: "rtl", marginTop: 6 },
-  body: { color: colors.ink, fontSize: 15, lineHeight: 22, textAlign: "right", writingDirection: "rtl", marginTop: 6 },
+  section: { color: colors.ink, fontSize: 18, fontWeight: "800", marginTop: 8 },
+  sub: { color: colors.ink, fontWeight: "700", marginTop: 14 },
+  hint: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  body: { color: colors.ink, fontSize: 15, lineHeight: 22, marginTop: 6 },
   input: {
     minHeight: 44,
     borderRadius: 12,
@@ -584,7 +583,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   area: { minHeight: 96, textAlignVertical: "top", paddingTop: 10 },
-  fieldText: { color: colors.ink, textAlign: "right", writingDirection: "rtl" },
+  fieldText: { color: colors.ink, },
   primary: {
     marginTop: 12,
     minHeight: 46,
@@ -595,7 +594,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   primaryPressed: { backgroundColor: colors.orangePressed },
-  primaryText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  primaryText: { color: "#ffffff", fontWeight: "800", },
   outline: {
     marginTop: 12,
     minHeight: 44,
@@ -606,12 +605,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 12,
   },
-  outlineText: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
+  outlineText: { color: colors.ink, fontWeight: "800", },
   pressed: { backgroundColor: "rgba(249,115,22,0.12)" },
   disabled: { opacity: 0.45 },
   row: { flexDirection: "row", gap: 8 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  switchLabel: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  switchLabel: { color: colors.ink, fontWeight: "700", },
   chip: {
     alignSelf: "flex-start",
     overflow: "hidden",
@@ -622,16 +621,15 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     fontSize: 12,
     fontWeight: "700",
-    writingDirection: "rtl",
   },
   ruleTools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
-  meta: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 6 },
+  meta: { color: colors.muted, fontSize: 12, marginTop: 6 },
   fold: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16 },
   preview: { marginTop: 8 },
   warn: { marginTop: 10, backgroundColor: "#fff7ed", borderRadius: 12, padding: 10 },
   group: { marginTop: 4 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  notice: { color: "#15803d", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  picker: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, direction: "rtl" },
+  error: { color: colors.danger, marginTop: 8 },
+  notice: { color: "#15803d", marginTop: 8 },
+  picker: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, },
   place: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.line },
 });

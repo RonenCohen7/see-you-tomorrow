@@ -9,6 +9,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import HomeLink from "@/ui/HomeLink";
 import { colors } from "@/ui/theme";
+import { hello, t, tr } from "@/locale/i18n";
 
 type Pref = "office" | "home" | "client" | "vacation" | "sick" | "off";
 type PrefDay = { workDate: string; preference?: Pref };
@@ -49,11 +50,11 @@ function addUtcDays(iso: string, delta: number): string {
 }
 
 function weekday(iso: string): string {
-  return WEEKDAY[new Date(`${iso}T12:00:00.000Z`).getUTCDay()] ?? "";
+  return t(WEEKDAY[new Date(`${iso}T12:00:00.000Z`).getUTCDay()] ?? "");
 }
 
 function labelFor(value: Pref | "" | undefined): string {
-  return OPTIONS.find((option) => option.key === (value ?? ""))?.label ?? "ללא העדפה";
+  return t(OPTIONS.find((option) => option.key === (value ?? ""))?.label ?? t("ללא העדפה"));
 }
 
 export default function PreferencesScreen() {
@@ -102,7 +103,7 @@ export default function PreferencesScreen() {
         setWeeks(options);
         setWeek(options[0] ?? "");
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "לא ניתן לטעון העדפות");
+        if (!cancelled) setError(err instanceof Error ? err.message : t("לא ניתן לטעון העדפות"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -119,7 +120,7 @@ export default function PreferencesScreen() {
       try {
         await loadWeek(week, cleared);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "לא ניתן לטעון את השבוע");
+        if (!cancelled) setError(err instanceof Error ? err.message : t("לא ניתן לטעון את השבוע"));
       }
     })();
     return () => {
@@ -149,14 +150,14 @@ export default function PreferencesScreen() {
         for (const day of days) empty[day.workDate] = "";
         setDraft(empty);
         setCleared(true);
-        setNotice("הוגש בהצלחה");
+        setNotice(t("הוגש בהצלחה"));
       } else {
         setCleared(false);
-        setNotice("נשמר כטיוטה");
+        setNotice(t("נשמר כטיוטה"));
       }
       await loadWeek(week, submit);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "השמירה נכשלה");
+      setError(err instanceof Error ? err.message : t("השמירה נכשלה"));
     } finally {
       setBusy(false);
     }
@@ -171,20 +172,22 @@ export default function PreferencesScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={user ? `שלום, ${user.fullName}` : undefined} />
+      <BrandHeader greeting={user ? hello(user.fullName) : undefined} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
           <MaterialIcons name="event-available" size={26} color={colors.orange} />
-          <Text style={styles.title}>העדפות נוכחות שבועית</Text>
+          <Text style={styles.title}>{t("העדפות נוכחות שבועית")}</Text>
         </View>
-        <Text style={styles.subtitle}>מלא לכל יום בסטטוס מועדף. הנתונים נשקלים בהמלצות, והאישור הסופי אצל המנהל.</Text>
+        <Text style={styles.subtitle}>{t("מלא לכל יום בסטטוס מועדף. הנתונים נשקלים בהמלצות, והאישור הסופי אצל המנהל.")}</Text>
         {ctx ? (
           <View style={styles.info}>
             <Text style={styles.infoText}>
-              ניתן למלא העדפות החל מ־{ctx.firstEditableDate ?? ctx.earliestAllowedWeekStartSunday} (מינימום{" "}
-              {ctx.preferenceMinDaysAhead} ימים מראש). ימים שעברו נעולים.
-              {ctx.preferenceRemindersEnabled ? " תזכורות אוטומטיות פעילות." : ""}
+              {tr(
+                `ניתן למלא העדפות החל מ־${ctx.firstEditableDate ?? ctx.earliestAllowedWeekStartSunday} (מינימום ${ctx.preferenceMinDaysAhead} ימים מראש). ימים שעברו נעולים.`,
+                `You can set preferences from ${ctx.firstEditableDate ?? ctx.earliestAllowedWeekStartSunday} (at least ${ctx.preferenceMinDaysAhead} days ahead). Past days are locked.`
+              )}
+              {ctx.preferenceRemindersEnabled ? t(" תזכורות אוטומטיות פעילות.") : ""}
             </Text>
           </View>
         ) : null}
@@ -192,7 +195,7 @@ export default function PreferencesScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-        <Text style={styles.fieldLabel}>שבוע</Text>
+        <Text style={styles.fieldLabel}>{t("שבוע")}</Text>
         <View style={styles.weeks}>
           {weeks.map((item) => (
             <Pressable
@@ -210,11 +213,11 @@ export default function PreferencesScreen() {
         </View>
 
         {docStatus === "submitted" && pipeline && !pipeline.departmentId ? (
-          <Text style={styles.warn}>לחשבון לא שויכה מחלקה. ההעדפות נשמרות, בלי צינור אוטומטי למחלקה.</Text>
+          <Text style={styles.warn}>{t("לחשבון לא שויכה מחלקה. ההעדפות נשמרות, בלי צינור אוטומטי למחלקה.")}</Text>
         ) : null}
         {docStatus === "submitted" && pipeline?.pipelineStatus ? (
           <Text style={styles.infoText}>
-            {PIPELINE[pipeline.pipelineStatus] ?? pipeline.pipelineStatus}
+            {t(PIPELINE[pipeline.pipelineStatus]) ?? pipeline.pipelineStatus}
             {pipeline.pipelineStatus === "ai_failed" && pipeline.lastError ? ` ${pipeline.lastError}` : ""}
           </Text>
         ) : null}
@@ -232,41 +235,45 @@ export default function PreferencesScreen() {
                 <Text style={[styles.choiceText, { color: tone }]}>{labelFor(value)}</Text>
                 <MaterialIcons name="expand-more" size={22} color={colors.muted} />
               </Pressable>
-              {isLocked ? <Text style={styles.lockedNote}>נעול — היום עבר</Text> : null}
+              {isLocked ? <Text style={styles.lockedNote}>{t("נעול — היום עבר")}</Text> : null}
             </View>
           );
         })}
 
         <View style={styles.actions}>
           <Pressable disabled={!canSave} onPress={() => void save(false)} style={[styles.draft, !canSave && styles.off]}>
-            <Text style={styles.draftText}>שמור טיוטה</Text>
+            <Text style={styles.draftText}>{t("שמור טיוטה")}</Text>
           </Pressable>
           <Pressable
             disabled={!canSave}
             onPress={() =>
-              Alert.alert("לשלוח את ההעדפות?", "לאחר ההגשה המנהל יקבל התראה אם שויכה מחלקה, והנתונים ישמשו את המלצות השיבוץ.", [
-                { text: "ביטול", style: "cancel" },
-                { text: "שליחה", onPress: () => void save(true) },
+              Alert.alert(t("לשלוח את ההעדפות?"), t("לאחר ההגשה המנהל יקבל התראה אם שויכה מחלקה, והנתונים ישמשו את המלצות השיבוץ."), [
+                { text: t("ביטול"), style: "cancel" },
+                { text: t("שליחה"), onPress: () => void save(true) },
               ])
             }
             style={[styles.send, !canSave && styles.off]}
           >
-            <Text style={styles.sendText}>{busy ? "שולח…" : "שלח הגשה"}</Text>
+            <Text style={styles.sendText}>{busy ? t("שולח…") : t("שלח הגשה")}</Text>
           </Pressable>
         </View>
-        {docStatus ? <Text style={styles.status}>סטטוס נוכחי: {docStatus === "submitted" ? "הוגש" : "טיוטה"}</Text> : null}
+        {docStatus ? (
+          <Text style={styles.status}>
+            {tr("סטטוס נוכחי:", "Current status:")} {docStatus === "submitted" ? t("הוגש") : t("טיוטה")}
+          </Text>
+        ) : null}
         {cleared && docStatus === "submitted" ? (
-          <Text style={styles.notice}>השדות אופסו להצגה. ההגשה נשמרה במערכת.</Text>
+          <Text style={styles.notice}>{t("השדות אופסו להצגה. ההגשה נשמרה במערכת.")}</Text>
         ) : null}
       </ScrollView>
 
       <Modal visible={!!picking} transparent animationType="fade" onRequestClose={() => setPicking(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPicking(null)}>
           <View style={styles.sheet}>
-            <Text style={styles.modalTitle}>העדפה</Text>
+            <Text style={styles.modalTitle}>{t("העדפה")}</Text>
             {OPTIONS.map((option) => (
               <Pressable
-                key={option.label}
+                key={t(option.label)}
                 onPress={() => {
                   if (!picking) return;
                   setDraft((current) => ({ ...current, [picking]: option.key }));
@@ -275,7 +282,7 @@ export default function PreferencesScreen() {
                 }}
                 style={styles.option}
               >
-                <Text style={[styles.optionText, { color: option.color }]}>{option.label}</Text>
+                <Text style={[styles.optionText, { color: option.color }]}>{t(option.label)}</Text>
               </Pressable>
             ))}
           </View>
@@ -287,24 +294,24 @@ export default function PreferencesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 16, },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { color: colors.ink, fontSize: 24, fontWeight: "800", writingDirection: "rtl", flex: 1, textAlign: "right" },
-  subtitle: { color: colors.muted, writingDirection: "rtl", textAlign: "right", marginTop: 8, marginBottom: 12 },
+  title: { color: colors.ink, fontSize: 24, fontWeight: "800", flex: 1, },
+  subtitle: { color: colors.muted, marginTop: 8, marginBottom: 12 },
   info: { backgroundColor: "rgba(14,165,233,0.12)", borderRadius: 12, padding: 12, marginBottom: 12 },
-  infoText: { color: colors.ink, writingDirection: "rtl", textAlign: "right", lineHeight: 20 },
+  infoText: { color: colors.ink, lineHeight: 20 },
   loader: { marginVertical: 16 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
-  notice: { color: "#15803d", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
-  warn: { color: "#b45309", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
-  fieldLabel: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginBottom: 6 },
+  error: { color: colors.danger, marginBottom: 8 },
+  notice: { color: "#15803d", marginBottom: 8 },
+  warn: { color: "#b45309", marginBottom: 8 },
+  fieldLabel: { color: colors.muted, marginBottom: 6 },
   weeks: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   week: { borderWidth: 1, borderColor: "rgba(15,23,42,0.12)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: "#ffffff" },
   weekOn: { backgroundColor: colors.orange, borderColor: colors.orange },
   weekText: { color: colors.ink, fontWeight: "700" },
   weekTextOn: { color: "#ffffff" },
   day: { marginBottom: 12 },
-  dayDate: { color: colors.ink, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
+  dayDate: { color: colors.ink, fontWeight: "700", },
   locked: { color: colors.muted },
   choice: {
     marginTop: 6,
@@ -319,18 +326,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   choiceLocked: { backgroundColor: "rgba(15,23,42,0.04)" },
-  choiceText: { fontWeight: "800", writingDirection: "rtl" },
-  lockedNote: { color: colors.muted, fontSize: 12, textAlign: "right", writingDirection: "rtl", marginTop: 4 },
+  choiceText: { fontWeight: "800", },
+  lockedNote: { color: colors.muted, fontSize: 12, marginTop: 4 },
   actions: { flexDirection: "row", gap: 10, marginTop: 8 },
   draft: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.orange, alignItems: "center", justifyContent: "center" },
-  draftText: { color: colors.orange, fontWeight: "800", writingDirection: "rtl" },
+  draftText: { color: colors.orange, fontWeight: "800", },
   send: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center" },
-  sendText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  sendText: { color: "#ffffff", fontWeight: "800", },
   off: { opacity: 0.45 },
-  status: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 10 },
+  status: { color: colors.muted, marginTop: 10 },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, direction: "rtl" },
-  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, },
+  modalTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   option: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(15,23,42,0.06)" },
-  optionText: { fontWeight: "800", textAlign: "right", writingDirection: "rtl", fontSize: 16 },
+  optionText: { fontWeight: "800", fontSize: 16 },
 });

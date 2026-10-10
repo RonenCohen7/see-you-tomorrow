@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { t } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, ApiError } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -83,7 +84,7 @@ export default function SettingsScreen() {
           }))
         );
       } catch (err) {
-        if (alive) setError(messageOf(err, "לא ניתן לטעון הגדרות."));
+        if (alive) setError(messageOf(err, t("לא ניתן לטעון הגדרות.")));
       } finally {
         if (alive) setLoading(false);
       }
@@ -116,7 +117,7 @@ export default function SettingsScreen() {
       );
       setNotice(ok);
     } catch (err) {
-      setError(messageOf(err, "השמירה נכשלה."));
+      setError(messageOf(err, t("השמירה נכשלה.")));
     } finally {
       setSaving(false);
     }
@@ -124,7 +125,7 @@ export default function SettingsScreen() {
 
   async function saveStatuses() {
     if (custom.some((row) => !row.labelHe.trim())) {
-      setError("לכל סטטוס נוסף חסרה כותרת בעברית.");
+      setError(t("לכל סטטוס נוסף חסרה כותרת בעברית."));
       return;
     }
     await patch(
@@ -138,7 +139,7 @@ export default function SettingsScreen() {
           return row.disabled ? { ...withEn, disabled: true } : withEn;
         }),
       },
-      "הגדרות הסטטוסים נשמרו."
+      t("הגדרות הסטטוסים נשמרו.")
     );
   }
 
@@ -154,9 +155,9 @@ export default function SettingsScreen() {
       setBcTitle("");
       setBcMessage("");
       setBcSeverity("info");
-      setNotice("ההודעה נשלחה.");
+      setNotice(t("ההודעה נשלחה."));
     } catch (err) {
-      setError(messageOf(err, "לא ניתן לשדר."));
+      setError(messageOf(err, t("לא ניתן לשדר.")));
     } finally {
       setSaving(false);
     }
@@ -164,70 +165,70 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="הגדרות" />
+      <BrandHeader greeting={t("הגדרות")} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
           keyboardShouldPersistTaps="handled"
         >
           <HomeLink />
-          <Text style={styles.title}>הגדרות</Text>
+          <Text style={styles.title}>{t("הגדרות")}</Text>
           {loading ? <ActivityIndicator color={colors.orange} /> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
           <View style={styles.card}>
-            <Text style={styles.section}>ארגון</Text>
+            <Text style={styles.section}>{t("ארגון")}</Text>
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>מנהלים רשאים לערוך משמרות</Text>
+              <Text style={styles.switchLabel}>{t("מנהלים רשאים לערוך משמרות")}</Text>
               <Switch
                 value={!!org?.managerCanEditSchedules}
                 disabled={!org || saving}
                 trackColor={{ true: colors.orange }}
-                onValueChange={(value) => void patch({ managerCanEditSchedules: value }, "עודכן.")}
+                onValueChange={(value) => void patch({ managerCanEditSchedules: value }, t("עודכן."))}
               />
             </View>
-            <Text style={styles.sub}>העדפות עובדים לפני AI</Text>
-            <Text style={styles.label}>מינימום ימים קדימה להגשת העדפות</Text>
+            <Text style={styles.sub}>{t("העדפות עובדים לפני AI")}</Text>
+            <Text style={styles.label}>{t("מינימום ימים קדימה להגשת העדפות")}</Text>
             <TextInput
               value={prefDays}
               onChangeText={setPrefDays}
               keyboardType="number-pad"
               style={styles.input}
-              textAlign="right"
+             
             />
             <Pressable
               disabled={saving}
               onPress={() => {
                 const days = Math.min(60, Math.max(0, Number(prefDays) || 0));
-                void patch({ preferenceMinDaysAhead: days }, "המרווח נשמר.");
+                void patch({ preferenceMinDaysAhead: days }, t("המרווח נשמר."));
               }}
               style={({ pressed }) => [styles.outline, pressed && styles.pressed]}
             >
-              <Text style={styles.outlineText}>שמור מרווח</Text>
+              <Text style={styles.outlineText}>{t("שמור מרווח")}</Text>
             </Pressable>
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>תזכורות אוטומטיות למלא העדפות</Text>
+              <Text style={styles.switchLabel}>{t("תזכורות אוטומטיות למלא העדפות")}</Text>
               <Switch
                 value={!!org?.preferenceRemindersEnabled}
                 disabled={!org || saving}
                 trackColor={{ true: colors.orange }}
-                onValueChange={(value) => void patch({ preferenceRemindersEnabled: value }, "עודכן.")}
+                onValueChange={(value) => void patch({ preferenceRemindersEnabled: value }, t("עודכן."))}
               />
             </View>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.section}>סטטוסים מוגדרים במערכת</Text>
+            <Text style={styles.section}>{t("סטטוסים מוגדרים במערכת")}</Text>
             <Text style={styles.hint}>
-              כבו «מוצג בבחירה» כדי להסתיר סטטוס ממשמרות חדשות, מלוח השנה ודוחות. רשומות קיימות נשארות עד שמעדכנים אותן.
-            </Text>
+              {t("כבו «מוצג בבחירה» כדי להסתיר סטטוס ממשמרות חדשות, מלוח השנה ודוחות. רשומות קיימות נשארות עד שמעדכנים אותן.")}
+              </Text>
             {BUILTIN.map((status) => {
               const shown = !disabledBuiltins.includes(status.key);
               return (
                 <View key={status.key} style={styles.switchRow}>
                   <Text style={styles.switchLabel}>
-                    {status.label} — מוצג בבחירות ודוחות
+                    {t(status.label)} — {t("מוצג בבחירות ודוחות")}
                   </Text>
                   <Switch
                     value={shown}
@@ -243,8 +244,8 @@ export default function SettingsScreen() {
               );
             })}
 
-            <Text style={styles.sub}>סטטוסי משמרת נוספים</Text>
-            <Text style={styles.hint}>אפשר לכבות סטטוס בלי למחוק את השם. משמרות שכבר הוגדרו יישארו.</Text>
+            <Text style={styles.sub}>{t("סטטוסי משמרת נוספים")}</Text>
+            <Text style={styles.hint}>{t("אפשר לכבות סטטוס בלי למחוק את השם. משמרות שכבר הוגדרו יישארו.")}</Text>
             {custom.map((row, index) => (
               <View key={`${row.id}-${index}`} style={styles.custom}>
                 <TextInput
@@ -252,17 +253,18 @@ export default function SettingsScreen() {
                   onChangeText={(value) =>
                     setCustom((current) => current.map((item, i) => (i === index ? { ...item, labelHe: value } : item)))
                   }
-                  placeholder="כותרת בעברית"
+                  placeholder={t("כותרת בעברית")}
                   placeholderTextColor={colors.muted}
                   style={styles.input}
                   textAlign="right"
+                 
                 />
                 <TextInput
                   value={row.labelEn}
                   onChangeText={(value) =>
                     setCustom((current) => current.map((item, i) => (i === index ? { ...item, labelEn: value } : item)))
                   }
-                  placeholder="English (לא חובה)"
+                  placeholder={t("English (לא חובה)")}
                   placeholderTextColor={colors.muted}
                   style={styles.input}
                   textAlign="left"
@@ -272,7 +274,7 @@ export default function SettingsScreen() {
                     <MaterialIcons name="delete-outline" size={22} color={colors.danger} />
                   </Pressable>
                   <View style={styles.switchRow}>
-                    <Text style={styles.switchLabel}>בתוקף</Text>
+                    <Text style={styles.switchLabel}>{t("בתוקף")}</Text>
                     <Switch
                       value={!row.disabled}
                       trackColor={{ true: colors.orange }}
@@ -291,43 +293,43 @@ export default function SettingsScreen() {
               onPress={() => setCustom((current) => [...current, { id: "", labelHe: "", labelEn: "", disabled: false }])}
               style={({ pressed }) => [styles.outline, pressed && styles.pressed]}
             >
-              <Text style={styles.outlineText}>הוספת סטטוס</Text>
+              <Text style={styles.outlineText}>{t("הוספת סטטוס")}</Text>
             </Pressable>
             <Pressable
               disabled={saving || custom.some((row) => !row.labelHe.trim())}
               onPress={() => void saveStatuses()}
               style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
             >
-              <Text style={styles.primaryText}>{saving ? "שומר…" : "שמור הגדרות סטטוסים"}</Text>
+              <Text style={styles.primaryText}>{saving ? t("שומר…") : t("שמור הגדרות סטטוסים")}</Text>
             </Pressable>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.section}>חוקי שיבוץ</Text>
-            <Text style={styles.hint}>סגירת מיקום, סף מנהלים ביום, והפעלה או כיבוי של כללי הארגון.</Text>
+            <Text style={styles.section}>{t("חוקי שיבוץ")}</Text>
+            <Text style={styles.hint}>{t("סגירת מיקום, סף מנהלים ביום, והפעלה או כיבוי של כללי הארגון.")}</Text>
             <Pressable
               onPress={() => router.push("/scheduling-rules")}
               style={({ pressed }) => [styles.outline, pressed && styles.pressed]}
             >
-              <Text style={styles.outlineText}>פתיחת דף חוקי שיבוץ</Text>
+              <Text style={styles.outlineText}>{t("פתיחת דף חוקי שיבוץ")}</Text>
             </Pressable>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.section}>הודעת מערכת</Text>
-            <Text style={styles.hint}>שידור בזמן אמת למשתמשים מחוברים.</Text>
-            <Text style={styles.label}>כותרת</Text>
-            <TextInput value={bcTitle} onChangeText={setBcTitle} style={styles.input} textAlign="right" maxLength={120} />
-            <Text style={styles.label}>הודעה</Text>
+            <Text style={styles.section}>{t("הודעת מערכת")}</Text>
+            <Text style={styles.hint}>{t("שידור בזמן אמת למשתמשים מחוברים.")}</Text>
+            <Text style={styles.label}>{t("כותרת")}</Text>
+            <TextInput value={bcTitle} onChangeText={setBcTitle} style={styles.input} maxLength={120} />
+            <Text style={styles.label}>{t("הודעה")}</Text>
             <TextInput
               value={bcMessage}
               onChangeText={setBcMessage}
               style={[styles.input, styles.area]}
-              textAlign="right"
+             
               multiline
               maxLength={2000}
             />
-            <Text style={styles.label}>חומרה</Text>
+            <Text style={styles.label}>{t("חומרה")}</Text>
             <View style={styles.chips}>
               {SEVERITIES.map((item) => (
                 <Pressable
@@ -335,7 +337,7 @@ export default function SettingsScreen() {
                   onPress={() => setBcSeverity(item.id)}
                   style={[styles.chip, bcSeverity === item.id && styles.chipOn]}
                 >
-                  <Text style={[styles.chipText, bcSeverity === item.id && styles.chipTextOn]}>{item.label}</Text>
+                  <Text style={[styles.chipText, bcSeverity === item.id && styles.chipTextOn]}>{t(item.label)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -348,7 +350,7 @@ export default function SettingsScreen() {
                 pressed && styles.primaryPressed,
               ]}
             >
-              <Text style={styles.primaryText}>שלח לכל המחוברים</Text>
+              <Text style={styles.primaryText}>{t("שלח לכל המחוברים")}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -360,8 +362,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
-  title: { color: colors.ink, fontSize: 26, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
+  title: { color: colors.ink, fontSize: 26, fontWeight: "800", marginBottom: 12 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -370,10 +372,10 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
   },
-  section: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
-  sub: { color: colors.ink, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 16 },
-  hint: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: "right", writingDirection: "rtl", marginTop: 6 },
-  label: { color: colors.muted, fontSize: 13, textAlign: "right", writingDirection: "rtl", marginTop: 12, marginBottom: 6 },
+  section: { color: colors.ink, fontSize: 18, fontWeight: "800", },
+  sub: { color: colors.ink, fontWeight: "700", marginTop: 16 },
+  hint: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  label: { color: colors.muted, fontSize: 13, marginTop: 12, marginBottom: 6 },
   input: {
     minHeight: 44,
     borderRadius: 12,
@@ -382,11 +384,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     color: colors.ink,
     backgroundColor: "#ffffff",
-    writingDirection: "rtl",
   },
   area: { minHeight: 96, textAlignVertical: "top", paddingTop: 10 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
-  switchLabel: { flex: 1, color: colors.ink, fontSize: 15, textAlign: "right", writingDirection: "rtl" },
+  switchLabel: { flex: 1, color: colors.ink, fontSize: 15, },
   custom: { marginTop: 12, gap: 8 },
   customTools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   outline: {
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  outlineText: { color: colors.ink, fontWeight: "800", writingDirection: "rtl" },
+  outlineText: { color: colors.ink, fontWeight: "800", },
   pressed: { backgroundColor: "rgba(249,115,22,0.12)" },
   primary: {
     marginTop: 12,
@@ -409,13 +410,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryPressed: { backgroundColor: colors.orangePressed },
-  primaryText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  primaryText: { color: "#ffffff", fontWeight: "800", },
   disabled: { opacity: 0.45 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12, paddingVertical: 8 },
   chipOn: { backgroundColor: colors.orange, borderColor: colors.orange },
-  chipText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  chipText: { color: colors.ink, fontWeight: "700", },
   chipTextOn: { color: "#ffffff" },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
-  notice: { color: "#15803d", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  error: { color: colors.danger, marginBottom: 8 },
+  notice: { color: "#15803d", marginBottom: 8 },
 });

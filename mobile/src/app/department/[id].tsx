@@ -12,6 +12,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { hello, intlTag, t, tr } from "@/locale/i18n";
+import { useLocale } from "@/locale/LocaleProvider";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -44,6 +46,7 @@ async function loadPeople(): Promise<Person[]> {
 export default function DepartmentAssignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { status, user } = useAuth();
+  const { locale } = useLocale();
   const insets = useSafeAreaInsets();
   const canAssign = user?.role === "admin";
   const [loading, setLoading] = useState(true);
@@ -66,7 +69,7 @@ export default function DepartmentAssignScreen() {
       setDepartments(deptData.items);
       setPeople(staff);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "לא ניתן לטעון את המחלקה");
+      setError(err instanceof Error ? err.message : t("לא ניתן לטעון את המחלקה"));
     } finally {
       setLoading(false);
     }
@@ -88,24 +91,27 @@ export default function DepartmentAssignScreen() {
     return people
       .filter((person) => person.departmentId !== id)
       .filter((person) => !q || person.fullName.includes(q))
-      .sort((a, b) => a.fullName.localeCompare(b.fullName, "he"));
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, intlTag()));
   }, [people, id, query]);
 
   function assign(person: Person) {
     const current = deptName(person.departmentId);
-    const next = department?.name ?? "המחלקה";
+    const next = department?.name ?? t("המחלקה");
     const message = current
-      ? `${person.fullName} משויך כרגע ל«${current}». להעביר אל «${next}»?`
-      : `לשייך את ${person.fullName} אל «${next}»?`;
-    Alert.alert("שיוך למחלקה", message, [
-      { text: "ביטול", style: "cancel" },
+      ? tr(
+          `${person.fullName} משויך כרגע ל«${current}». להעביר אל «${next}»?`,
+          `${person.fullName} is currently in “${current}”. Move them to “${next}”?`
+        )
+      : tr(`לשייך את ${person.fullName} אל «${next}»?`, `Assign ${person.fullName} to “${next}”?`);
+    Alert.alert(t("שיוך למחלקה"), message, [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "שייך",
+        text: t("שייך"),
         onPress: () => {
           setBusyId(person.id);
           void api(`/api/employees/${person.id}`, { method: "PUT", body: { departmentId: id } })
             .then(() => load())
-            .catch((err: unknown) => setError(err instanceof Error ? err.message : "השיוך נכשל"))
+            .catch((err: unknown) => setError(err instanceof Error ? err.message : t("השיוך נכשל")))
             .finally(() => setBusyId(null));
         },
       },
@@ -117,21 +123,21 @@ export default function DepartmentAssignScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={user ? `שלום, ${user.fullName}` : undefined} />
+      <BrandHeader greeting={user ? hello(user.fullName) : undefined} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable onPress={() => router.back()} style={styles.back}>
-          <MaterialIcons name="arrow-forward" size={20} color={colors.orange} />
-          <Text style={styles.backText}>מחלקות</Text>
+          <MaterialIcons name={locale === "he" ? "arrow-forward" : "arrow-back"} size={20} color={colors.orange} />
+          <Text style={styles.backText}>{t("מחלקות")}</Text>
         </Pressable>
-        <Text style={styles.title}>{department?.name ?? "מחלקה"}</Text>
-        <Text style={styles.subtitle}>{members.length} עובדים במחלקה</Text>
+        <Text style={styles.title}>{department?.name ?? t("מחלקה")}</Text>
+        <Text style={styles.subtitle}>{members.length} {t("עובדים במחלקה")}</Text>
         {loading ? <ActivityIndicator color={colors.orange} style={styles.loader} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {canAssign ? (
           <Pressable onPress={() => setPicker(true)} style={styles.assign}>
             <MaterialIcons name="person-add" size={20} color="#ffffff" />
-            <Text style={styles.assignText}>שייך עובד</Text>
+            <Text style={styles.assignText}>{t("שייך עובד")}</Text>
           </Pressable>
         ) : null}
 
@@ -139,28 +145,28 @@ export default function DepartmentAssignScreen() {
           <View key={person.id} style={styles.row}>
             <View style={styles.personText}>
               <Text style={styles.personName}>{person.fullName}</Text>
-              <Text style={styles.personMeta}>{person.jobTitle || roleLabel[person.role] || person.role}</Text>
+              <Text style={styles.personMeta}>{person.jobTitle || t(roleLabel[person.role]) || person.role}</Text>
             </View>
           </View>
         ))}
-        {!loading && members.length === 0 ? <Text style={styles.empty}>אין עובדים משויכים למחלקה הזו</Text> : null}
+        {!loading && members.length === 0 ? <Text style={styles.empty}>{t("אין עובדים משויכים למחלקה הזו")}</Text> : null}
       </ScrollView>
 
       <Modal visible={picker} animationType="slide" onRequestClose={() => setPicker(false)}>
         <View style={[styles.picker, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.pickerHead}>
-            <Text style={styles.title}>שייך עובד</Text>
+            <Text style={styles.title}>{t("שייך עובד")}</Text>
             <Pressable onPress={() => setPicker(false)}>
-              <Text style={styles.backText}>סגור</Text>
+              <Text style={styles.backText}>{t("סגור")}</Text>
             </Pressable>
           </View>
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="חיפוש לפי שם"
+            placeholder={t("חיפוש לפי שם")}
             placeholderTextColor={colors.muted}
             style={styles.search}
-            textAlign="right"
+           
           />
           <ScrollView>
             {others.map((person) => (
@@ -168,13 +174,15 @@ export default function DepartmentAssignScreen() {
                 <View style={styles.personText}>
                   <Text style={styles.personName}>{person.fullName}</Text>
                   <Text style={styles.personMeta}>
-                    {deptName(person.departmentId) ? `משויך ל${deptName(person.departmentId)}` : "ללא מחלקה"}
+                    {deptName(person.departmentId)
+                      ? tr(`משויך ל${deptName(person.departmentId)}`, `Assigned to ${deptName(person.departmentId)}`)
+                      : t("ללא מחלקה")}
                   </Text>
                 </View>
                 {busyId === person.id ? <ActivityIndicator color={colors.orange} /> : <MaterialIcons name="add" size={22} color={colors.orange} />}
               </Pressable>
             ))}
-            {others.length === 0 ? <Text style={styles.empty}>אין עובדים נוספים לשיוך</Text> : null}
+            {others.length === 0 ? <Text style={styles.empty}>{t("אין עובדים נוספים לשיוך")}</Text> : null}
           </ScrollView>
         </View>
       </Modal>
@@ -184,15 +192,14 @@ export default function DepartmentAssignScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 16, },
   back: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
-  backText: { color: colors.orange, fontWeight: "800", writingDirection: "rtl" },
-  title: { color: colors.ink, fontSize: 28, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  subtitle: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  backText: { color: colors.orange, fontWeight: "800", },
+  title: { color: colors.ink, fontSize: 28, fontWeight: "800", marginTop: 8 },
+  subtitle: { color: colors.muted, marginBottom: 12 },
   loader: { marginVertical: 16 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  error: { color: colors.danger, marginBottom: 12 },
   assign: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -202,9 +209,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginBottom: 14,
   },
-  assignText: { color: "#ffffff", fontWeight: "800", fontSize: 16, writingDirection: "rtl" },
+  assignText: { color: "#ffffff", fontWeight: "800", fontSize: 16, },
   row: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -216,10 +222,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   personText: { flex: 1, alignItems: "flex-end" },
-  personName: { color: colors.ink, fontSize: 16, fontWeight: "800", writingDirection: "rtl" },
-  personMeta: { color: colors.muted, marginTop: 2, writingDirection: "rtl" },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  picker: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, direction: "rtl" },
+  personName: { color: colors.ink, fontSize: 16, fontWeight: "800", },
+  personMeta: { color: colors.muted, marginTop: 2, },
+  empty: { color: colors.muted, marginTop: 8 },
+  picker: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, },
   pickerHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   search: {
     borderWidth: 1,
@@ -230,6 +236,5 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     backgroundColor: "#ffffff",
     color: colors.ink,
-    writingDirection: "rtl",
   },
 });

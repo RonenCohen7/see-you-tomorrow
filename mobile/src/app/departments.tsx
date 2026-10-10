@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { hello, t, tr } from "@/locale/i18n";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/api/client";
 import { canOpen } from "@/auth/access";
@@ -56,7 +57,7 @@ export default function DepartmentsScreen() {
       const data = await api<{ items: Dept[] }>(`/api/departments${qs}`);
       setItems(data.items);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "לא ניתן לטעון מחלקות");
+      setError(err instanceof Error ? err.message : t("לא ניתן לטעון מחלקות"));
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ export default function DepartmentsScreen() {
     if (!editor || !editor.name.trim()) return;
     const accent = editor.accentColor.trim();
     if (accent && !validHex(accent)) {
-      setError("צבע הכותרת צריך להיות בפורמט #RRGGBB");
+      setError(t("צבע הכותרת צריך להיות בפורמט #RRGGBB"));
       return;
     }
     setSaving(true);
@@ -87,22 +88,22 @@ export default function DepartmentsScreen() {
       setEditor(null);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שמירת המחלקה נכשלה");
+      setError(err instanceof Error ? err.message : t("שמירת המחלקה נכשלה"));
     } finally {
       setSaving(false);
     }
   }
 
   function deactivate(dept: Dept) {
-    Alert.alert("מחלקה", `לסמן את המחלקה «${dept.name}» כלא פעילה?`, [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("מחלקה"), tr(`לסמן את המחלקה «${dept.name}» כלא פעילה?`, `Mark department “${dept.name}” inactive?`), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "סימון כלא פעילה",
+        text: t("סימון כלא פעילה"),
         style: "destructive",
         onPress: () => {
           void api(`/api/departments/${dept.id}`, { method: "DELETE" })
             .then(() => load())
-            .catch((err: unknown) => setError(err instanceof Error ? err.message : "הפעולה נכשלה"));
+            .catch((err: unknown) => setError(err instanceof Error ? err.message : t("הפעולה נכשלה")));
         },
       },
     ]);
@@ -113,7 +114,7 @@ export default function DepartmentsScreen() {
       await api(`/api/departments/${dept.id}`, { method: "PUT", body: { isActive: true } });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "הפעלת המחלקה נכשלה");
+      setError(err instanceof Error ? err.message : t("הפעלת המחלקה נכשלה"));
     }
   }
 
@@ -122,15 +123,15 @@ export default function DepartmentsScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={user ? `שלום, ${user.fullName}` : undefined} />
+      <BrandHeader greeting={user ? hello(user.fullName) : undefined} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
           <MaterialIcons name="apartment" size={26} color={colors.orange} />
-          <Text style={styles.title}>מחלקות</Text>
+          <Text style={styles.title}>{t("מחלקות")}</Text>
           <View style={styles.count}>
             <Text style={styles.countText}>
-              {items.length} סה״כ
+              {items.length} {t("סה״כ")}
             </Text>
           </View>
         </View>
@@ -138,7 +139,7 @@ export default function DepartmentsScreen() {
         <View style={styles.tools}>
           <View style={styles.switchRow}>
             <Switch value={activeOnly} onValueChange={setActiveOnly} trackColor={{ true: colors.orange }} />
-            <Text style={styles.switchLabel}>פעילים בלבד</Text>
+            <Text style={styles.switchLabel}>{t("פעילים בלבד")}</Text>
           </View>
           {canWrite ? (
             <Pressable
@@ -156,10 +157,10 @@ export default function DepartmentsScreen() {
         {!loading && items.length === 0 ? (
           <View style={styles.empty}>
             <MaterialIcons name="apartment" size={48} color={colors.muted} />
-            <Text style={styles.emptyTitle}>{activeOnly ? "אין מחלקות פעילות להצגה" : "אין מחלקות עדיין"}</Text>
+            <Text style={styles.emptyTitle}>{activeOnly ? t("אין מחלקות פעילות להצגה") : t("אין מחלקות עדיין")}</Text>
             {activeOnly ? (
               <Pressable onPress={() => setActiveOnly(false)}>
-                <Text style={styles.link}>הצג את כל המחלקות</Text>
+                <Text style={styles.link}>{t("הצג את כל המחלקות")}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -171,13 +172,13 @@ export default function DepartmentsScreen() {
                 <MaterialIcons name="apartment" size={32} color={colors.orange} />
               </View>
               <Text style={styles.name}>{dept.name}</Text>
-              <Text style={styles.description}>{dept.description?.trim() || "אין תיאור"}</Text>
+              <Text style={styles.description}>{dept.description?.trim() || t("אין תיאור")}</Text>
               <View style={[styles.badge, dept.isActive ? styles.badgeOn : styles.badgeOff]}>
                 <Text style={[styles.badgeText, dept.isActive ? styles.badgeTextOn : styles.badgeTextOff]}>
-                  {dept.isActive ? "פעיל" : "לא פעיל"}
+                  {dept.isActive ? t("פעיל") : t("לא פעיל")}
                 </Text>
               </View>
-              <Text style={styles.assignHint}>שיוך עובדים</Text>
+              <Text style={styles.assignHint}>{t("שיוך עובדים")}</Text>
               {canWrite ? (
                 <View style={styles.actions}>
                   <Pressable
@@ -199,7 +200,7 @@ export default function DepartmentsScreen() {
                     </Pressable>
                   ) : (
                     <Pressable onPress={() => void activate(dept)} hitSlop={8}>
-                      <Text style={styles.link}>הפעל</Text>
+                      <Text style={styles.link}>{t("הפעל")}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -212,23 +213,23 @@ export default function DepartmentsScreen() {
       <Modal visible={!!editor} animationType="slide" transparent onRequestClose={() => setEditor(null)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modal, { paddingBottom: insets.bottom + 16 }]}>
-            <Text style={styles.modalTitle}>{editor?.id ? "עריכה" : "מחלקה חדשה"}</Text>
-            <Text style={styles.fieldLabel}>שם</Text>
+            <Text style={styles.modalTitle}>{editor?.id ? t("עריכה") : t("מחלקה חדשה")}</Text>
+            <Text style={styles.fieldLabel}>{t("שם")}</Text>
             <TextInput
               value={editor?.name ?? ""}
               onChangeText={(name) => setEditor((current) => (current ? { ...current, name } : current))}
               style={styles.input}
-              textAlign="right"
+             
             />
-            <Text style={styles.fieldLabel}>תיאור</Text>
+            <Text style={styles.fieldLabel}>{t("תיאור")}</Text>
             <TextInput
               value={editor?.description ?? ""}
               onChangeText={(description) => setEditor((current) => (current ? { ...current, description } : current))}
               style={[styles.input, styles.inputTall]}
-              textAlign="right"
+             
               multiline
             />
-            <Text style={styles.fieldLabel}>צבע כותרת</Text>
+            <Text style={styles.fieldLabel}>{t("צבע כותרת")}</Text>
             <View style={styles.swatches}>
               {SWATCHES.map((swatch) => (
                 <Pressable
@@ -250,10 +251,10 @@ export default function DepartmentsScreen() {
             />
             <View style={styles.modalActions}>
               <Pressable onPress={() => setEditor(null)} style={styles.cancel}>
-                <Text style={styles.cancelText}>ביטול</Text>
+                <Text style={styles.cancelText}>{t("ביטול")}</Text>
               </Pressable>
               <Pressable onPress={() => void save()} disabled={saving || !editor?.name.trim()} style={styles.save}>
-                <Text style={styles.saveText}>{saving ? "שומר…" : "שמירה"}</Text>
+                <Text style={styles.saveText}>{saving ? t("שומר…") : t("שמירה")}</Text>
               </Pressable>
             </View>
           </View>
@@ -265,14 +266,14 @@ export default function DepartmentsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 16, },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { color: colors.ink, fontSize: 28, fontWeight: "800", writingDirection: "rtl" },
+  title: { color: colors.ink, fontSize: 28, fontWeight: "800", },
   count: { backgroundColor: "rgba(15,23,42,0.06)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  countText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  countText: { color: colors.ink, fontWeight: "700", },
   tools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 },
   switchRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  switchLabel: { color: colors.ink, writingDirection: "rtl" },
+  switchLabel: { color: colors.ink, },
   add: {
     width: 44,
     height: 44,
@@ -282,10 +283,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loader: { marginVertical: 24 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  error: { color: colors.danger, marginBottom: 12 },
   empty: { alignItems: "center", padding: 24, gap: 8 },
-  emptyTitle: { color: colors.muted, fontSize: 16, writingDirection: "rtl", textAlign: "center" },
-  link: { color: colors.orange, fontWeight: "800", writingDirection: "rtl" },
+  emptyTitle: { color: colors.muted, fontSize: 16, textAlign: "center" },
+  link: { color: colors.orange, fontWeight: "800", },
   card: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -306,11 +307,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  name: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 10, writingDirection: "rtl", textAlign: "center" },
+  name: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 10, textAlign: "center" },
   description: {
     color: colors.muted,
     textAlign: "center",
-    writingDirection: "rtl",
     marginTop: 4,
     paddingHorizontal: 16,
     minHeight: 40,
@@ -318,15 +318,15 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, marginTop: 8 },
   badgeOn: { backgroundColor: "rgba(34,197,94,0.16)" },
   badgeOff: { backgroundColor: "rgba(15,23,42,0.06)" },
-  badgeText: { fontWeight: "800", writingDirection: "rtl" },
+  badgeText: { fontWeight: "800", },
   badgeTextOn: { color: "#15803d" },
   badgeTextOff: { color: colors.muted },
-  assignHint: { color: colors.orange, fontWeight: "700", marginTop: 8, writingDirection: "rtl" },
+  assignHint: { color: colors.orange, fontWeight: "700", marginTop: 8, },
   actions: { flexDirection: "row", gap: 18, marginTop: 8 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end" },
-  modal: { backgroundColor: "#ffffff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, direction: "rtl" },
-  modalTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
-  fieldLabel: { color: colors.muted, marginTop: 12, textAlign: "right", writingDirection: "rtl" },
+  modal: { backgroundColor: "#ffffff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, },
+  modalTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", },
+  fieldLabel: { color: colors.muted, marginTop: 12, },
   input: {
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.12)",
@@ -335,7 +335,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 6,
     color: colors.ink,
-    writingDirection: "rtl",
   },
   inputTall: { minHeight: 88, textAlignVertical: "top", paddingTop: 10 },
   swatches: { flexDirection: "row", gap: 10, marginTop: 8 },
@@ -353,7 +352,7 @@ const styles = StyleSheet.create({
   },
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 16 },
   cancel: { paddingHorizontal: 12, paddingVertical: 10 },
-  cancelText: { color: colors.muted, fontWeight: "700", writingDirection: "rtl" },
+  cancelText: { color: colors.muted, fontWeight: "700", },
   save: { backgroundColor: colors.orange, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  saveText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  saveText: { color: "#ffffff", fontWeight: "800", },
 });

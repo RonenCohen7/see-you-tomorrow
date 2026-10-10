@@ -9,6 +9,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import HomeLink from "@/ui/HomeLink";
 import { colors } from "@/ui/theme";
+import { intlTag, t, tr } from "@/locale/i18n";
 
 type Pref = "office" | "home" | "client" | "vacation" | "sick" | "off";
 type PrefDay = { workDate: string; preference?: Pref };
@@ -85,23 +86,23 @@ function addUtcDays(iso: string, delta: number): string {
 }
 
 function weekday(iso: string): string {
-  return WEEKDAY[new Date(`${iso}T12:00:00.000Z`).getUTCDay()] ?? "";
+  return t(WEEKDAY[new Date(`${iso}T12:00:00.000Z`).getUTCDay()] ?? "");
 }
 
 function statusLabel(value?: string): string {
   if (!value) return "—";
-  return STATUS[value] ?? value;
+  return t(STATUS[value] ?? value);
 }
 
 function errorText(err: unknown): string {
-  return err instanceof ApiError ? err.message : "שגיאה";
+  return err instanceof ApiError ? err.message : t("שגיאה");
 }
 
 function submittedLabel(iso?: string): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("he-IL", {
+  return date.toLocaleString(intlTag(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -111,16 +112,25 @@ function submittedLabel(iso?: string): string {
 }
 
 function exceptionText(item: Exception, names: Map<string, string>): string {
-  const who = item.employeeId ? names.get(item.employeeId) || "עובד" : "";
+  const who = item.employeeId ? names.get(item.employeeId) || t("עובד") : "";
   const when = item.date ? `${weekday(item.date)} ${item.date.slice(5)}` : "";
   if (item.kind === "preference_overridden") {
-    return `${who} · ${when}: ביקש/ה «${statusLabel(item.requestedStatus)}» ושובץ/ה «${statusLabel(item.assignedStatus)}»`;
+    return tr(
+      `${who} · ${when}: ביקש/ה «${statusLabel(item.requestedStatus)}» ושובץ/ה «${statusLabel(item.assignedStatus)}»`,
+      `${who} · ${when}: asked for “${statusLabel(item.requestedStatus)}” and was assigned “${statusLabel(item.assignedStatus)}”`
+    );
   }
   if (item.kind === "office_shortfall") {
-    return `${when}: רק ${item.officeCount ?? 0} עובדים למשרד — המינימום ${item.required ?? 0}`;
+    return tr(
+      `${when}: רק ${item.officeCount ?? 0} עובדים למשרד — המינימום ${item.required ?? 0}`,
+      `${when}: only ${item.officeCount ?? 0} people in the office — minimum is ${item.required ?? 0}`
+    );
   }
   if (item.kind === "office_over_capacity") {
-    return `${when}: שובצו ${item.officeCount ?? 0} למשרד — מעל הקיבולת (${item.capacity ?? 0})`;
+    return tr(
+      `${when}: שובצו ${item.officeCount ?? 0} למשרד — מעל הקיבולת (${item.capacity ?? 0})`,
+      `${when}: ${item.officeCount ?? 0} assigned to the office — over capacity (${item.capacity ?? 0})`
+    );
   }
   return "";
 }
@@ -266,7 +276,7 @@ export default function TeamPreferencesScreen() {
           })),
         },
       });
-      setNotice("השיבוץ אושר ופורסם בלוח.");
+      setNotice(t("השיבוץ אושר ופורסם בלוח."));
       await loadWeek(deptId, week);
     } catch (err) {
       setError(errorText(err));
@@ -277,10 +287,10 @@ export default function TeamPreferencesScreen() {
 
   function reject() {
     if (!batch) return;
-    Alert.alert("דחיית הצעה", "לדחות את ההצעה? העובדים יקבלו עדכון, והלוח לא ישתנה.", [
-      { text: "ביטול", style: "cancel" },
+    Alert.alert(t("דחיית הצעה"), t("לדחות את ההצעה? העובדים יקבלו עדכון, והלוח לא ישתנה."), [
+      { text: t("ביטול"), style: "cancel" },
       {
-        text: "דחייה",
+        text: t("דחייה"),
         style: "destructive",
         onPress: () => {
           void (async () => {
@@ -288,7 +298,7 @@ export default function TeamPreferencesScreen() {
             setError(null);
             try {
               await api(`/api/schedules/ai-batches/${batch.id}/reject-pipeline`, { method: "POST" });
-              setNotice("ההצעה נדחתה.");
+              setNotice(t("ההצעה נדחתה."));
               await loadWeek(deptId, week);
             } catch (err) {
               setError(errorText(err));
@@ -303,17 +313,17 @@ export default function TeamPreferencesScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting="העדפות צוות" />
+      <BrandHeader greeting={t("העדפות צוות")} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <Text style={styles.subtitle}>
-          הגשות שהצוות שלח לשבוע שנבחר. טיוטות לא מופיעות. כשיש חריגים, ההצעה ממתינה כאן לאישור או לדחייה.
-        </Text>
-        <View style={styles.info}>
-          <Text style={styles.infoTitle}>איך בקשה מגיעה לאישור?</Text>
-          <Text style={styles.infoBody}>
-            אחרי «שלח הגשה» נפתח מחזור למחלקה. בלי חריגים השיבוץ מתפרסם לבד. עם חריגים הוא ממתין למנהל.
+          {t("הגשות שהצוות שלח לשבוע שנבחר. טיוטות לא מופיעות. כשיש חריגים, ההצעה ממתינה כאן לאישור או לדחייה.")}
           </Text>
+        <View style={styles.info}>
+          <Text style={styles.infoTitle}>{t("איך בקשה מגיעה לאישור?")}</Text>
+          <Text style={styles.infoBody}>
+            {t("אחרי «שלח הגשה» נפתח מחזור למחלקה. בלי חריגים השיבוץ מתפרסם לבד. עם חריגים הוא ממתין למנהל.")}
+            </Text>
         </View>
 
         {loading ? <ActivityIndicator color={colors.orange} style={{ marginTop: 24 }} /> : null}
@@ -322,33 +332,33 @@ export default function TeamPreferencesScreen() {
 
         {!loading && isAdmin ? (
           <Pressable onPress={() => setPicker("dept")} style={styles.field}>
-            <Text style={styles.fieldText}>{deptName || "בחרו מחלקה"}</Text>
+            <Text style={styles.fieldText}>{deptName || t("בחרו מחלקה")}</Text>
             <MaterialIcons name="arrow-drop-down" size={22} color={colors.muted} />
           </Pressable>
         ) : null}
         {!loading && !isAdmin ? (
           <Text style={styles.locked}>
-            {deptId ? "מוצגת המחלקה שלך בלבד." : "אין מחלקה משויכת לחשבון — פנו למנהל המערכת."}
+            {deptId ? t("מוצגת המחלקה שלך בלבד.") : t("אין מחלקה משויכת לחשבון — פנו למנהל המערכת.")}
           </Text>
         ) : null}
         {!loading && weeks.length > 0 ? (
           <Pressable onPress={() => setPicker("week")} style={styles.field}>
-            <Text style={styles.fieldText}>שבוע {week}</Text>
+            <Text style={styles.fieldText}>{t("שבוע")} {week}</Text>
             <MaterialIcons name="arrow-drop-down" size={22} color={colors.muted} />
           </Pressable>
         ) : null}
 
         {deptId && week && rawStatus === null && rows.length > 0 ? (
           <View style={styles.warnBox}>
-            <Text style={styles.warnTitle}>אין עדיין מחזור לשבוע זה</Text>
-            <Text style={styles.warnBody}>יש הגשות, אבל הצינור למחלקה לא נפתח. בדרך כלל העובד לא היה משויך למחלקה בזמן השליחה.</Text>
+            <Text style={styles.warnTitle}>{t("אין עדיין מחזור לשבוע זה")}</Text>
+            <Text style={styles.warnBody}>{t("יש הגשות, אבל הצינור למחלקה לא נפתח. בדרך כלל העובד לא היה משויך למחלקה בזמן השליחה.")}</Text>
           </View>
         ) : null}
 
         {rawStatus ? (
           <View style={[styles.statusBox, rawStatus === "applied" && styles.statusOk, rawStatus === "awaiting_manager" && styles.statusWait]}>
-            <Text style={styles.chip}>{PIPELINE_CHIP[rawStatus] ?? rawStatus}</Text>
-            <Text style={styles.statusBody}>{PIPELINE_BODY[rawStatus] ?? ""}</Text>
+            <Text style={styles.chip}>{t(PIPELINE_CHIP[rawStatus]) ?? rawStatus}</Text>
+            <Text style={styles.statusBody}>{t(PIPELINE_BODY[rawStatus]) ?? ""}</Text>
             {rawStatus === "ai_failed" && pipeline?.lastError ? <Text style={styles.statusBody}>{pipeline.lastError}</Text> : null}
           </View>
         ) : null}
@@ -356,14 +366,19 @@ export default function TeamPreferencesScreen() {
         {batch && batch.status === "pending_manager" ? (
           <View style={styles.approveCard}>
             <Text style={styles.approveTitle}>
-              בקשת אישור · {batch.dateRange.from.slice(5)}–{batch.dateRange.to.slice(5)}
+              {tr(
+                `בקשת אישור · ${batch.dateRange.from.slice(5)}–${batch.dateRange.to.slice(5)}`,
+                `Approval request · ${batch.dateRange.from.slice(5)}–${batch.dateRange.to.slice(5)}`
+              )}
             </Text>
             {!batch.locationId ? (
-              <Text style={styles.warnBody}>למחלקה חסר מיקום על ההצעה. אי אפשר לאשר עד שיוך המיקום יתוקן.</Text>
+              <Text style={styles.warnBody}>{t("למחלקה חסר מיקום על ההצעה. אי אפשר לאשר עד שיוך המיקום יתוקן.")}</Text>
             ) : null}
             {(batch.exceptions ?? []).length > 0 ? (
               <View style={styles.exceptionBox}>
-                <Text style={styles.exceptionTitle}>חריגים ({batch.exceptions!.length})</Text>
+                <Text style={styles.exceptionTitle}>
+                  {tr(`חריגים (${batch.exceptions!.length})`, `Exceptions (${batch.exceptions!.length})`)}
+                </Text>
                 {batch.exceptions!.map((item, index) => (
                   <Text key={`${item.kind}-${item.date}-${index}`} style={styles.exceptionLine}>
                     {exceptionText(item, names)}
@@ -371,7 +386,7 @@ export default function TeamPreferencesScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.statusBody}>לא נמצאו חריגים בהצעה זו.</Text>
+              <Text style={styles.statusBody}>{t("לא נמצאו חריגים בהצעה זו.")}</Text>
             )}
             <View style={styles.actions}>
               <Pressable
@@ -379,22 +394,22 @@ export default function TeamPreferencesScreen() {
                 onPress={() => void approve()}
                 style={({ pressed }) => [styles.approveButton, (busy || !batch.locationId) && styles.disabled, pressed && styles.approvePressed]}
               >
-                <Text style={styles.approveText}>אישור והחלה</Text>
+                <Text style={styles.approveText}>{t("אישור והחלה")}</Text>
               </Pressable>
               <Pressable disabled={busy} onPress={reject} style={styles.rejectButton}>
-                <Text style={styles.rejectText}>דחייה</Text>
+                <Text style={styles.rejectText}>{t("דחייה")}</Text>
               </Pressable>
             </View>
           </View>
         ) : null}
 
         {!deptId ? null : rows.length === 0 ? (
-          <Text style={styles.empty}>אין הגשות לשבוע זה במחלקה.</Text>
+          <Text style={styles.empty}>{t("אין הגשות לשבוע זה במחלקה.")}</Text>
         ) : (
           rows.map((row) => (
             <View key={row.id} style={styles.personCard}>
-              <Text style={styles.personName}>{names.get(row.employeeId) || "עובד"}</Text>
-              <Text style={styles.submitted}>הוגש {submittedLabel(row.submittedAt)}</Text>
+              <Text style={styles.personName}>{names.get(row.employeeId) || t("עובד")}</Text>
+              <Text style={styles.submitted}>{t("הוגש")} {submittedLabel(row.submittedAt)}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
                 {(headerDays.length > 0 ? headerDays : row.days).map((day) => {
                   const value = row.days.find((item) => item.workDate === day.workDate)?.preference;
@@ -415,7 +430,7 @@ export default function TeamPreferencesScreen() {
       <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPicker(null)}>
           <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => undefined}>
-            <Text style={styles.sheetTitle}>{picker === "dept" ? "מחלקה" : "שבוע"}</Text>
+            <Text style={styles.sheetTitle}>{picker === "dept" ? t("מחלקה") : t("שבוע")}</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               {(picker === "dept" ? departments.map((dept) => ({ id: dept.id, label: dept.name })) : weeks.map((iso) => ({ id: iso, label: iso }))).map(
                 (option) => (
@@ -429,7 +444,7 @@ export default function TeamPreferencesScreen() {
                     }}
                     style={styles.choice}
                   >
-                    <Text style={styles.choiceText}>{option.label}</Text>
+                    <Text style={styles.choiceText}>{t(option.label)}</Text>
                   </Pressable>
                 )
               )}
@@ -443,18 +458,16 @@ export default function TeamPreferencesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 12, direction: "rtl" },
-  subtitle: { color: colors.muted, textAlign: "right", writingDirection: "rtl", lineHeight: 22, marginBottom: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 12, },
+  subtitle: { color: colors.muted, lineHeight: 22, marginBottom: 12 },
   info: { backgroundColor: "#e0f2fe", borderRadius: 14, padding: 12, marginBottom: 12 },
-  infoTitle: { color: "#0c4a6e", fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 4 },
-  infoBody: { color: "#0c4a6e", textAlign: "right", writingDirection: "rtl", lineHeight: 20 },
+  infoTitle: { color: "#0c4a6e", fontWeight: "800", marginBottom: 4 },
+  infoBody: { color: "#0c4a6e", lineHeight: 20 },
   error: {
     backgroundColor: colors.dangerBg,
     color: colors.danger,
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
@@ -463,8 +476,6 @@ const styles = StyleSheet.create({
     color: "#166534",
     borderRadius: 12,
     padding: 12,
-    textAlign: "right",
-    writingDirection: "rtl",
     marginBottom: 10,
     overflow: "hidden",
   },
@@ -480,40 +491,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  fieldText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl", textAlign: "right" },
-  locked: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginBottom: 10 },
+  fieldText: { color: colors.ink, fontWeight: "700", },
+  locked: { color: colors.muted, marginBottom: 10 },
   warnBox: { backgroundColor: "#fff7ed", borderRadius: 14, padding: 12, marginBottom: 12 },
-  warnTitle: { color: "#9a3412", fontWeight: "800", textAlign: "right", writingDirection: "rtl" },
-  warnBody: { color: "#9a3412", textAlign: "right", writingDirection: "rtl", marginTop: 4, lineHeight: 20 },
+  warnTitle: { color: "#9a3412", fontWeight: "800", },
+  warnBody: { color: "#9a3412", marginTop: 4, lineHeight: 20 },
   statusBox: { backgroundColor: "#f8fafc", borderRadius: 14, padding: 12, marginBottom: 12, borderRightWidth: 4, borderRightColor: colors.sky },
   statusOk: { backgroundColor: "#dcfce7", borderRightColor: "#16a34a" },
   statusWait: { backgroundColor: "#e0f2fe", borderRightColor: colors.sky },
-  chip: { alignSelf: "flex-start", fontWeight: "800", writingDirection: "rtl", color: colors.ink, marginBottom: 4 },
-  statusBody: { color: colors.ink, textAlign: "right", writingDirection: "rtl", lineHeight: 20 },
+  chip: { alignSelf: "flex-start", fontWeight: "800", color: colors.ink, marginBottom: 4 },
+  statusBody: { color: colors.ink, lineHeight: 20 },
   approveCard: { backgroundColor: "#ffffff", borderRadius: 16, borderWidth: 1, borderColor: colors.line, padding: 14, marginBottom: 12 },
-  approveTitle: { color: colors.ink, fontWeight: "800", fontSize: 17, textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  approveTitle: { color: colors.ink, fontWeight: "800", fontSize: 17, marginBottom: 8 },
   exceptionBox: { backgroundColor: colors.dangerBg, borderRadius: 12, padding: 10, marginBottom: 10 },
-  exceptionTitle: { color: colors.danger, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 4 },
-  exceptionLine: { color: colors.danger, textAlign: "right", writingDirection: "rtl", lineHeight: 20, marginTop: 2 },
+  exceptionTitle: { color: colors.danger, fontWeight: "800", marginBottom: 4 },
+  exceptionLine: { color: colors.danger, lineHeight: 20, marginTop: 2 },
   actions: { flexDirection: "row", gap: 8 },
   approveButton: { flex: 1, backgroundColor: "#16a34a", borderRadius: 12, minHeight: 44, alignItems: "center", justifyContent: "center" },
   approvePressed: { backgroundColor: "#15803d" },
-  approveText: { color: "#ffffff", fontWeight: "800", writingDirection: "rtl" },
+  approveText: { color: "#ffffff", fontWeight: "800", },
   rejectButton: { flex: 1, borderWidth: 1, borderColor: "#f59e0b", borderRadius: 12, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff" },
-  rejectText: { color: "#b45309", fontWeight: "800", writingDirection: "rtl" },
+  rejectText: { color: "#b45309", fontWeight: "800", },
   disabled: { opacity: 0.45 },
-  empty: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 8 },
+  empty: { color: colors.muted, marginTop: 8 },
   personCard: { backgroundColor: "#ffffff", borderRadius: 16, borderWidth: 1, borderColor: colors.line, padding: 12, marginBottom: 10 },
-  personName: { color: colors.ink, fontWeight: "800", fontSize: 17, textAlign: "right", writingDirection: "rtl" },
-  submitted: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  personName: { color: colors.ink, fontWeight: "800", fontSize: 17, },
+  submitted: { color: colors.muted, marginBottom: 8 },
   days: { flexDirection: "row", gap: 8 },
   dayCell: { width: 72, borderRadius: 12, backgroundColor: "#f8fafc", padding: 8, alignItems: "center" },
   dayDate: { color: colors.ink, fontWeight: "800" },
   dayName: { color: colors.muted, fontSize: 12 },
-  dayValue: { color: colors.ink, fontWeight: "700", marginTop: 4, writingDirection: "rtl", textAlign: "center" },
+  dayValue: { color: colors.ink, fontWeight: "700", marginTop: 4, textAlign: "center" },
   backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, direction: "rtl" },
-  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", textAlign: "right", writingDirection: "rtl", marginBottom: 8 },
+  sheet: { backgroundColor: "#ffffff", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, },
+  sheetTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   choice: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line },
-  choiceText: { color: colors.ink, textAlign: "right", writingDirection: "rtl", fontWeight: "600" },
+  choiceText: { color: colors.ink, fontWeight: "600" },
 });

@@ -9,6 +9,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import BrandHeader from "@/ui/BrandHeader";
 import HomeLink from "@/ui/HomeLink";
 import { colors } from "@/ui/theme";
+import { hello, intlTag, t, tr } from "@/locale/i18n";
+import { useLocale } from "@/locale/LocaleProvider";
 
 type Role = "admin" | "manager" | "employee";
 type Tab = "seven" | "fifteen" | "month";
@@ -105,7 +107,7 @@ function shiftMonth(ym: string, delta: number): string {
 
 function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  return new Date(y, m - 1, 1).toLocaleDateString(intlTag(), { month: "long", year: "numeric" });
 }
 
 function monthEnd(ym: string): string {
@@ -212,6 +214,7 @@ async function optionalItems<T>(path: string): Promise<T[]> {
 
 export default function CalendarScreen() {
   const { status, user } = useAuth();
+  const { locale } = useLocale();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("seven");
   const [month, setMonth] = useState(currentYm);
@@ -261,7 +264,7 @@ export default function CalendarScreen() {
         setParkingCounts(countByDate(parking));
         setMeetingCounts(countByDate(meetings));
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "לא ניתן לטעון את היומן");
+        if (!cancelled) setError(err instanceof Error ? err.message : t("לא ניתן לטעון את היומן"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -296,7 +299,7 @@ export default function CalendarScreen() {
           ),
         ].sort((a, b) => a.localeCompare(b, "he"));
         if (names.length === 0) return [];
-        return [{ ...meta, label: STATUS_LABEL[meta.key] ?? meta.key, count: names.length, names: names.join(", ") }];
+        return [{ ...meta, label: t(STATUS_LABEL[meta.key]) ?? meta.key, count: names.length, names: names.join(", ") }];
       });
       const date = new Date(`${iso}T12:00:00`);
       const managers = [
@@ -310,8 +313,8 @@ export default function CalendarScreen() {
       return {
         iso,
         dayNum: date.getDate(),
-        weekday: WEEKDAY[date.getDay()] ?? "",
-        monthShort: date.toLocaleDateString("he-IL", { month: "short" }),
+        weekday: t(WEEKDAY[date.getDay()] ?? ""),
+        monthShort: date.toLocaleDateString(intlTag(), { month: "short" }),
         chips,
         lines,
         missingManager: canSeeGaps && leaders.size > 0 && managers.length === 0,
@@ -368,7 +371,7 @@ export default function CalendarScreen() {
         data.items.filter((row) => row.workDate < utcToday || byId.get(row.employeeId)?.isActive !== false)
       );
     } catch (err) {
-      setDayError(err instanceof Error ? err.message : "לא ניתן לטעון את היום");
+      setDayError(err instanceof Error ? err.message : t("לא ניתן לטעון את היום"));
     } finally {
       setDayLoading(false);
     }
@@ -379,20 +382,20 @@ export default function CalendarScreen() {
 
   return (
     <View style={styles.screen}>
-      <BrandHeader greeting={user ? `שלום, ${user.fullName}` : undefined} />
+      <BrandHeader greeting={user ? hello(user.fullName) : undefined} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <HomeLink />
         <View style={styles.titleRow}>
           <MaterialIcons name="calendar-month" size={26} color={colors.orange} />
-          <Text style={styles.title}>{tab === "month" ? "יומן — חודש מלא" : "יומן"}</Text>
+          <Text style={styles.title}>{tab === "month" ? t("יומן — חודש מלא") : t("יומן")}</Text>
         </View>
 
         <View style={styles.tabs}>
           {(
             [
-              ["seven", "7 ימים קרובים"],
-              ["fifteen", "15 ימים מהחודש"],
-              ["month", "חודש מלא"],
+              ["seven", t("7 ימים קרובים")],
+              ["fifteen", t("15 ימים מהחודש")],
+              ["month", t("חודש מלא")],
             ] as const
           ).map(([key, label]) => (
             <Pressable key={key} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.tabOn]}>
@@ -403,11 +406,11 @@ export default function CalendarScreen() {
 
         <View style={styles.monthRow}>
           <Pressable onPress={() => setMonth((value) => shiftMonth(value, -1))} style={styles.monthButton}>
-            <MaterialIcons name="chevron-right" size={26} color={colors.ink} />
+            <MaterialIcons name={locale === "he" ? "chevron-right" : "chevron-left"} size={26} color={colors.ink} />
           </Pressable>
           <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
           <Pressable onPress={() => setMonth((value) => shiftMonth(value, 1))} style={styles.monthButton}>
-            <MaterialIcons name="chevron-left" size={26} color={colors.ink} />
+            <MaterialIcons name={locale === "he" ? "chevron-left" : "chevron-right"} size={26} color={colors.ink} />
           </Pressable>
         </View>
 
@@ -417,14 +420,14 @@ export default function CalendarScreen() {
         {tab === "seven" ? (
           <>
             <Text style={styles.subtitle}>
-              {activeWeek === "upcoming" ? "7 הימים הקרובים" : `שבוע ${activeWeek} בחודש`}
+              {activeWeek === "upcoming" ? t("7 הימים הקרובים") : tr(`שבוע ${activeWeek} בחודש`, `Week ${activeWeek} of the month`)}
             </Text>
             <View style={styles.picks}>
               <Pressable
                 onPress={() => setSevenPick("upcoming")}
                 style={[styles.pick, activeWeek === "upcoming" && styles.pickOn]}
               >
-                <Text style={[styles.pickText, activeWeek === "upcoming" && styles.pickTextOn]}>הקרובים</Text>
+                <Text style={[styles.pickText, activeWeek === "upcoming" && styles.pickTextOn]}>{t("הקרובים")}</Text>
               </Pressable>
               {Array.from({ length: weekTotal }, (_, index) => index + 1).map((week) => (
                 <Pressable
@@ -432,7 +435,7 @@ export default function CalendarScreen() {
                   onPress={() => setSevenPick(week)}
                   style={[styles.pick, activeWeek === week && styles.pickOn]}
                 >
-                  <Text style={[styles.pickText, activeWeek === week && styles.pickTextOn]}>שבוע {week}</Text>
+                  <Text style={[styles.pickText, activeWeek === week && styles.pickTextOn]}>{t("שבוע")} {week}</Text>
                 </Pressable>
               ))}
             </View>
@@ -447,7 +450,9 @@ export default function CalendarScreen() {
         {tab === "fifteen" ? (
           <>
             <Text style={styles.subtitle}>
-              {fifteenPick === 1 ? `1–${Math.min(15, daysInMonth(month))} בחודש` : `16–${daysInMonth(month)} בחודש`}
+              {fifteenPick === 1
+                ? tr(`1–${Math.min(15, daysInMonth(month))} בחודש`, `1–${Math.min(15, daysInMonth(month))} of the month`)
+                : tr(`16–${daysInMonth(month)} בחודש`, `16–${daysInMonth(month)} of the month`)}
             </Text>
             <View style={styles.picks}>
               <Pressable onPress={() => setFifteenPick(1)} style={[styles.pick, fifteenPick === 1 && styles.pickOn]}>
@@ -464,7 +469,7 @@ export default function CalendarScreen() {
               ) : null}
             </View>
             <Pressable onPress={() => setTab("month")} style={styles.openMonth}>
-              <Text style={styles.openMonthText}>פתיחת לוח חודש מלא</Text>
+              <Text style={styles.openMonthText}>{t("פתיחת לוח חודש מלא")}</Text>
             </Pressable>
             <View style={styles.agendaList}>
               {fifteen.map((day) => (
@@ -476,7 +481,7 @@ export default function CalendarScreen() {
 
         {tab === "month" ? (
           <>
-            <Text style={styles.subtitle}>כל ימי החודש</Text>
+            <Text style={styles.subtitle}>{t("כל ימי החודש")}</Text>
             <View style={styles.weekHead}>
               {WEEKDAY.map((letter) => (
                 <Text key={letter} style={styles.weekLetter}>
@@ -530,32 +535,35 @@ export default function CalendarScreen() {
 }
 
 function AgendaRow({ day, today, onPress }: { day: DayView; today: string; onPress: () => void }) {
+  const { locale } = useLocale();
   const isToday = day.iso === today;
   return (
     <Pressable onPress={onPress} style={[styles.agenda, isToday && styles.dayToday, day.missingManager && styles.dayMissing]}>
       <View style={[styles.agendaDate, isToday && styles.agendaDateToday]}>
-        <Text style={[styles.agendaWeekday, isToday && styles.agendaDateText]}>יום {day.weekday}</Text>
+        <Text style={[styles.agendaWeekday, isToday && styles.agendaDateText]}>
+          {locale === "he" ? `יום ${day.weekday}` : day.weekday}
+        </Text>
         <Text style={[styles.agendaNum, isToday && styles.agendaDateText]}>{day.dayNum}</Text>
         <Text style={[styles.agendaMonth, isToday && styles.agendaDateText]}>{day.monthShort}</Text>
-        {isToday ? <Text style={styles.agendaToday}>היום</Text> : null}
+        {isToday ? <Text style={styles.agendaToday}>{t("היום")}</Text> : null}
       </View>
       <View style={styles.agendaBody}>
-        {day.lines.length === 0 ? <Text style={styles.agendaEmpty}>אין שיבוץ ליום זה</Text> : null}
+        {day.lines.length === 0 ? <Text style={styles.agendaEmpty}>{t("אין שיבוץ ליום זה")}</Text> : null}
         {day.lines.map((line) => (
           <View key={line.key} style={styles.line}>
             <View style={[styles.lineChip, { backgroundColor: `${line.color}24` }]}>
               <MaterialIcons name={line.icon} size={14} color={line.color} />
               <Text style={[styles.lineChipText, { color: line.color }]}>
-                {line.label} {line.count}
+                {t(line.label)} {line.count}
               </Text>
             </View>
             <Text style={styles.lineNames}>{line.names}</Text>
           </View>
         ))}
         {day.missingManager ? (
-          <Text style={styles.missing}>לא שובץ מנהל במשרד</Text>
+          <Text style={styles.missing}>{t("לא שובץ מנהל במשרד")}</Text>
         ) : day.managers.length > 0 ? (
-          <Text style={styles.managers}>הנהלה במשרד: {day.managers.join(" · ")}</Text>
+          <Text style={styles.managers}>{t("הנהלה במשרד:")} {day.managers.join(" · ")}</Text>
         ) : null}
         {day.parkingCount > 0 || day.meetingCount > 0 ? (
           <View style={styles.extraRow}>
@@ -574,7 +582,7 @@ function AgendaRow({ day, today, onPress }: { day: DayView; today: string; onPre
           </View>
         ) : null}
       </View>
-      <MaterialIcons name="chevron-left" size={22} color={colors.muted} />
+      <MaterialIcons name={locale === "he" ? "chevron-left" : "chevron-right"} size={22} color={colors.muted} />
     </Pressable>
   );
 }
@@ -598,7 +606,7 @@ function DayRoster({
   const names = new Map(employees.map((person) => [person.id, person.fullName]));
   const groups = STATUS.map((meta) => ({
     ...meta,
-    label: STATUS_LABEL[meta.key] ?? meta.key,
+    label: t(STATUS_LABEL[meta.key]) ?? meta.key,
     rows: items.filter((row) => row.status === meta.key).sort((a, b) =>
       (names.get(a.employeeId) ?? "").localeCompare(names.get(b.employeeId) ?? "", "he")
     ),
@@ -619,7 +627,7 @@ function DayRoster({
         {loading ? <ActivityIndicator color={colors.orange} style={styles.loader} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <ScrollView contentContainerStyle={styles.rosterList}>
-          {!loading && groups.length === 0 ? <Text style={styles.emptyDay}>אין שיבוץ ליום זה</Text> : null}
+          {!loading && groups.length === 0 ? <Text style={styles.emptyDay}>{t("אין שיבוץ ליום זה")}</Text> : null}
           {groups.map((group) => (
             <View key={group.key} style={styles.group}>
               <View style={styles.groupHead}>
@@ -629,7 +637,7 @@ function DayRoster({
               </View>
               {group.rows.map((row) => (
                 <View key={row.id} style={[styles.personRow, { backgroundColor: `${group.color}14`, borderRightColor: group.color }]}>
-                  <Text style={styles.personName}>{names.get(row.employeeId) ?? "עובד"}</Text>
+                  <Text style={styles.personName}>{names.get(row.employeeId) ?? t("עובד")}</Text>
                   {row.note?.trim() ? <Text style={styles.personNote}>{row.note.trim()}</Text> : null}
                 </View>
               ))}
@@ -643,9 +651,9 @@ function DayRoster({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: 16, paddingTop: 16, direction: "rtl" },
+  content: { paddingHorizontal: 16, paddingTop: 16, },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { color: colors.ink, fontSize: 26, fontWeight: "800", writingDirection: "rtl", flex: 1, textAlign: "right" },
+  title: { color: colors.ink, fontSize: 26, fontWeight: "800", flex: 1, },
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   tab: {
     borderRadius: 999,
@@ -656,10 +664,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   tabOn: { backgroundColor: colors.orange, borderColor: colors.orange },
-  tabText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  tabText: { color: colors.ink, fontWeight: "700", },
   tabTextOn: { color: "#ffffff" },
   monthRow: {
-    direction: "rtl",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -672,8 +679,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   monthButton: { padding: 8 },
-  monthLabel: { color: colors.ink, fontSize: 16, fontWeight: "800", writingDirection: "rtl" },
-  subtitle: { color: colors.muted, fontSize: 15, writingDirection: "rtl", textAlign: "right", marginBottom: 8 },
+  monthLabel: { color: colors.ink, fontSize: 16, fontWeight: "800", },
+  subtitle: { color: colors.muted, fontSize: 15, marginBottom: 8 },
   picks: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
   pick: {
     borderRadius: 999,
@@ -684,7 +691,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   pickOn: { backgroundColor: colors.orange, borderColor: colors.orange },
-  pickText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  pickText: { color: colors.ink, fontWeight: "700", },
   pickTextOn: { color: "#ffffff" },
   agendaList: { gap: 10 },
   agenda: {
@@ -706,12 +713,12 @@ const styles = StyleSheet.create({
   },
   agendaDateToday: { backgroundColor: colors.orange },
   agendaDateText: { color: "#ffffff" },
-  agendaWeekday: { color: colors.muted, fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
+  agendaWeekday: { color: colors.muted, fontSize: 12, fontWeight: "800", },
   agendaNum: { color: colors.ink, fontSize: 28, fontWeight: "800", lineHeight: 32 },
-  agendaMonth: { color: colors.muted, fontSize: 12, fontWeight: "700", writingDirection: "rtl" },
-  agendaToday: { color: "#ffffff", fontSize: 11, fontWeight: "800", marginTop: 2, writingDirection: "rtl" },
+  agendaMonth: { color: colors.muted, fontSize: 12, fontWeight: "700", },
+  agendaToday: { color: "#ffffff", fontSize: 11, fontWeight: "800", marginTop: 2, },
   agendaBody: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 10, gap: 6 },
-  agendaEmpty: { color: colors.muted, textAlign: "right", writingDirection: "rtl" },
+  agendaEmpty: { color: colors.muted, },
   line: { gap: 4 },
   lineChip: {
     alignSelf: "flex-start",
@@ -722,24 +729,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  lineChipText: { fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
-  lineNames: { color: colors.ink, fontSize: 14, textAlign: "right", writingDirection: "rtl", lineHeight: 20 },
+  lineChipText: { fontSize: 12, fontWeight: "800", },
+  lineNames: { color: colors.ink, fontSize: 14, lineHeight: 20 },
   extraRow: { flexDirection: "row", gap: 12, marginTop: 2 },
   extra: { flexDirection: "row", alignItems: "center", gap: 2 },
   extraParking: { color: "#0d47a1", fontWeight: "800" },
   extraMeeting: { color: "#004d40", fontWeight: "800" },
   openMonth: { alignSelf: "flex-start", marginBottom: 12 },
-  openMonthText: { color: colors.orange, fontWeight: "800", writingDirection: "rtl", textAlign: "right" },
+  openMonthText: { color: colors.orange, fontWeight: "800", },
   loader: { marginVertical: 24 },
-  error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
+  error: { color: colors.danger, marginBottom: 12 },
   dayToday: { borderColor: colors.orange, backgroundColor: "rgba(249,115,22,0.08)" },
   dayMissing: { borderColor: "rgba(239,68,68,0.55)", backgroundColor: "rgba(239,68,68,0.06)" },
   dayNumToday: { color: colors.orange },
-  missing: { color: "#b91c1c", fontSize: 12, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  managers: { color: "#15803d", fontSize: 12, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
-  weekHead: { direction: "rtl", flexDirection: "row" },
-  weekLetter: { width: "14.28%", textAlign: "center", color: colors.muted, fontWeight: "800", writingDirection: "rtl" },
-  weekRow: { direction: "rtl", flexDirection: "row" },
+  missing: { color: "#b91c1c", fontSize: 12, fontWeight: "700", marginTop: 8 },
+  managers: { color: "#15803d", fontSize: 12, fontWeight: "700", marginTop: 8 },
+  weekHead: { flexDirection: "row" },
+  weekLetter: { width: "14.28%", textAlign: "center", color: colors.muted, fontWeight: "800", },
+  weekRow: { flexDirection: "row" },
   monthCell: {
     width: "14.28%",
     minHeight: 58,
@@ -750,20 +757,20 @@ const styles = StyleSheet.create({
   },
   monthCellEmpty: { width: "14.28%", minHeight: 58 },
   monthChips: { flexDirection: "row", flexWrap: "wrap", gap: 2, marginTop: 2 },
-  monthNum: { color: colors.ink, fontSize: 13, fontWeight: "800", textAlign: "right" },
+  monthNum: { color: colors.ink, fontSize: 13, fontWeight: "800", },
   miniCount: { fontSize: 11, fontWeight: "800" },
-  rosterScreen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, direction: "rtl" },
+  rosterScreen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, },
   rosterHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  rosterTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", writingDirection: "rtl", flex: 1, textAlign: "right" },
+  rosterTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", flex: 1, },
   rosterList: { paddingBottom: 24 },
-  emptyDay: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 12 },
+  emptyDay: { color: colors.muted, marginTop: 12 },
   group: { marginBottom: 16 },
   groupHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  groupTitle: { fontWeight: "800", writingDirection: "rtl", fontSize: 16 },
+  groupTitle: { fontWeight: "800", fontSize: 16 },
   groupCount: { fontWeight: "800" },
   personRow: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 6, borderRightWidth: 4 },
-  personName: { color: colors.ink, fontWeight: "700", textAlign: "right", writingDirection: "rtl" },
-  personNote: { color: colors.muted, textAlign: "right", writingDirection: "rtl", marginTop: 2 },
+  personName: { color: colors.ink, fontWeight: "700", },
+  personNote: { color: colors.muted, marginTop: 2 },
   footer: {
     marginTop: 22,
     textAlign: "center",
