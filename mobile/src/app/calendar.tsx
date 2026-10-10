@@ -45,14 +45,26 @@ type Chip = {
   count: number;
 };
 
+type StatusLine = {
+  key: string;
+  color: string;
+  icon: (typeof STATUS)[number]["icon"];
+  label: string;
+  count: number;
+  names: string;
+};
+
 type DayView = {
   iso: string;
   dayNum: number;
   weekday: string;
   monthShort: string;
   chips: Chip[];
+  lines: StatusLine[];
   missingManager: boolean;
   managers: string[];
+  parkingCount: number;
+  meetingCount: number;
 };
 
 const WEEKDAY = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
@@ -149,17 +161,58 @@ function chipsFromRows(rows: Schedule[]): Chip[] {
   return chipsFromCounts(counts);
 }
 
+function daysInMonth(ym: string): number {
+  return Number(monthEnd(ym).slice(8));
+}
+
+function monthWeekCount(ym: string): number {
+  return Math.ceil(daysInMonth(ym) / 7);
+}
+
+function datesFromDay(year: number, monthIndex: number, start: number, end: number): Date[] {
+  const days: Date[] = [];
+  for (let day = start; day <= end; day++) days.push(new Date(year, monthIndex, day));
+  return days;
+}
+
+function weekDates(ym: string, week: number): Date[] {
+  const [y, m] = ym.split("-").map(Number);
+  const last = daysInMonth(ym);
+  const start = (week - 1) * 7 + 1;
+  if (start > last) return [];
+  return datesFromDay(y, m - 1, start, Math.min(start + 6, last));
+}
+
+function countByDate<T extends { workDate: string }>(items: T[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) counts[item.workDate] = (counts[item.workDate] ?? 0) + 1;
+  return counts;
+}
+
+async function optionalItems<T>(path: string): Promise<T[]> {
+  try {
+    const data = await api<{ items: T[] }>(path);
+    return data.items;
+  } catch {
+    return [];
+  }
+}
+
 export default function CalendarScreen() {
   const { status, user } = useAuth();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("seven");
   const [month, setMonth] = useState(currentYm);
+  const [sevenPick, setSevenPick] = useState<"upcoming" | number>("upcoming");
+  const [fifteenPick, setFifteenPick] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [weekRows, setWeekRows] = useState<Schedule[]>([]);
   const [monthRows, setMonthRows] = useState<Schedule[]>([]);
   const [monthDays, setMonthDays] = useState<DayAgg[]>([]);
+  const [parkingCounts, setParkingCounts] = useState<Record<string, number>>({});
+  const [meetingCounts, setMeetingCounts] = useState<Record<string, number>>({});
   const [openIso, setOpenIso] = useState<string | null>(null);
   const [dayItems, setDayItems] = useState<Schedule[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
@@ -169,23 +222,29 @@ export default function CalendarScreen() {
     if (status !== "signedIn") return;
     let cancelled = false;
     const days7 = next7Days();
-    const from = isoFromDate(days7[0]);
-    const to = isoFromDate(days7[6]);
+    const upcomingFrom = isoFromDate(days7[0]);
+    const upcomingTo = isoFromDate(days7[6]);
+    const spanFrom = upcomingFrom < `${month}-01` ? upcomingFrom : `${month}-01`;
+    const spanTo = upcomingTo > monthEnd(month) ? upcomingTo : monthEnd(month);
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const [people, week, monthSchedules, monthAgg] = await Promise.all([
+        const [people, week, monthSchedules, monthAgg, parking, meetings] = await Promise.all([
           loadCompanyEmployees(),
-          api<{ items: Schedule[] }>(`/api/schedules?from=${from}&to=${to}&scope=company`),
+          api<{ items: Schedule[] }>(`/api/schedules?from=${upcomingFrom}&to=${upcomingTo}&scope=company`),
           api<{ items: Schedule[] }>(`/api/schedules?from=${month}-01&to=${monthEnd(month)}&scope=company`),
           api<{ days: DayAgg[] }>(`/api/schedules/month/${month}?scope=company`),
+          optionalItems<{ workDate: string }>(`/api/parking/reservations?from=${spanFrom}&to=${spanTo}`),
+          optionalItems<{ workDate: string }>(`/api/meeting-rooms/bookings?from=${spanFrom}&to=${spanTo}`),
         ]);
         if (cancelled) return;
         setEmployees(people);
         setWeekRows(week.items);
         setMonthRows(monthSchedules.items);
         setMonthDays(monthAgg.days);
+        setParkingCounts(countByDate(parking));
+        setMeetingCounts(countByDate(meetings));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "לא ניתן לטעון את היומן");
       } finally {
@@ -212,6 +271,18 @@ export default function CalendarScreen() {
     return (iso: string, rows: Schedule[], counts?: Record<string, number>): DayView => {
       const list = activeRows(rows).filter((row) => row.workDate === iso);
       const chips = counts ? chipsFromCounts(counts) : chipsFromRows(list);
+      const lines: StatusLine[] = STATUS.flatMap((meta) => {
+        const names = [
+          ...new Set(
+            list
+              .filter((row) => row.status === meta.key)
+              .map((row) => byId.get(row.employeeId)?.fullName)
+              .filter((name): name is string => Boolean(name))
+          ),
+        ].sort((a, b) => a.localeCompare(b, "he"));
+        if (names.length === 0) return [];
+        return [{ ...meta, label: STATUS_LABEL[meta.key] ?? meta.key, count: names.length, names: names.join(", ") }];
+      });
       const date = new Date(`${iso}T12:00:00`);
       const managers = [
         ...new Set(
@@ -227,25 +298,31 @@ export default function CalendarScreen() {
         weekday: WEEKDAY[date.getDay()] ?? "",
         monthShort: date.toLocaleDateString("he-IL", { month: "short" }),
         chips,
+        lines,
         missingManager: canSeeGaps && leaders.size > 0 && managers.length === 0,
         managers,
+        parkingCount: parkingCounts[iso] ?? 0,
+        meetingCount: meetingCounts[iso] ?? 0,
       };
     };
-  }, [employees, canSeeGaps, utcToday]);
+  }, [employees, canSeeGaps, utcToday, parkingCounts, meetingCounts]);
 
-  const seven = useMemo(
-    () => next7Days().map((date) => describe(isoFromDate(date), weekRows)),
-    [describe, weekRows]
-  );
+  const weekTotal = monthWeekCount(month);
+  const activeWeek = typeof sevenPick === "number" ? Math.min(sevenPick, weekTotal) : "upcoming";
+  const seven = useMemo(() => {
+    const dates = activeWeek === "upcoming" ? next7Days() : weekDates(month, activeWeek);
+    return dates.map((date) => describe(isoFromDate(date), activeWeek === "upcoming" ? weekRows : monthRows));
+  }, [describe, activeWeek, month, weekRows, monthRows]);
 
   const fifteen = useMemo(() => {
-    const last = Number(monthEnd(month).slice(8));
-    const take = Math.min(15, last);
-    return Array.from({ length: take }, (_, index) => {
-      const iso = `${month}-${String(index + 1).padStart(2, "0")}`;
-      return describe(iso, monthRows, countsFromAgg(monthDays.find((day) => day._id === iso)));
+    const last = daysInMonth(month);
+    const fromDay = fifteenPick === 1 ? 1 : 16;
+    const toDay = fifteenPick === 1 ? Math.min(15, last) : last;
+    return Array.from({ length: Math.max(0, toDay - fromDay + 1) }, (_, index) => {
+      const iso = `${month}-${String(fromDay + index).padStart(2, "0")}`;
+      return describe(iso, monthRows);
     });
-  }, [describe, month, monthDays, monthRows]);
+  }, [describe, month, fifteenPick, monthRows]);
 
   const weeks = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
@@ -324,10 +401,29 @@ export default function CalendarScreen() {
 
         {tab === "seven" ? (
           <>
-            <Text style={styles.subtitle}>7 הימים הקרובים</Text>
-            <View style={styles.grid}>
+            <Text style={styles.subtitle}>
+              {activeWeek === "upcoming" ? "7 הימים הקרובים" : `שבוע ${activeWeek} בחודש`}
+            </Text>
+            <View style={styles.picks}>
+              <Pressable
+                onPress={() => setSevenPick("upcoming")}
+                style={[styles.pick, activeWeek === "upcoming" && styles.pickOn]}
+              >
+                <Text style={[styles.pickText, activeWeek === "upcoming" && styles.pickTextOn]}>הקרובים</Text>
+              </Pressable>
+              {Array.from({ length: weekTotal }, (_, index) => index + 1).map((week) => (
+                <Pressable
+                  key={week}
+                  onPress={() => setSevenPick(week)}
+                  style={[styles.pick, activeWeek === week && styles.pickOn]}
+                >
+                  <Text style={[styles.pickText, activeWeek === week && styles.pickTextOn]}>שבוע {week}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.agendaList}>
               {seven.map((day) => (
-                <DayCard key={day.iso} day={day} today={today} wide onPress={() => void openDay(day.iso)} />
+                <AgendaRow key={day.iso} day={day} today={today} onPress={() => void openDay(day.iso)} />
               ))}
             </View>
           </>
@@ -335,13 +431,29 @@ export default function CalendarScreen() {
 
         {tab === "fifteen" ? (
           <>
-            <Text style={styles.subtitle}>תצוגת חודש — 15 ימים</Text>
+            <Text style={styles.subtitle}>
+              {fifteenPick === 1 ? `1–${Math.min(15, daysInMonth(month))} בחודש` : `16–${daysInMonth(month)} בחודש`}
+            </Text>
+            <View style={styles.picks}>
+              <Pressable onPress={() => setFifteenPick(1)} style={[styles.pick, fifteenPick === 1 && styles.pickOn]}>
+                <Text style={[styles.pickText, fifteenPick === 1 && styles.pickTextOn]}>
+                  1–{Math.min(15, daysInMonth(month))}
+                </Text>
+              </Pressable>
+              {daysInMonth(month) > 15 ? (
+                <Pressable onPress={() => setFifteenPick(2)} style={[styles.pick, fifteenPick === 2 && styles.pickOn]}>
+                  <Text style={[styles.pickText, fifteenPick === 2 && styles.pickTextOn]}>
+                    16–{daysInMonth(month)}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
             <Pressable onPress={() => setTab("month")} style={styles.openMonth}>
               <Text style={styles.openMonthText}>פתיחת לוח חודש מלא</Text>
             </Pressable>
-            <View style={styles.grid}>
+            <View style={styles.agendaList}>
               {fifteen.map((day) => (
-                <DayCard key={day.iso} day={day} today={today} wide={false} onPress={() => void openDay(day.iso)} />
+                <AgendaRow key={day.iso} day={day} today={today} onPress={() => void openDay(day.iso)} />
               ))}
             </View>
           </>
@@ -402,30 +514,52 @@ export default function CalendarScreen() {
   );
 }
 
-function DayCard({ day, today, wide, onPress }: { day: DayView; today: string; wide: boolean; onPress: () => void }) {
+function AgendaRow({ day, today, onPress }: { day: DayView; today: string; onPress: () => void }) {
   const isToday = day.iso === today;
   return (
-    <Pressable onPress={onPress} style={[wide ? styles.day : styles.dayThird, isToday && styles.dayToday, day.missingManager && styles.dayMissing]}>
-      <View style={styles.dayHead}>
-        <Text style={styles.dayMeta}>
-          {day.weekday} · {day.monthShort}
-        </Text>
-        {isToday ? <Text style={styles.today}>היום</Text> : null}
+    <Pressable onPress={onPress} style={[styles.agenda, isToday && styles.dayToday, day.missingManager && styles.dayMissing]}>
+      <View style={[styles.agendaDate, isToday && styles.agendaDateToday]}>
+        <Text style={[styles.agendaWeekday, isToday && styles.agendaDateText]}>יום {day.weekday}</Text>
+        <Text style={[styles.agendaNum, isToday && styles.agendaDateText]}>{day.dayNum}</Text>
+        <Text style={[styles.agendaMonth, isToday && styles.agendaDateText]}>{day.monthShort}</Text>
+        {isToday ? <Text style={styles.agendaToday}>היום</Text> : null}
       </View>
-      <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>{day.dayNum}</Text>
-      <View style={styles.chips}>
-        {day.chips.map((chip) => (
-          <View key={chip.key} style={[styles.chip, { backgroundColor: `${chip.color}24` }]}>
-            <MaterialIcons name={chip.icon} size={14} color={chip.color} />
-            <Text style={[styles.chipText, { color: chip.color }]}>{chip.count}</Text>
+      <View style={styles.agendaBody}>
+        {day.lines.length === 0 ? <Text style={styles.agendaEmpty}>אין שיבוץ ליום זה</Text> : null}
+        {day.lines.map((line) => (
+          <View key={line.key} style={styles.line}>
+            <View style={[styles.lineChip, { backgroundColor: `${line.color}24` }]}>
+              <MaterialIcons name={line.icon} size={14} color={line.color} />
+              <Text style={[styles.lineChipText, { color: line.color }]}>
+                {line.label} {line.count}
+              </Text>
+            </View>
+            <Text style={styles.lineNames}>{line.names}</Text>
           </View>
         ))}
+        {day.missingManager ? (
+          <Text style={styles.missing}>לא שובץ מנהל במשרד</Text>
+        ) : day.managers.length > 0 ? (
+          <Text style={styles.managers}>הנהלה במשרד: {day.managers.join(" · ")}</Text>
+        ) : null}
+        {day.parkingCount > 0 || day.meetingCount > 0 ? (
+          <View style={styles.extraRow}>
+            {day.parkingCount > 0 ? (
+              <View style={styles.extra}>
+                <MaterialIcons name="local-parking" size={16} color="#0d47a1" />
+                <Text style={styles.extraParking}>{day.parkingCount}</Text>
+              </View>
+            ) : null}
+            {day.meetingCount > 0 ? (
+              <View style={styles.extra}>
+                <MaterialIcons name="meeting-room" size={16} color="#004d40" />
+                <Text style={styles.extraMeeting}>{day.meetingCount}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
-      {day.missingManager ? (
-        <Text style={styles.missing}>לא שובץ מנהל במשרד</Text>
-      ) : day.managers.length > 0 ? (
-        <Text style={styles.managers}>הנהלה במשרד: {day.managers.join(" · ")}</Text>
-      ) : null}
+      <MaterialIcons name="chevron-left" size={22} color={colors.muted} />
     </Pressable>
   );
 }
@@ -525,49 +659,67 @@ const styles = StyleSheet.create({
   monthButton: { padding: 8 },
   monthLabel: { color: colors.ink, fontSize: 16, fontWeight: "800", writingDirection: "rtl" },
   subtitle: { color: colors.muted, fontSize: 15, writingDirection: "rtl", textAlign: "right", marginBottom: 8 },
+  picks: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  pick: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: "#ffffff",
+  },
+  pickOn: { backgroundColor: colors.orange, borderColor: colors.orange },
+  pickText: { color: colors.ink, fontWeight: "700", writingDirection: "rtl" },
+  pickTextOn: { color: "#ffffff" },
+  agendaList: { gap: 10 },
+  agenda: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.08)",
+    overflow: "hidden",
+  },
+  agendaDate: {
+    width: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    backgroundColor: "rgba(15,23,42,0.04)",
+    gap: 1,
+  },
+  agendaDateToday: { backgroundColor: colors.orange },
+  agendaDateText: { color: "#ffffff" },
+  agendaWeekday: { color: colors.muted, fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
+  agendaNum: { color: colors.ink, fontSize: 28, fontWeight: "800", lineHeight: 32 },
+  agendaMonth: { color: colors.muted, fontSize: 12, fontWeight: "700", writingDirection: "rtl" },
+  agendaToday: { color: "#ffffff", fontSize: 11, fontWeight: "800", marginTop: 2, writingDirection: "rtl" },
+  agendaBody: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 10, gap: 6 },
+  agendaEmpty: { color: colors.muted, textAlign: "right", writingDirection: "rtl" },
+  line: { gap: 4 },
+  lineChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  lineChipText: { fontSize: 12, fontWeight: "800", writingDirection: "rtl" },
+  lineNames: { color: colors.ink, fontSize: 14, textAlign: "right", writingDirection: "rtl", lineHeight: 20 },
+  extraRow: { flexDirection: "row", gap: 12, marginTop: 2 },
+  extra: { flexDirection: "row", alignItems: "center", gap: 2 },
+  extraParking: { color: "#0d47a1", fontWeight: "800" },
+  extraMeeting: { color: "#004d40", fontWeight: "800" },
   openMonth: { alignSelf: "flex-start", marginBottom: 12 },
   openMonthText: { color: colors.orange, fontWeight: "800", writingDirection: "rtl", textAlign: "right" },
   loader: { marginVertical: 24 },
   error: { color: colors.danger, textAlign: "right", writingDirection: "rtl", marginBottom: 12 },
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 10 },
-  day: {
-    width: "48%",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(15,23,42,0.08)",
-    padding: 10,
-    minHeight: 148,
-  },
-  dayThird: {
-    width: "48%",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(15,23,42,0.08)",
-    padding: 10,
-    minHeight: 132,
-  },
   dayToday: { borderColor: colors.orange, backgroundColor: "rgba(249,115,22,0.08)" },
   dayMissing: { borderColor: "rgba(239,68,68,0.55)", backgroundColor: "rgba(239,68,68,0.06)" },
-  dayHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  dayMeta: { color: colors.muted, fontSize: 13, fontWeight: "700", writingDirection: "rtl" },
-  today: {
-    color: "#ffffff",
-    backgroundColor: colors.orange,
-    overflow: "hidden",
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    fontSize: 11,
-    fontWeight: "700",
-    writingDirection: "rtl",
-  },
-  dayNum: { color: colors.ink, fontSize: 28, fontWeight: "800", textAlign: "right", marginTop: 2 },
   dayNumToday: { color: colors.orange },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-  chipText: { fontSize: 13, fontWeight: "800" },
   missing: { color: "#b91c1c", fontSize: 12, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
   managers: { color: "#15803d", fontSize: 12, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginTop: 8 },
   weekHead: { direction: "rtl", flexDirection: "row" },
