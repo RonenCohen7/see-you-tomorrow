@@ -109,9 +109,17 @@ export async function getPreferenceRemindersEnabled(): Promise<boolean> {
   return doc.preferenceRemindersEnabled !== false;
 }
 
+export async function getPreferenceInstantApprove(): Promise<boolean> {
+  const conn = await getConnection(DB_NAMES.settings);
+  const Model = getOrganizationSettingsModel(conn);
+  const doc = await Model.findOne().select("preferenceInstantApprove").lean();
+  return doc?.preferenceInstantApprove === true;
+}
+
 export async function patchOrgSchedulesPrefs(input: {
   preferenceMinDaysAhead?: number;
   preferenceRemindersEnabled?: boolean;
+  preferenceInstantApprove?: boolean;
 }) {
   const conn = await getConnection(DB_NAMES.settings);
   const Model = getOrganizationSettingsModel(conn);
@@ -124,6 +132,9 @@ export async function patchOrgSchedulesPrefs(input: {
   }
   if (input.preferenceRemindersEnabled !== undefined) {
     patch.preferenceRemindersEnabled = input.preferenceRemindersEnabled;
+  }
+  if (input.preferenceInstantApprove !== undefined) {
+    patch.preferenceInstantApprove = input.preferenceInstantApprove;
   }
   const doc = await Model.findOneAndUpdate({}, { $set: patch }, { upsert: true, new: true });
   return doc!;
@@ -189,6 +200,7 @@ export async function getOrgSchedulesFull() {
     managerCanEditSchedules: doc.managerCanEditSchedules,
     preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 0,
     preferenceRemindersEnabled: doc.preferenceRemindersEnabled !== false,
+    preferenceInstantApprove: doc.preferenceInstantApprove === true,
     disabledBuiltinScheduleStatuses,
     customScheduleStatuses: customs.map((c): CustomScheduleStatusDef => {
       const base: CustomScheduleStatusDef = c.labelEn?.trim()

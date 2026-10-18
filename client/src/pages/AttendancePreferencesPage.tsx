@@ -143,11 +143,13 @@ export default function AttendancePreferencesPage() {
           ? { preference: draft[d.workDate] as PrefStatus }
           : {}),
       }));
-      await api.put("/api/schedules/preferences/attendance", {
-        weekStartSunday: week,
-        days: dayRows,
-        submit,
-      });
+      return (
+        await api.put<{ instantApplied?: number }>("/api/schedules/preferences/attendance", {
+          weekStartSunday: week,
+          days: dayRows,
+          submit,
+        })
+      ).data;
     },
     onSuccess: async (_data, vars) => {
       if (vars === false) {
@@ -349,7 +351,7 @@ export default function AttendancePreferencesPage() {
             onClick={() => {
               const daySnapshot = [...days];
               saveMut.mutate(true, {
-                onSuccess: async () => {
+                onSuccess: async (res) => {
                   setPreferEmptyDraft(true);
                   const empty: Record<string, PrefStatus | ""> = {};
                   for (const row of daySnapshot) empty[row.workDate] = "";
@@ -357,7 +359,10 @@ export default function AttendancePreferencesPage() {
                   setSubmitConfirmOpen(false);
                   await qc.invalidateQueries({ queryKey: ["attendance-pref", week] });
                   await qc.invalidateQueries({ queryKey: ["pref-pipeline", week] });
-                  setToast({ ok: true, msg: t("prefToastSubmittedOk") });
+                  setToast({
+                    ok: true,
+                    msg: res?.instantApplied !== undefined ? t("prefToastSubmittedInstant") : t("prefToastSubmittedOk"),
+                  });
                 },
                 onError: (e) =>
                   setToast({

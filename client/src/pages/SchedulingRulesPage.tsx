@@ -33,6 +33,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { useRole } from "../store/authContext";
 import { locationsPickerUrl } from "../utils/referencePickerUrls";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
 
@@ -215,6 +216,22 @@ export default function SchedulingRulesPage() {
     for (const l of locationRows) m.set(l.id, l.name);
     return m;
   }, [locationRows]);
+
+  const role = useRole();
+  const orgQ = useQuery({
+    queryKey: ["org-settings"],
+    queryFn: async () =>
+      (await api.get<{ preferenceInstantApprove?: boolean }>("/api/schedules/org-settings")).data,
+  });
+  const instantApproveMut = useMutation({
+    mutationFn: async (value: boolean) =>
+      api.patch("/api/schedules/org-settings", { preferenceInstantApprove: value }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["org-settings"] });
+      setToast({ ok: true, msg: t("success") });
+    },
+    onError: (e) => setToast({ ok: false, msg: apiErrorMessage(e, t("error")) }),
+  });
 
   const patchMut = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -414,6 +431,27 @@ export default function SchedulingRulesPage() {
       <Alert severity="info" sx={{ mb: 2 }}>
         {t("schedulingRulesManualSaveNote")}
       </Alert>
+
+      <Card variant="outlined" sx={{ mb: 3, p: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={orgQ.data?.preferenceInstantApprove === true}
+              disabled={role !== "admin" || orgQ.isLoading || instantApproveMut.isPending}
+              onChange={(_, v) => instantApproveMut.mutate(v)}
+            />
+          }
+          label={<Typography variant="h6">{t("schedulingRulesInstantApproveTitle")}</Typography>}
+        />
+        <Typography variant="body2" color="text.secondary">
+          {t("schedulingRulesInstantApproveHint")}
+        </Typography>
+        {role !== "admin" ? (
+          <Typography variant="caption" color="text.secondary">
+            {t("schedulingRulesInstantApproveAdminOnly")}
+          </Typography>
+        ) : null}
+      </Card>
 
       <Card variant="outlined" sx={{ mb: 3, p: 2 }}>
         <Typography variant="h6" gutterBottom>

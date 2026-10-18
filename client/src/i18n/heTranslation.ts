@@ -484,6 +484,11 @@ export const heTranslation = {
     "דורש מינימום מנהלים/אדמין במשרד ביום עבודה (לא שישי–שבת) בוולידציה של AI.",
   schedulingRulesTypeIntro_manager_office_auto_parking:
     "כשמנהל/אדמין נשמר במשרד עם מיקום — המערכת מנסה להקצות חניית אורח.",
+  schedulingRulesInstantApproveTitle: "אישור מיידי של הגשות עובדים",
+  schedulingRulesInstantApproveHint:
+    "כשפעיל: כל שיבוץ שעובד מגיש נכתב מיד ללוח ומוצג לכולם — ללא AI וללא אישור מנהל. ההגשה מחליפה גם שיבוץ שהוזן ידנית לאותו יום.",
+  schedulingRulesInstantApproveAdminOnly: "רק אדמין יכול לשנות הגדרה זו.",
+  prefToastSubmittedInstant: "הוגש ואושר — השיבוץ מופיע בלוח",
   schedulingRulesManualSaveNote:
     "החוקים חלים על אישור המלצות AI — שמירה ידנית בלוח אינה נחסמת על ידם כיום.",
   schedulingRulesAdvancedSection: "טפסים מפורטים (מתקדמים)",

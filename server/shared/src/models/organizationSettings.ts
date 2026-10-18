@@ -19,6 +19,11 @@ export interface OrganizationSettingsDoc {
   preferenceMinDaysAhead: number;
   /** Periodic reminder to submit weekly preferences (Socket + in-app notification). */
   preferenceRemindersEnabled: boolean;
+  /**
+   * Submitted preferences are written straight to the board (no AI pipeline, no manager queue)
+   * and replace any existing entry for those days, including manual ones.
+   */
+  preferenceInstantApprove: boolean;
   /** Extra schedule status options (shown in schedule UI beside office/home/vacation/sick/off). */
   customScheduleStatuses?: CustomScheduleStatusDef[];
   /** Built-in schedule keys hidden from assignment pickers and reports (subset of SCHEDULE_STATUSES). */
@@ -31,6 +36,7 @@ const organizationSettingsSchema = new Schema<OrganizationSettingsDoc>(
     managerCanEditSchedules: { type: Boolean, default: false },
     preferenceMinDaysAhead: { type: Number, default: 0, min: 0, max: 60 },
     preferenceRemindersEnabled: { type: Boolean, default: true },
+    preferenceInstantApprove: { type: Boolean, default: false },
     customScheduleStatuses: {
       type: [
         new Schema(

@@ -91,6 +91,27 @@ export async function upsertQueuedOnSubmit(departmentId: string, weekStartSunday
   return doc as DepartmentPreferenceCycleDoc & { _id: Types.ObjectId };
 }
 
+/** Instant-approve mode: the submission is already on the board, so the cycle closes without a batch. */
+export async function markAppliedInstant(departmentId: string, weekStartSunday: string) {
+  await supersedeOpenPipelineBatches(departmentId, weekStartSunday);
+
+  const Cycle = await cycleModel();
+  await Cycle.findOneAndUpdate(
+    {
+      departmentId: new mongoose.Types.ObjectId(departmentId),
+      weekStartSunday,
+    },
+    {
+      $set: {
+        pipelineStatus: "applied" as DepartmentPreferencePipelineStatus,
+        lastError: undefined,
+      },
+      $unset: { aiBatchId: "", preferenceSummary: "" },
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+}
+
 export async function findByDepartmentWeek(departmentId: string, weekStartSunday: string) {
   const Cycle = await cycleModel();
   return Cycle.findOne({

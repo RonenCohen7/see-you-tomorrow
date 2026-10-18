@@ -40,7 +40,11 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
     await orgSettings.setManagerCanEditSchedules(Boolean(req.body.managerCanEditSchedules));
   }
 
-  const prefPatch: { preferenceMinDaysAhead?: number; preferenceRemindersEnabled?: boolean } = {};
+  const prefPatch: {
+    preferenceMinDaysAhead?: number;
+    preferenceRemindersEnabled?: boolean;
+    preferenceInstantApprove?: boolean;
+  } = {};
   if (req.body.preferenceMinDaysAhead !== undefined) {
     const n = Number(req.body.preferenceMinDaysAhead);
     if (!Number.isFinite(n)) {
@@ -51,9 +55,16 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
   if (req.body.preferenceRemindersEnabled !== undefined) {
     prefPatch.preferenceRemindersEnabled = Boolean(req.body.preferenceRemindersEnabled);
   }
+  if (req.body.preferenceInstantApprove !== undefined) {
+    if (req.user?.role !== "admin") {
+      throw new AppError(403, "רק אדמין יכול לשנות אישור מיידי של שיבוצים", "FORBIDDEN");
+    }
+    prefPatch.preferenceInstantApprove = Boolean(req.body.preferenceInstantApprove);
+  }
   if (
     prefPatch.preferenceMinDaysAhead !== undefined ||
-    prefPatch.preferenceRemindersEnabled !== undefined
+    prefPatch.preferenceRemindersEnabled !== undefined ||
+    prefPatch.preferenceInstantApprove !== undefined
   ) {
     await orgSettings.patchOrgSchedulesPrefs(prefPatch);
   }

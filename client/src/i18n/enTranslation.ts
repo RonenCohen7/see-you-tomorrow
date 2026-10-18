@@ -488,6 +488,11 @@ export const enTranslation = {
     "Requires a minimum count of managers/admins marked office per weekday (Fri–Sat excluded) in AI validation.",
   schedulingRulesTypeIntro_manager_office_auto_parking:
     "When a manager/admin is saved as office with a location, the system tries to reserve guest parking.",
+  schedulingRulesInstantApproveTitle: "Instant approval of employee submissions",
+  schedulingRulesInstantApproveHint:
+    "When on: every schedule an employee submits is written to the board immediately and shown to everyone — no AI and no manager approval. A submission also replaces a manual entry for that day.",
+  schedulingRulesInstantApproveAdminOnly: "Only an admin can change this setting.",
+  prefToastSubmittedInstant: "Submitted and approved — the schedule is on the board",
   schedulingRulesManualSaveNote:
     "These rules apply to AI recommendation approval — manual schedule edits are not blocked by them today.",
   schedulingRulesAdvancedSection: "Detailed forms (advanced)",

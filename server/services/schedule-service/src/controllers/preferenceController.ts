@@ -15,6 +15,7 @@ import {
   canEnqueuePreferenceAi,
   enqueuePreferenceAiJob,
 } from "../services/preferenceAiPipelineWorker.js";
+import { applySubmittedPreferenceInstantly } from "../services/instantPreferenceApply.js";
 import { israeliWeekDatesFromSundayUtc } from "../utils/dateRange.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -90,7 +91,20 @@ export async function putWeek(req: AuthRequest, res: Response) {
     submit: parsed.data.submit,
   });
 
-  if (parsed.data.submit) {
+  let instantApplied: number | undefined;
+  if (parsed.data.submit && (await orgSettings.getPreferenceInstantApprove())) {
+    instantApplied = await applySubmittedPreferenceInstantly({
+      employeeId: req.user.id,
+      departmentId: deptId,
+      days: saved.days,
+    });
+    if (deptId) await cycleSvc.markAppliedInstant(deptId, parsed.data.weekStartSunday);
+    void notify.notifyPreferenceSubmitted({
+      employeeId: req.user.id,
+      ...(deptId ? { departmentId: deptId } : {}),
+      weekStartSunday: parsed.data.weekStartSunday,
+    });
+  } else if (parsed.data.submit) {
     if (deptId && canEnqueuePreferenceAi(parsed.data.weekStartSunday)) {
       await cycleSvc.upsertQueuedOnSubmit(deptId, parsed.data.weekStartSunday);
       void enqueuePreferenceAiJob(deptId, parsed.data.weekStartSunday);
@@ -107,7 +121,7 @@ export async function putWeek(req: AuthRequest, res: Response) {
     });
   }
 
-  res.json(saved);
+  res.json(instantApplied === undefined ? saved : { ...saved, instantApplied });
 }
 
 const pipelineQuery = z.object({
