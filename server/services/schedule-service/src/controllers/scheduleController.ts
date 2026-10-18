@@ -44,6 +44,7 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
     preferenceMinDaysAhead?: number;
     preferenceRemindersEnabled?: boolean;
     preferenceInstantApprove?: boolean;
+    preferenceOnlySubmitted?: boolean;
   } = {};
   if (req.body.preferenceMinDaysAhead !== undefined) {
     const n = Number(req.body.preferenceMinDaysAhead);
@@ -61,10 +62,17 @@ export async function patchOrgSettings(req: AuthRequest, res: Response) {
     }
     prefPatch.preferenceInstantApprove = Boolean(req.body.preferenceInstantApprove);
   }
+  if (req.body.preferenceOnlySubmitted !== undefined) {
+    if (req.user?.role !== "admin") {
+      throw new AppError(403, "רק אדמין יכול לשנות הגדרה זו", "FORBIDDEN");
+    }
+    prefPatch.preferenceOnlySubmitted = Boolean(req.body.preferenceOnlySubmitted);
+  }
   if (
     prefPatch.preferenceMinDaysAhead !== undefined ||
     prefPatch.preferenceRemindersEnabled !== undefined ||
-    prefPatch.preferenceInstantApprove !== undefined
+    prefPatch.preferenceInstantApprove !== undefined ||
+    prefPatch.preferenceOnlySubmitted !== undefined
   ) {
     await orgSettings.patchOrgSchedulesPrefs(prefPatch);
   }

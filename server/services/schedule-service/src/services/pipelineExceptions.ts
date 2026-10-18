@@ -33,6 +33,8 @@ export function findPipelineExceptions(input: {
   submitted: SubmittedPreferenceDoc[];
   minOfficePerDay: number;
   maxOfficeCapacity: number;
+  /** Items hold only submitters, so a low office count is the employees' choice, not a gap to flag. */
+  skipOfficeShortfall?: boolean;
 }): ScheduleAiBatchException[] {
   const prefBySlot = new Map<string, string>();
   for (const doc of input.submitted) {
@@ -67,7 +69,7 @@ export function findPipelineExceptions(input: {
       const requested = prefBySlot.get(`${r.employeeId}|${date}`);
       return !requested || requested === "office";
     }).length;
-    if (rows.length >= input.minOfficePerDay && available < input.minOfficePerDay) {
+    if (!input.skipOfficeShortfall && rows.length >= input.minOfficePerDay && available < input.minOfficePerDay) {
       exceptions.push({ kind: "office_shortfall", date, officeCount: available, required: input.minOfficePerDay });
     }
     if (officeCount > input.maxOfficeCapacity) {

@@ -116,10 +116,18 @@ export async function getPreferenceInstantApprove(): Promise<boolean> {
   return doc?.preferenceInstantApprove === true;
 }
 
+export async function getPreferenceOnlySubmitted(): Promise<boolean> {
+  const conn = await getConnection(DB_NAMES.settings);
+  const Model = getOrganizationSettingsModel(conn);
+  const doc = await Model.findOne().select("preferenceOnlySubmitted").lean();
+  return doc?.preferenceOnlySubmitted === true;
+}
+
 export async function patchOrgSchedulesPrefs(input: {
   preferenceMinDaysAhead?: number;
   preferenceRemindersEnabled?: boolean;
   preferenceInstantApprove?: boolean;
+  preferenceOnlySubmitted?: boolean;
 }) {
   const conn = await getConnection(DB_NAMES.settings);
   const Model = getOrganizationSettingsModel(conn);
@@ -135,6 +143,9 @@ export async function patchOrgSchedulesPrefs(input: {
   }
   if (input.preferenceInstantApprove !== undefined) {
     patch.preferenceInstantApprove = input.preferenceInstantApprove;
+  }
+  if (input.preferenceOnlySubmitted !== undefined) {
+    patch.preferenceOnlySubmitted = input.preferenceOnlySubmitted;
   }
   const doc = await Model.findOneAndUpdate({}, { $set: patch }, { upsert: true, new: true });
   return doc!;
@@ -201,6 +212,7 @@ export async function getOrgSchedulesFull() {
     preferenceMinDaysAhead: typeof doc.preferenceMinDaysAhead === "number" ? doc.preferenceMinDaysAhead : 0,
     preferenceRemindersEnabled: doc.preferenceRemindersEnabled !== false,
     preferenceInstantApprove: doc.preferenceInstantApprove === true,
+    preferenceOnlySubmitted: doc.preferenceOnlySubmitted === true,
     disabledBuiltinScheduleStatuses,
     customScheduleStatuses: customs.map((c): CustomScheduleStatusDef => {
       const base: CustomScheduleStatusDef = c.labelEn?.trim()

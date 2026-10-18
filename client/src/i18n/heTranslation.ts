@@ -487,7 +487,10 @@ export const heTranslation = {
   schedulingRulesInstantApproveTitle: "אישור מיידי של הגשות עובדים",
   schedulingRulesInstantApproveHint:
     "כשפעיל: כל שיבוץ שעובד מגיש נכתב מיד ללוח ומוצג לכולם — ללא AI וללא אישור מנהל. ההגשה מחליפה גם שיבוץ שהוזן ידנית לאותו יום.",
-  schedulingRulesInstantApproveAdminOnly: "רק אדמין יכול לשנות הגדרה זו.",
+  schedulingRulesInstantApproveAdminOnly: "רק אדמין יכול לשנות הגדרות אלו.",
+  schedulingRulesOnlySubmittedTitle: "שבץ רק עובדים שהגישו",
+  schedulingRulesOnlySubmittedHint:
+    "כשפעיל: המערכת לא משלימה שיבוצים — רק ימים שעובד הגיש בפועל נכנסים ללוח. עובד שלא הגיש לא ישובץ אוטומטית.",
   prefToastSubmittedInstant: "הוגש ואושר — השיבוץ מופיע בלוח",
   schedulingRulesManualSaveNote:
     "החוקים חלים על אישור המלצות AI — שמירה ידנית בלוח אינה נחסמת על ידם כיום.",

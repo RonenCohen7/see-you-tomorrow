@@ -24,6 +24,8 @@ export interface OrganizationSettingsDoc {
    * and replace any existing entry for those days, including manual ones.
    */
   preferenceInstantApprove: boolean;
+  /** The preference pipeline only proposes days an employee actually submitted — nobody else is filled in. */
+  preferenceOnlySubmitted: boolean;
   /** Extra schedule status options (shown in schedule UI beside office/home/vacation/sick/off). */
   customScheduleStatuses?: CustomScheduleStatusDef[];
   /** Built-in schedule keys hidden from assignment pickers and reports (subset of SCHEDULE_STATUSES). */
@@ -37,6 +39,7 @@ const organizationSettingsSchema = new Schema<OrganizationSettingsDoc>(
     preferenceMinDaysAhead: { type: Number, default: 0, min: 0, max: 60 },
     preferenceRemindersEnabled: { type: Boolean, default: true },
     preferenceInstantApprove: { type: Boolean, default: false },
+    preferenceOnlySubmitted: { type: Boolean, default: false },
     customScheduleStatuses: {
       type: [
         new Schema(

@@ -4,6 +4,7 @@ import { israeliWeekDatesFromSundayUtc, utcDay } from "../utils/dateRange.js";
 import * as cycleSvc from "./departmentPreferenceCycleService.js";
 import * as batchSvc from "./scheduleAiBatchService.js";
 import * as pref from "./attendancePreferenceService.js";
+import * as orgSettings from "./orgSettingsService.js";
 import * as remoteDepartment from "./remoteDepartment.js";
 import * as remoteLocation from "./remoteLocation.js";
 import { resolveSystemActorEmployeeId } from "./systemActorEmployee.js";
@@ -235,8 +236,16 @@ export function startPreferenceAiPipelineWorker() {
       const systemActorId = await resolveSystemActorEmployeeId();
       const prefs = aiJson.preferenceVsRecommendation;
       const todayIso = pref.israelTodayIso();
+      const submittedSlots = (await orgSettings.getPreferenceOnlySubmitted())
+        ? new Set(
+            submittedRows.flatMap((row) =>
+              (row.days ?? []).filter((d) => d.preference).map((d) => `${row.employeeId}|${d.workDate}`)
+            )
+          )
+        : null;
       const proposedItems = (aiJson.recommendations ?? [])
         .filter((r) => r.date >= todayIso)
+        .filter((r) => !submittedSlots || submittedSlots.has(`${r.employeeId}|${r.date}`))
         .map((r) => ({
           date: r.date,
           employeeId: r.employeeId,
@@ -252,6 +261,7 @@ export function startPreferenceAiPipelineWorker() {
         submitted: submittedRows,
         minOfficePerDay: constraints.minOfficeEmployeesPerDay,
         maxOfficeCapacity: constraints.maxOfficeCapacity,
+        skipOfficeShortfall: submittedSlots !== null,
       });
 
       const batchId = await batchSvc.createBatch({

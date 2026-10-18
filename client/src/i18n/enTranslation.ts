@@ -491,7 +491,10 @@ export const enTranslation = {
   schedulingRulesInstantApproveTitle: "Instant approval of employee submissions",
   schedulingRulesInstantApproveHint:
     "When on: every schedule an employee submits is written to the board immediately and shown to everyone — no AI and no manager approval. A submission also replaces a manual entry for that day.",
-  schedulingRulesInstantApproveAdminOnly: "Only an admin can change this setting.",
+  schedulingRulesInstantApproveAdminOnly: "Only an admin can change these settings.",
+  schedulingRulesOnlySubmittedTitle: "Assign only employees who submitted",
+  schedulingRulesOnlySubmittedHint:
+    "When on: the system does not fill in assignments — only days an employee actually submitted reach the board. Employees who did not submit are not assigned automatically.",
   prefToastSubmittedInstant: "Submitted and approved — the schedule is on the board",
   schedulingRulesManualSaveNote:
     "These rules apply to AI recommendation approval — manual schedule edits are not blocked by them today.",

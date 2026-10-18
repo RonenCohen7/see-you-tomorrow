@@ -221,11 +221,15 @@ export default function SchedulingRulesPage() {
   const orgQ = useQuery({
     queryKey: ["org-settings"],
     queryFn: async () =>
-      (await api.get<{ preferenceInstantApprove?: boolean }>("/api/schedules/org-settings")).data,
+      (
+        await api.get<{ preferenceInstantApprove?: boolean; preferenceOnlySubmitted?: boolean }>(
+          "/api/schedules/org-settings"
+        )
+      ).data,
   });
-  const instantApproveMut = useMutation({
-    mutationFn: async (value: boolean) =>
-      api.patch("/api/schedules/org-settings", { preferenceInstantApprove: value }),
+  const orgSwitchMut = useMutation({
+    mutationFn: async (patch: { preferenceInstantApprove?: boolean; preferenceOnlySubmitted?: boolean }) =>
+      api.patch("/api/schedules/org-settings", patch),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["org-settings"] });
       setToast({ ok: true, msg: t("success") });
@@ -437,14 +441,28 @@ export default function SchedulingRulesPage() {
           control={
             <Switch
               checked={orgQ.data?.preferenceInstantApprove === true}
-              disabled={role !== "admin" || orgQ.isLoading || instantApproveMut.isPending}
-              onChange={(_, v) => instantApproveMut.mutate(v)}
+              disabled={role !== "admin" || orgQ.isLoading || orgSwitchMut.isPending}
+              onChange={(_, v) => orgSwitchMut.mutate({ preferenceInstantApprove: v })}
             />
           }
           label={<Typography variant="h6">{t("schedulingRulesInstantApproveTitle")}</Typography>}
         />
         <Typography variant="body2" color="text.secondary">
           {t("schedulingRulesInstantApproveHint")}
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={orgQ.data?.preferenceOnlySubmitted === true}
+              disabled={role !== "admin" || orgQ.isLoading || orgSwitchMut.isPending}
+              onChange={(_, v) => orgSwitchMut.mutate({ preferenceOnlySubmitted: v })}
+            />
+          }
+          label={<Typography variant="h6">{t("schedulingRulesOnlySubmittedTitle")}</Typography>}
+        />
+        <Typography variant="body2" color="text.secondary">
+          {t("schedulingRulesOnlySubmittedHint")}
         </Typography>
         {role !== "admin" ? (
           <Typography variant="caption" color="text.secondary">
