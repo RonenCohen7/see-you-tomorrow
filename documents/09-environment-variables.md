@@ -57,7 +57,8 @@
 | `CLAUDE_MODEL` | ברירת מחדל: `claude-sonnet-4-6` |
 | `ASSISTANT_CHAT_RATE_MAX` | rate limit לדקה למשתמש |
 | `PREFERENCE_AI_DEBOUNCE_MS` | debounce לפני ריצת AI על preferences |
-| `PREFERENCE_AI_MIN_OFFICE_PER_DAY` | מינימום office ביום (automation) |
+| `PREFERENCE_AI_MIN_OFFICE_PER_DAY` | מינימום office ביום (automation, default 1) |
+| `PREFERENCE_AI_AUTO_APPROVE` | `false` = כל אצוות AI ממתינה למנהל (default true — ללא חריגים מאושר אוטומטית) |
 | `PREFERENCE_AI_MAX_OFFICE_CAPACITY` | מקסימום קapacity |
 | `SYSTEM_ACTOR_EMPLOYEE_ID` | employee ID ל-`createdBy` בהמלצות AI |
 

@@ -7,10 +7,10 @@ type SubmittedPreferenceDoc = {
 };
 
 export function defaultAiConstraints() {
-  const minOffice = Number(process.env.PREFERENCE_AI_MIN_OFFICE_PER_DAY ?? 3);
+  const minOffice = Number(process.env.PREFERENCE_AI_MIN_OFFICE_PER_DAY ?? 1);
   const cap = Number(process.env.PREFERENCE_AI_MAX_OFFICE_CAPACITY ?? 50);
   return {
-    minOfficeEmployeesPerDay: Number.isFinite(minOffice) ? minOffice : 3,
+    minOfficeEmployeesPerDay: Number.isFinite(minOffice) ? minOffice : 1,
     maxOfficeCapacity: Number.isFinite(cap) && cap >= 1 ? cap : 50,
     preferredOfficeDays: ["Monday", "Wednesday"],
   };
