@@ -737,6 +737,8 @@ export const heTranslation = {
   phone: "טלפון",
   jobTitle: "תפקיד",
   passwordHint: "לפחות 8 תווים",
+  passwordShow: "הצג סיסמה",
+  passwordHide: "הסתר סיסמה",
   haveAccount: "כבר יש לך חשבון?",
   noAccount: "אין לך חשבון?",
   backHome: "חזרה לדף הבית",

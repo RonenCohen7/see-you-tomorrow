@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link as RouterLink, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import PasswordTextField from "../components/PasswordTextField";
 import PublicHeader from "../components/PublicHeader";
 import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import { useLocale } from "../locale/LocaleContext";
@@ -278,12 +279,11 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
             />
-            <TextField
+            <PasswordTextField
               fullWidth
               required
               label={t("password")}
               margin="normal"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"

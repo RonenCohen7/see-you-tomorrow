@@ -743,6 +743,8 @@ export const enTranslation = {
   phone: "Phone",
   jobTitle: "Job title",
   passwordHint: "At least 8 characters",
+  passwordShow: "Show password",
+  passwordHide: "Hide password",
   haveAccount: "Already have an account?",
   noAccount: "Need an account?",
   backHome: "Back home",

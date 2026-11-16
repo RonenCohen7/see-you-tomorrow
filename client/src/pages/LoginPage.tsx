@@ -13,6 +13,7 @@ import { useCallback, useState } from "react";
 import { Link as RouterLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import AppBrandTitle from "../components/AppBrandTitle";
+import PasswordTextField from "../components/PasswordTextField";
 import PublicHeader from "../components/PublicHeader";
 import PublicTurnstileField, { hasTurnstileSiteKey } from "../components/PublicTurnstileField";
 import { useAuth } from "../store/authContext";
@@ -133,11 +134,10 @@ export default function LoginPage() {
                 helperText={t("companySlugHelp")}
               />
             )}
-            <TextField
+            <PasswordTextField
               fullWidth
               label={t("password")}
               margin="normal"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"

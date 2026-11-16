@@ -12,6 +12,7 @@ import {
 import { useMemo, useState } from "react";
 import { Link as RouterLink, Navigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import PasswordTextField from "../components/PasswordTextField";
 import PublicHeader from "../components/PublicHeader";
 import api from "../services/api";
 import { apiErrorMessage } from "../utils/apiErrorMessage";
@@ -112,10 +113,9 @@ export default function ResetPasswordPage() {
                 {info}
               </Alert>
             )}
-            <TextField
+            <PasswordTextField
               required
               fullWidth
-              type="password"
               label={t("resetPasswordNew")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -124,10 +124,9 @@ export default function ResetPasswordPage() {
               error={password.length > 0 && !passwordOk}
               sx={{ mb: 2 }}
             />
-            <TextField
+            <PasswordTextField
               required
               fullWidth
-              type="password"
               label={t("resetPasswordConfirm")}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
